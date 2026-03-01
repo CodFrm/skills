@@ -16,14 +16,9 @@
 帮我安装这个skill：https://github.com/CodFrm/skills/tree/main/[SKILL_NAME]
 ```
 
-## MoviePilot
+## Skills 列表
 
-可以订阅、搜索、管理MoviePilot中的电影和电视剧
-
-### 环境变量配置
-
-需要设置以下环境变量：
-
-- `MOVIEPILOT_URL` - MoviePilot服务器URL（例如：`http://127.0.0.1:3000`）
-- `MOVIEPILOT_API_KEY` - API Key用于认证（优先使用）
-- `MOVIEPILOT_TOKEN` - Bearer token（通过登录获取）
+| Skill | 说明 |
+|-------|------|
+| [moviepilot](./moviepilot/) | 影视订阅与管理，支持搜索、订阅、下载电影和电视剧 |
+| [nvim-helper](./nvim-helper/) | Neovim / LazyVim 配置助手，解答快捷键、插件、LSP 等问题 |
