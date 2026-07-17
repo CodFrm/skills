@@ -31,7 +31,7 @@ Only move down a rung when the current one cannot express the check.
 | 2. Declarative ban | ban a package, export, API, or global | ESLint `no-restricted-imports` / `-properties` / `-globals`; ruff banned-api; golangci-lint depguard / forbidigo |
 | 3. AST / pattern selector | any syntax shape, zero custom code | ESLint `no-restricted-syntax`; a semgrep rule |
 | 4. Custom lint rule | needs logic: unwrap chains, inspect arguments | an ESLint rule dir; a go/analysis analyzer; a flake8 plugin |
-| 5. Repo-scan test | invariant spans files or non-code artifacts | a test walking the tree: every `t("ns:key")` literal resolves in the locale JSON |
+| 5. Repo-scan test | invariant spans files or non-code artifacts | a test walking the tree: every `t("ns:key")` literal resolves in the locale JSON; an in-suite arch test banning cross-layer imports |
 | 6. CI script | not per-file lintable | changelog updated; generated file in sync |
 
 **Ban the choke point, not the symptom shape.** Restrict the `dayjs` *import* rather than matching `.format()` calls: renamed imports and chained variants cannot dodge an import ban, and you don't false-positive other libraries' `.format()`.
@@ -54,7 +54,7 @@ Architecture and dependency-direction conventions ("api must not import controll
 
    Name and place the guard tests so the repo's existing test command picks them up — a guard test nobody runs is itself a fake guardrail. Testing the rule in isolation (RuleTester / `analysistest` with inline settings) proves logic but not wiring, severity, or scope; a one-time manual check proves nothing tomorrow — only a test stops the rule from being silently deleted or descoped later.
 
-5. **Docs point at the harness; the tree lands green.** Update the convention doc: *"enforced by `<rule>` in `<config>` since `<date>`; exceptions via inline disable + reason."* Fix all existing violations in the same change — a gate that lands red gets reverted, not respected.
+5. **Docs point at the harness; the tree lands green.** Update the convention doc: *"enforced by `<rule>` in `<config>` since `<date>`; exceptions via inline disable + reason."* Fix all existing violations in the same change — a gate that lands red gets reverted, not respected. When the backlog is too large to fix at once, **ratchet**: freeze the current violators as an enumerated exemption baseline that may only shrink, never grow — new code meets the bar immediately while the debt burns down.
 
 ## Worked example (ESLint instance — same shape in any stack)
 
@@ -115,13 +115,14 @@ Order: mechanize one real convention end-to-end first (it becomes the exemplar e
 
 `AGENTS.md` is a thin entry page — non-negotiable principles, an architecture quick-map, and "before doing X, read docs/Y" pointers; `CLAUDE.md` only imports it. Each principle is tagged either *enforced by `<gate>`* or *review-only* (the review-only list is the standing harness-candidate pool) and carries a one-line why — rules without reasons get cargo-culted, then dropped. The principles that earn a place:
 
-- **Confirm before you fix.** Reproduce the reported bug and prove it exists → capture it in a failing test → fix. In that order — never fix from assumption.
+- **Confirm before you fix.** Reproduce the reported bug and prove it exists → capture it in a failing test → fix. In that order — never fix from assumption. If it doesn't reproduce, say so and stop instead of fixing a phantom; no exceptions for "obvious" one-liners.
 - **TDD/BDD first.** Failing test before implementation; `describe`/`it` titles state *behavior*, in the team's language, not implementation details. A failing test means fix the code, not the test. Delete meaningless tests outright (tautologies, pass-throughs, tests that assert the mock) — but verify each against its source before deleting.
 - **Fix root causes, not symptoms.** No `as any` / `@ts-ignore` / swallowed errors to silence a symptom; prefer refactoring over bolting on a patch. (Partially harnessable: lint bans on `ts-ignore`, empty catch.)
-- **SOLID via the repo's existing extension points.** New entity → the established base abstraction; new message/route → the existing registration point. Inject dependencies through constructors; depend on narrow interfaces, not concrete classes.
+- **SOLID via the repo's existing extension points.** New entity → the established base abstraction; new message/route → the existing registration point. Inject dependencies through constructors; depend on narrow interfaces, not concrete classes. Write these as *this repo's* rules with the principle tagged — "extend by registration, never branch on a type string in shared code" is OCP made concrete — not generic theory to recite.
+- **Validate at boundaries; no meaningless fallbacks.** Check inputs where untrusted data enters (API, IPC, host calls); between trusted internal layers add no `if x == nil` guards, no swallowed errors, no runtime shims for retired data, no `// just in case` — a guard for a case that can't happen hides the bug that can.
 - **Direct replacement over adapter sandwiches.** Swapping a backend/library replaces it in place — no `interface + LegacyImpl + NewImpl` unless both must coexist at runtime.
-- **Reuse before reinvent.** Before writing a component, helper, or token, search the existing catalog and codebase for one that already does it, and extend at the established extension point. Extract a shared implementation when the same block lands its **second** occurrence — one implementation (one value, one place) per concept, so a fix lands everywhere at once. This complements scope discipline: reuse what exists, copy nothing, don't pre-abstract for hypothetical needs.
-- **Scope discipline.** Bug fix ≠ cleanup PR: touch only files the task requires; no helpers or abstractions you don't need today.
+- **Reuse before reinvent.** Before writing a component, helper, or token, search the existing catalog and codebase for one that already does it, and extend at the established extension point. Extract a shared implementation when the same block lands its **second** occurrence — one implementation (one value, one place) per concept, so a fix lands everywhere at once. This complements scope discipline: reuse what exists, copy nothing, don't pre-abstract for hypothetical needs. Grep before writing; the same fix appearing in two near-identical blocks means the second block *is* the bug — delete it and call the first.
+- **Scope discipline.** Bug fix ≠ cleanup PR: touch only files the task requires; no helpers or abstractions you don't need today. Fixing a stale docstring or a lying doc line under your cursor is in scope; drive-by refactors and rename sweeps are not.
 - **Comments say the non-obvious why.** A comment states a constraint or reason the code cannot express; comments that narrate the steps get deleted.
 - **No dead code.** Delete outright — no commented-out blocks or `// removed` markers; git remembers.
 
@@ -142,6 +143,7 @@ Green unit tests prove the behaviors you asserted — not that the feature works
 - **Verification ≠ growing the E2E suite.** Use one-shot throwaway scratch scripts in a git-ignored dir (reusing the E2E harness's fixtures); never run the full heavy suite just to check one thing, never leave permanent specs behind casually.
 - **Evidence, kept local.** Screenshots/logs/`report.md` go to a git-ignored evidence dir and get referenced in the PR or conversation — evidence before assertions. Promotion into the permanent suite is a separate, deliberate decision.
 - **Reproduction is step one of a fix.** A scratch repro *is* the "confirm it exists" step — it never replaces the failing committed test that must follow.
+- **Un-drivable surfaces verify through side effects.** When the surface can't be driven directly (a desktop GUI an agent can't click), observe the observable: structured logs, database rows, audit records, a headless CLI twin.
 
 ### Retrofitting an existing repo
 
