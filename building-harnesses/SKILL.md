@@ -1,6 +1,6 @@
 ---
 name: building-harnesses
-description: Use when a project convention keeps getting violated despite being documented — the same review comment repeats, AGENTS.md/CLAUDE.md rules get ignored, "we agreed to never X" regressions keep landing — or when introducing a new convention that would otherwise rely on memory, docs, or review to hold. Covers import/API bans, styling or token rules, architectural constraints, and cross-file consistency (e.g. source keys vs locale files).
+description: Use when a project convention keeps getting violated despite being documented — the same review comment repeats, AGENTS.md/CLAUDE.md rules get ignored, "we agreed to never X" regressions keep landing — or when introducing a new convention that would otherwise rely on memory, docs, or review to hold. Also use when asked to bootstrap or overhaul a repo's engineering process: contributor/agent guidelines (AGENTS.md/CLAUDE.md), engineering principles, docs organization and staleness cleanup, or a "verify it actually works" workflow. Covers import/API bans, styling or token rules, architectural constraints, and cross-file consistency (e.g. source keys vs locale files).
 ---
 
 # Building Harnesses
@@ -10,6 +10,8 @@ description: Use when a project convention keeps getting violated despite being 
 A convention that lives only in docs or review is a request. A **harness** makes it a mechanical fact: a check that fails an existing merge-blocking gate, plus tests that keep the check itself honest.
 
 **Core principle: docs describe, gates enforce — and the harness itself gets regression tests, because an unverified guardrail rots into a fake one.**
+
+Asked to set up a repo's engineering process from scratch? Jump to **Bootstrapping the whole process** — harnesses are its enforcement layer.
 
 ## When to use
 
@@ -100,6 +102,48 @@ When one convention grows into many (layering + naming + handler signatures), th
 - **Auto-fix what is mechanical.** A gate that repairs (ESLint `fix`, go/analysis `SuggestedFixes`) gets adopted instead of disabled. Verify fixes in the fixture runner (`RuleTester` `output`, `analysistest.RunWithSuggestedFixes`).
 - **Encode the runtime's real contract, not extra taste.** If the framework treats an empty `method` as GET, the rule must accept it — stricter-than-reality rules train people to disable the harness.
 - **Compiled plugins need a wiring guard of their own.** Unit fixtures (Go `analysistest` testdata with `// want "FXC4002"` comments) prove logic only. Make the `lint` target additionally (a) run the plugin's tests, (b) lint a known-good example corpus with the **built** binary, and (c) rebuild that binary whenever plugin sources change — the compiled-toolchain equivalent of "guard tests load the real config".
+
+## Bootstrapping the whole process
+
+Harnesses are the enforcement layer of a three-layer system. When asked to set up (or overhaul) a repo's engineering process, ship all three layers — gates enforce what is decidable, principles govern what is not, and a verification playbook closes the gap between "tests are green" and "it actually works".
+
+Order: mechanize one real convention end-to-end first (it becomes the exemplar every later convention copies), then the principles doc pointing at it, then the docs index, then the verification playbook. Everything lands green.
+
+### Layer 1 — Principles (the judgment layer)
+
+`AGENTS.md` is a thin entry page — non-negotiable principles, an architecture quick-map, and "before doing X, read docs/Y" pointers; `CLAUDE.md` only imports it. Each principle is tagged either *enforced by `<gate>`* or *review-only* (the review-only list is the standing harness-candidate pool) and carries a one-line why — rules without reasons get cargo-culted, then dropped. The principles that earn a place:
+
+- **Confirm before you fix.** Reproduce the reported bug and prove it exists → capture it in a failing test → fix. In that order — never fix from assumption.
+- **TDD/BDD first.** Failing test before implementation; `describe`/`it` titles state *behavior*, in the team's language, not implementation details. A failing test means fix the code, not the test. Delete meaningless tests outright (tautologies, pass-throughs, tests that assert the mock) — but verify each against its source before deleting.
+- **Fix root causes, not symptoms.** No `as any` / `@ts-ignore` / swallowed errors to silence a symptom; prefer refactoring over bolting on a patch. (Partially harnessable: lint bans on `ts-ignore`, empty catch.)
+- **SOLID via the repo's existing extension points.** New entity → the established base abstraction; new message/route → the existing registration point. Inject dependencies through constructors; depend on narrow interfaces, not concrete classes.
+- **Direct replacement over adapter sandwiches.** Swapping a backend/library replaces it in place — no `interface + LegacyImpl + NewImpl` unless both must coexist at runtime.
+- **Reuse before reinvent.** Before writing a component, helper, or token, search the existing catalog and codebase for one that already does it, and extend at the established extension point. Extract a shared implementation when the same block lands its **second** occurrence — one implementation (one value, one place) per concept, so a fix lands everywhere at once. This complements scope discipline: reuse what exists, copy nothing, don't pre-abstract for hypothetical needs.
+- **Scope discipline.** Bug fix ≠ cleanup PR: touch only files the task requires; no helpers or abstractions you don't need today.
+- **Comments say the non-obvious why.** A comment states a constraint or reason the code cannot express; comments that narrate the steps get deleted.
+- **No dead code.** Delete outright — no commented-out blocks or `// removed` markers; git remembers.
+
+### Layer 2 — Docs that stay true (the knowledge layer)
+
+- **Topology.** One entry doc per topic (`docs/<topic>.md`); heavy detail splits into `docs/references/<topic>-<sub>.md`; `docs/README.md` is the index with an ownership table. Every fact has exactly **one owning doc**; everyone else cross-links — a fact copied into two docs will drift apart.
+- **Minimal doc set to scaffold:** the principles entry page; a how-doc (commands, structure, style and language conventions, testing mechanics, commit/PR rules — single-purpose commits in the repo's changelog-feeding format, PR template with linked issues, review judges the diff not the description); the verification playbook; the doc-maintenance guide; the index.
+- **Truth discipline.** If you can't `git grep` it on the current branch, don't claim it. Verify claims with git-aware commands (`git grep` / `git ls-files` / `git ls-tree`) — plain `rg`/`ls` also match *untracked* files, so unmerged work masquerades as shipped. Every count ("7 locales") is enumerated from the canonical source, never trusted from prose or memory.
+- **Staleness cleanup.** On any discrepancy, fix the *doc* to match the code — the branch's code is the source of truth (unless the code is genuinely buggy: then fix the code and say so). Delete outdated content instead of stacking corrections on it.
+- **One-shot doc verification.** The maintenance doc keeps a runnable block: a relative-link integrity check plus one git-aware command per concrete claim type. Run it before any doc change lands; renames/moves update the index and every referencing doc in the same change.
+
+### Layer 3 — Verification playbook (the reality layer)
+
+Green unit tests prove the behaviors you asserted — not that the feature works. `docs/verification.md` owns "how to confirm a change actually works":
+
+- **Cheap signals first.** Typecheck and unit tests before ever driving the real app.
+- **Drive the real thing.** Exercise the affected flow end-to-end with real inputs and observe real outputs, covering the boundaries that motivated the change.
+- **Verification ≠ growing the E2E suite.** Use one-shot throwaway scratch scripts in a git-ignored dir (reusing the E2E harness's fixtures); never run the full heavy suite just to check one thing, never leave permanent specs behind casually.
+- **Evidence, kept local.** Screenshots/logs/`report.md` go to a git-ignored evidence dir and get referenced in the PR or conversation — evidence before assertions. Promotion into the permanent suite is a separate, deliberate decision.
+- **Reproduction is step one of a fix.** A scratch repro *is* the "confirm it exists" step — it never replaces the failing committed test that must follow.
+
+### Retrofitting an existing repo
+
+Start with an inventory, not a rewrite: (a) review comments that keep repeating, (b) doc claims that fail the git-grep test, (c) past incidents. Each item becomes a principle (review-only) or a harness candidate. Mechanize the highest-recurrence candidate first as the exemplar, delete doc claims that are no longer true, then proceed layer by layer as above.
 
 ## Common mistakes
 
