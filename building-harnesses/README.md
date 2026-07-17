@@ -23,8 +23,11 @@
 
 ## 来源
 
-模式提炼自 [scriptcat](https://github.com/scriptscat/scriptcat) 仓库的 `eslint-rules/` 机械护栏实践
-（自定义规则 + `harness.test.mjs` 真实配置守护测试 + i18n-usage 仓库扫描测试），
+技能与语言/工具无关：梯子各级是概念，ESLint / semgrep（JS-TS）、ruff / flake8 插件（Python）、
+golangci-lint / go/analysis（Go）都是实例。
+
+模式提炼自 [scriptcat](https://github.com/scriptscat/scriptcat) 仓库的 `eslint-rules/` 机械护栏与
+docs 文档体系实践（完整逐级映射见 `references/example-scriptcat.md`），
 以及一个 Go 框架仓库的 golangci-lint module plugin 结构检查器实践
 （分层依赖规则、规则编号手册、`analysistest` fixture、Makefile 接线守护、自动修复）。
 
