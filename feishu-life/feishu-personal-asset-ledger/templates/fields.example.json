@@ -1,0 +1,12 @@
+[
+  {"name":"资产名称","type":"text"},
+  {"name":"分类","type":"select","options":["数码产品","家电","车辆","房产","家具","其他"]},
+  {"name":"资产金额","type":"currency","currency":"CNY","precision":2},
+  {"name":"购入时间","type":"datetime","format":"yyyy-MM-dd"},
+  {"name":"使用状态","type":"select","options":["已购买待启用","使用中","已退役"]},
+  {"name":"退役时间","type":"datetime","format":"yyyy-MM-dd"},
+  {"name":"出售价格","type":"currency","currency":"CNY","precision":2},
+  {"name":"整机配置","type":"text"},
+  {"name":"资料来源","type":"text"},
+  {"name":"备注","type":"text"}
+]

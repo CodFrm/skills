@@ -1,0 +1,13 @@
+renovation:
+  base_url: "https://example.feishu.cn/base/BASE_TOKEN"
+  overview_doc_url: ""
+  drawings_folder_url: ""
+  contracts_folder_url: ""
+  asset_base_url: ""
+  currency: "CNY"
+  tables:
+    budget: "预算与采购"
+    key_figures: "关键口径"
+    delivery: "设备入户"
+    settlement: "增改与结算"
+    priorities: "近期重点"

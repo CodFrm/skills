@@ -1,22 +1,35 @@
 # Skills
 
-自用skills
+通用 Skills 合集
 
 ## 安装
+
+将 `[SKILL_PATH]` 替换为仓库内的完整相对路径；嵌套 Skill 也可直接安装。
 
 ### Claude Code
 
 ```
-帮我安装这个skill：https://github.com/CodFrm/skills/tree/main/[SKILL_NAME]
+帮我安装这个 skill：https://github.com/CodFrm/skills/tree/main/[SKILL_PATH]
 ```
 
 ### OpenClaw
 
 ```
-帮我安装这个skill：https://github.com/CodFrm/skills/tree/main/[SKILL_NAME]
+帮我安装这个 skill：https://github.com/CodFrm/skills/tree/main/[SKILL_PATH]
 ```
 
 ## Skills 列表
+
+### 飞书生活管理
+
+合集说明：[feishu-life](./feishu-life/)
+
+| Skill | 说明 |
+|-------|------|
+| [feishu-personal-asset-ledger](./feishu-life/feishu-personal-asset-ledger/) | 用飞书多维表格建立和维护个人或家庭资产台账 |
+| [feishu-renovation-manager](./feishu-life/feishu-renovation-manager/) | 用飞书管理装修预算、采购、施工、验收、结算与资料归档 |
+
+### 其他 Skills
 
 | Skill | 说明 |
 |-------|------|
