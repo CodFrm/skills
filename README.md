@@ -27,6 +27,7 @@
 | Skill | 说明 |
 |-------|------|
 | [feishu-personal-asset-ledger](./feishu-life/feishu-personal-asset-ledger/) | 用飞书多维表格建立和维护个人或家庭资产台账 |
+| [feishu-investment-asset-manager](./feishu-life/feishu-investment-asset-manager/) | 用飞书管理股票、黄金、基金等投资资产及利润、做 T 收益 |
 | [feishu-renovation-manager](./feishu-life/feishu-renovation-manager/) | 用飞书管理装修预算、采购、施工、验收、结算与资料归档 |
 
 ### 其他 Skills

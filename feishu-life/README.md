@@ -1,10 +1,11 @@
 # 飞书生活管理 Skills
 
-这组 Skills 用飞书承载个人或家庭生活项目的数据：资产台账负责资产从购入到退役的生命周期，装修管理负责预算、采购、施工、验收、结算和资料归档。两者可以独立安装，也可以在设备投入使用后联动。
+这组 Skills 用飞书承载个人或家庭生活项目的数据：耐用品资产台账负责资产从购入到退役的生命周期，投资资产管家负责股票、黄金、基金等持仓、交易、利润与做 T 收益，装修管理负责预算、采购、施工、验收、结算和资料归档。各 Skill 可以独立安装，也可以按实际场景联动。
 
 ## 包含内容
 
 - [个人资产台账](./feishu-personal-asset-ledger/)：录入和维护耐用品资产、状态、保修与使用成本。
+- [投资资产管家](./feishu-investment-asset-manager/)：管理股票、黄金、基金等投资资产的持仓、交易、估值、利润和做 T 收益。
 - [装修项目管理](./feishu-renovation-manager/)：管理装修预算、采购、施工进度、设备入户、验收与结算。
 
 ## 安装
@@ -13,6 +14,10 @@
 
 ```text
 帮我安装这个 Skill：https://github.com/CodFrm/skills/tree/main/feishu-life/feishu-personal-asset-ledger
+```
+
+```text
+帮我安装这个 Skill：https://github.com/CodFrm/skills/tree/main/feishu-life/feishu-investment-asset-manager
 ```
 
 ```text
