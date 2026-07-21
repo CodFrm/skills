@@ -2,12 +2,9 @@
 
 这组 Skills 用于公开市场数据查询、证券分析和持仓决策辅助，不连接券商、不自动下单，也不承诺收益。
 
-## 包含内容
+## 唯一股票分析 Skill
 
-- [全球股票投资分析助手](./global-stock-investment-analyst/)：分析A股、港股、美股、ETF和REITs，综合行情、财报、估值、新闻、宏观、汇率和组合风险给出条件化建议。
-- [A股银行股分析与做T助手](./a-share-bank-stock-analyst/)：获取银行股行情、前复权日K、公告和估值，结合真实交易费用生成有条件的做T方案。
-
-全球股票 Skill 负责通用、跨市场和组合分析；银行股 Skill 保留为净息差、不良率、拨备、资本充足率和A股做T费用等专项工作流。
+- [全球股票投资分析助手](./global-stock-investment-analyst/)：由原“A股银行股分析与做T助手”扩展并重命名，覆盖A股、港股、美股、中概股、ETF和REITs，同时保留银行股专项指标和真实费用做T模型。
 
 ## 安装
 
@@ -15,9 +12,13 @@
 帮我安装这个 Skill：https://github.com/CodFrm/skills/tree/main/investment/global-stock-investment-analyst
 ```
 
-```text
-帮我安装这个 Skill：https://github.com/CodFrm/skills/tree/main/investment/a-share-bank-stock-analyst
-```
+## 能力
+
+- 综合行情、K线、财报、估值、公告新闻、宏观、行业周期、汇率和组合风险。
+- 按银行、保险、科技、半导体、消费、互联网、工业、资源、医药、REITs和ETF选择行业指标。
+- 银行股继续分析净息差、不良率、拨备覆盖率、资本充足率、PB、ROE和分红。
+- A股继续按真实最低佣金、印花税、过户费和T+1规则计算做T保本价差与净收益。
+- 对港股和美股分别核验交易时段、费用、ADR、汇兑和监管规则，不套用A股模型。
 
 ## 边界
 

@@ -37,7 +37,6 @@
 | Skill | 说明 |
 |-------|------|
 | [global-stock-investment-analyst](./investment/global-stock-investment-analyst/) | 分析A股、港股、美股和ETF，综合行情、财报、估值、新闻、宏观与持仓给建议 |
-| [a-share-bank-stock-analyst](./investment/a-share-bank-stock-analyst/) | 分析A股银行股行情、K线、公告和估值，并按真实费用生成做T方案 |
 
 ### 其他 Skills
 
