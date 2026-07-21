@@ -30,6 +30,14 @@
 | [feishu-investment-asset-manager](./feishu-life/feishu-investment-asset-manager/) | 用飞书管理股票、黄金、基金等投资资产及利润、做 T 收益 |
 | [feishu-renovation-manager](./feishu-life/feishu-renovation-manager/) | 用飞书管理装修预算、采购、施工、验收、结算与资料归档 |
 
+### 投资分析
+
+合集说明：[investment](./investment/)
+
+| Skill | 说明 |
+|-------|------|
+| [a-share-bank-stock-analyst](./investment/a-share-bank-stock-analyst/) | 分析A股银行股行情、K线、公告和估值，并按真实费用生成做T方案 |
+
 ### 其他 Skills
 
 | Skill | 说明 |
