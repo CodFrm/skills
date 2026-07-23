@@ -20,6 +20,14 @@
 
 ## Skills 列表
 
+### Coding Agent 编排
+
+合集说明：[coding-agents](./coding-agents/)
+
+| Skill | 说明 |
+|-------|------|
+| [pi-agent-orchestrator](./coding-agents/pi-agent-orchestrator/) | 可靠派发、监控、恢复并验收 Pi Coding Agent 编码任务 |
+
 ### 飞书生活管理
 
 合集说明：[feishu-life](./feishu-life/)
