@@ -57,8 +57,8 @@ tasks:
     files: [src/auth/]          # what it expects to touch — this is the parallelism check
     model: null                 # cheap | mid | strong — a tier, not an id. See below
     interfaces: null            # names and types this task produces that a later one consumes
-    status: todo                # todo → doing → done | blocked
-    note: null                  # only when blocked, or when done came out different
+    status: todo                # todo → doing → reviewing → done | blocked
+    note: null                  # blocked, done came out different, or a review finding let stand
 
   - id: 2
     goal: ...
@@ -73,6 +73,8 @@ review:                  # wrap-up state, so a resumed session knows where it st
 ```
 
 **`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at the same time: overlapping paths means they run one after the other instead. Guess it wide rather than narrow — a task that turns out to touch more than it declared is the one that corrupts a sibling's work.
+
+**`reviewing` is a state, not a formality.** A task whose commit is in the tree and whose [review and fix](../executing-plans/SKILL.md#the-task-review-and-its-fix-the-second-gate-before-done) have not finished sits there — which is what lets a resumed session re-dispatch the review, read-only and free to repeat, instead of sending an implementer at code that is already written. A plan run `inline` has no per-task review, so its tasks go from `doing` straight to `done`.
 
 **`interfaces` is where a signature crosses a task boundary.** When task 2 calls something task 1 builds, that name and its type go on task 2's line — **not into the dispatch prompt**. A fact typed only into a prompt has to be retyped into the next one, and the one after that; it is the class of fact a compaction destroys while the plan survives. Leave it `null` where nothing crosses.
 

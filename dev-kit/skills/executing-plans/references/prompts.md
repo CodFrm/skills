@@ -1,6 +1,6 @@
 # Dispatch prompts
 
-Three templates. Fill the `<>` slots from the plan and the spec — **do not send a slot through unfilled**, a subagent cannot ask you what it meant.
+Four templates. Fill the `<>` slots from the plan and the spec — **do not send a slot through unfilled**, a subagent cannot ask you what it meant.
 
 ## What every dispatch shares
 
@@ -64,8 +64,9 @@ Ask rather than guess — stopping is allowed and costs you nothing:
 - Either way the specifics come back with it: what you are stuck on, what you already tried,
   what would unblock you. "Stuck" alone hands me a guessing game instead of a decision.
 
-Before reporting, read your own diff with fresh eyes. Nobody else reads it until the whole
-branch is reviewed at the end, so what you miss here travels a long way:
+Before reporting, read your own diff with fresh eyes. A reviewer reads this commit next and
+fixes what it finds in your place, so anything you leave here gets rewritten by someone whose
+judgement you never see:
 - Completeness: every part of your goal, one by one, plus the edge cases it implies without
   listing them.
 - Discipline: anything in the diff nothing asked for? An abstraction with one caller, an
@@ -90,9 +91,77 @@ Status is one of four: complete / complete with concerns / stuck / missing conte
 If you are unsure which, say so — something forced out costs more than something not produced.
 ```
 
+## Task review and fix
+
+One per task in `subagent` mode, dispatched the moment that task's evidence passes, at the task's own tier with `mid` as the floor. **It reviews one commit and fixes what it finds**, both in this dispatch — see [the task review and its fix](../SKILL.md#the-task-review-and-its-fix-the-second-gate-before-done). **`inline` mode does not use this template at all**: there is no per-task review on that path, and wrap-up is the first outside reading.
+
+```
+Review one commit and fix what you find: git show <sha> — task <id> of the plan at
+<plan file path>.
+
+That commit is the whole scope. Do not read the working tree — other tasks may be running
+in it right now and their half-written files are not your business. Do not review earlier
+commits on this branch; each was reviewed when it landed.
+
+What the task promised, in its own words: <task goal, verbatim>
+
+The spec is at <spec path>. Read two things in it and nothing else: the requirement this
+task serves — <which one> — and its testing decisions, which is the boundary the tests were
+supposed to be written at.
+
+Three questions, in this order:
+(a) The goal. Is that sentence observably true in this commit, and does what the spec asked
+    of it actually arrive? Name the test or the code path that makes it true. "Looks
+    implemented" is not an answer to this question.
+(b) The project's conventions. Does this read like the project or like one agent's dialect?
+    Read AGENTS.md / CLAUDE.md if there is one, docs/testing.md if there is one, and the
+    files immediately around the change. Naming, error handling, layering, how tests are
+    structured, what gets logged. **Be specific about the convention and where it is
+    established** — "src/auth/session.ts:20 does X, this does Y" — because a preference of
+    your own presented as a convention costs a fix that changes nothing.
+(c) The code. Incorrect logic, unhandled edge cases and error paths, resource and
+    concurrency mistakes, security exposure, tests that assert nothing or only assert the
+    mock, dead code, anything left in that should not ship.
+
+The task was cut as one slice of a larger plan, and this is where a task reviewer goes wrong
+most often:
+- It may only touch <files>. Something missing that lives outside that list is another
+  task's job, not a finding.
+- An exported name with no caller yet is usually a later task's — raise it as a question,
+  not as dead code.
+- Do not ask for the abstraction the whole feature might eventually want. This commit is
+  judged against its own goal.
+
+On every finding: severity — blocking / significant / minor — file:line, and the input or
+state that makes it break. **A finding you cannot make fail is a suspicion; say so.** Where
+the goal or the spec is ambiguous enough that you cannot tell whether this is right, that is
+a finding of its own kind, addressed to me rather than to the code.
+
+Then fix what you found. Write the findings down first and fix from that list — a fix begun
+mid-read shapes the findings to it, and I never learn what was quietly repaired.
+
+- Each finding is its own TDD round: the failing test first, watched failing for the finding
+  rather than a typo, then the smallest fix. Nothing beyond the findings.
+- Work only in <files>, and run only the tests covering them. The suite is mine.
+- One commit for the lot, on top of the commit you reviewed, message per the project's
+  convention. **Stage and commit by path** — never `git add -A`, a sibling task may be
+  writing into this worktree.
+- Two you hand back instead of fixing: a finding whose fix is a design decision rather than a
+  correction, and anything that says the plan itself is wrong. Both are mine.
+- Do not touch the plan file, and do not set your own status.
+
+Report in at most 15 lines, and do not write a report file: every finding, most severe first,
+with the test that now covers it or the reason it is still open; the new commit's short SHA;
+the commands with their exit codes. Nothing found is one line saying so. Do not summarise the
+commit back to me, do not narrate how you read it, and do not list what you checked and found
+fine.
+
+Status: complete / complete with concerns / stuck / missing context.
+```
+
 ## Spec verification
 
-Wrap-up, dispatched at `strong` alongside the code review. This and the code review are **the only reading this branch gets from anyone who did not write it.**
+Wrap-up, dispatched at `strong` alongside the code review. Each task's commit was reviewed on its own as it landed; this and the code review are **the only reading the branch gets as a branch** — say nothing to either about the reviews that came before.
 
 ```
 Verify this branch against its spec. Read the spec in full first: <spec path> — the
@@ -182,6 +251,10 @@ Bounding the **method** is legitimate and both templates do it — this range on
 
 The two go out **together and stay unmerged**. A change can follow every convention and implement the wrong thing, or do exactly what was asked and break every pattern; one reviewer holding both questions lets the louder answer stand in for the quieter one.
 
-## Fix rounds
+## Fixing findings
 
-Reuse the implementer prompt, with the finding in place of the task goal and **the finding's own failing test as the RED step**. A fix with no test is a fix nothing will catch the second time. Dispatch at `mid`, or `strong` where the finding needs design judgement rather than correction.
+**Every fix is a TDD round with the finding's own failing test as RED** — a fix with no test is a fix nothing will catch the second time.
+
+**A task's findings are fixed by the subagent that found them, inside [that same dispatch](#task-review-and-fix).** Nothing extra is sent: the template above already carries the fix instructions, and that context holds the commit, the conventions it opened and the case it made.
+
+**Wrap-up's findings go to a fresh dispatch**, because by then the reviewer that would fix them is several tasks gone and the finding is often about two tasks at once. Reuse the implementer prompt with the finding in place of the task goal. Dispatch at `mid`, or `strong` where the finding needs design judgement rather than correction.
