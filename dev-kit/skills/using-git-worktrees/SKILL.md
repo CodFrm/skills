@@ -157,7 +157,7 @@ The conversation often states it outright as well. **Say what you worked out and
 
 **Nothing open is also one line, and it is worth the line** — "all 9 requirements hold, no findings left standing" and silence look identical to the user, and only one of them is a statement anybody can be held to.
 
-Say it rather than pointing at the files, because the files do not leave this machine: anything under `.dev-kit/artifacts/<spec-slug>/` sits inside gitignored `.dev-kit/`, so these lines are the only form in which any of it reaches the user at all.
+Say it rather than pointing at the files, because the files do not leave this machine: the round's evidence sits under gitignored `.dev-kit/` or an equally gitignored `e2e/scratch/`, so these lines are the only form in which any of it reaches the user at all.
 
 **Where the round never went through wrap-up as written** — work someone else built, a branch you were handed mid-flight — there is no verdict list to read off, and the menu does not become unusable for it. Say in one line what evidence there is instead: the suite you just ran, and whether anything other than you read this diff. **The gap gets stated, not skipped**; an unmentioned gap reads exactly like no gap.
 

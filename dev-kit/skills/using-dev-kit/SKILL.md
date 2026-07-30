@@ -124,12 +124,15 @@ requirement / fault
        ↳ findings → fix as TDD rounds → re-run both. Three rounds with anything still open
          stops the round and goes to the user: that is evidence about the design, and the
          fourth pass is where findings get argued away instead of fixed
-  → the verification report — .dev-kit/artifacts/<spec-slug>/verification.md
+  → the verification report — e2e/scratch/<spec-slug>/report.md, one directory with its
+      logs/ resources/ screenshots/ videos/ beside it, whatever the project looks like
        ├ e2e where the change has a drivable flow and the project has a harness, so the
        │   evidence is screenshots or a recording; otherwise commands and their output
        ├ verdict per spec requirement, how it was verified, the evidence, what went
        │   unobserved — and **how the user reproduces it themselves**, which is the point
-       └ the project's own docs/verification.md format wins where init has generated one
+       ├ the project's own docs/verification.md format wins where init has generated one;
+       │   the location is the same either way, so there is nothing to reconcile
+       └ gitignored, so the verdicts get said out loud and go in the PR body too
   → delivery (using-git-worktrees again)
        ├ the full suite runs once more on the tree actually being delivered
        ├ what wrap-up learned, stated before the options: every requirement whose verdict is
@@ -159,7 +162,7 @@ requirement / fault
   **With nobody to dispatch to, this becomes a handover, not an inline pass.** A fresh session is something the user can open even where you cannot, so give them the diff and the prompt, say the change is not finished until the review comes back, and **do not rule it finished in the meantime.** **Reviewing it yourself and disclosing that you did is not the degraded form of this step, it is the absence of it.**
 - **Say what you skipped and why, before the first edit.** One line: which stages came off, against which criterion. That line is the only artifact standing where a skipped stage's gate would be; unwritten, nobody can tell a judged shortcut from a forgotten one.
 
-**Where the evidence goes.** **The test you wrote is the durable record** — it is in the tree, it re-runs, and it outlives this session. The commands, exit codes and observations go into what you hand back to the user, and into the commit message where the project's convention has room. **Write a file only when the evidence cannot be command output** — screenshots, before-and-after data — and it lands at `.dev-kit/artifacts/<spec-slug>/verification.md`, on the same slug as the mockups and diagnostics; where the spec was legitimately skipped there is no slug to inherit, so take one of the same shape, today's date plus a short name. `.dev-kit/` is gitignored, so **nothing decisive may live only there**: a reviewer, or you on another machine, cannot open it.
+**Where the evidence goes.** **The test you wrote is the durable record** — it is in the tree, it re-runs, and it outlives this session. The commands, exit codes and observations go into what you hand back to the user, and into the commit message where the project's convention has room. **Write a file only when the evidence cannot be command output** — screenshots, before-and-after data — and it lands at `e2e/scratch/<spec-slug>/report.md`, on the same slug as the mockups and diagnostics; where the spec was legitimately skipped there is no slug to inherit, so take one of the same shape, today's date plus a short name. `.dev-kit/` is gitignored, so **nothing decisive may live only there**: a reviewer, or you on another machine, cannot open it.
 
 **How it ends.** **You rule it finished, not the reviewer** — against three things together: the reviews back with nothing open, the project's existing test / lint / build entry points green, and every requirement the spec states demonstrably true. Delivery is the same menu as ever — merge, open a PR, or leave it, their call with your recommendation and its evidence, per [`using-git-worktrees`](../using-git-worktrees/SKILL.md). **Do not merge it yourself.**
 

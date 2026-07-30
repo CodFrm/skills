@@ -125,7 +125,11 @@ Reviews passing means the code is right. The report is what shows the user **it 
 
 **Run e2e when the change has a user-drivable flow and the project has a harness for it** (init's e2e track, or Playwright / Cypress / equivalent already present). The evidence is then screenshots or a recording. Otherwise the evidence is commands and their output. Say which way you went and why, in one line.
 
-The report goes to `.dev-kit/artifacts/<slug>/verification.md`. **Where the project has `docs/verification.md` and its report template** — the ones [`init`](../init/SKILL.md) generates — that format wins, and this skill does not restate it. Otherwise, five sections and nothing more:
+**It goes to `e2e/scratch/<spec-slug>/report.md`** — one directory, on this round's own slug, with `logs/`, `resources/` and, for a UI, `screenshots/` and `videos/` beside it. **One home, whatever the project looks like.** Verification evidence is one kind of thing and belongs in one place; a report that moves depending on which docs a project happens to have is one nobody can find without checking first.
+
+**Where the project has `docs/verification.md` and its report template** — the ones [`init`](../init/SKILL.md) generates — **that format wins and this skill does not restate it.** The location is already the same, so there is nothing to reconcile.
+
+**Where it does not, keep the directory and use five sections, nothing more:**
 
 1. **Verdict** — one line per spec requirement: holds / does not hold / not observed, each with how it was checked. This is the only place verdicts appear.
 2. **How it was verified** — the exact steps in order, so the user can re-run them without reconstructing anything.
@@ -133,7 +137,9 @@ The report goes to `.dev-kit/artifacts/<slug>/verification.md`. **Where the proj
 4. **Not verified** — what went unobserved, and why. An unmentioned gap reads exactly like no gap.
 5. **Reproduce it yourself** — the shortest path from a clean checkout to seeing it work: the commands, the URL, the fixture, the login. **This section is the point of the report.** A user who cannot re-run it is taking your word for it, which is what the whole chain exists to avoid.
 
-**Screenshots and recordings live under `.dev-kit/artifacts/<slug>/`, never committed.** So does the report — which means **its verdict lines have to be said out loud too**, and put in the PR body when there is one. `.dev-kit/` does not leave this machine.
+**Screenshots and recordings sit beside the report, and none of it is committed.** Check `e2e/scratch/` is actually ignored before writing there — `git check-ignore -q e2e/scratch`, and where it is not, **add the line and commit that change first**, exactly as for the worktree location. A project `init` has run already has it; one it has not may put the whole evidence tree into `git status`.
+
+Because it is gitignored, **the verdict lines have to be said out loud** as well, and put in the PR body when there is one. The report does not leave this machine.
 
 ## Handing it back
 

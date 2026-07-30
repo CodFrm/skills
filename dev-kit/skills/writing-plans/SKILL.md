@@ -19,7 +19,8 @@ The plan takes **the spec's own slug**:
 ```
 docs/specs/2026-07-30-oauth-login.md      the spec
 .dev-kit/plans/2026-07-30-oauth-login.yaml  the plan
-.dev-kit/artifacts/2026-07-30-oauth-login/  mockups, evidence, the report
+.dev-kit/artifacts/2026-07-30-oauth-login/  mockups
+e2e/scratch/2026-07-30-oauth-login/         the verification report and its evidence
 oauth-login / feat/oauth-login              worktree directory / branch
 ```
 
