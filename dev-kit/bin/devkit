@@ -3,11 +3,9 @@
 
 // dev-kit's optional CLI — argument dispatch only.
 //
-// Read-only, zero dependencies, confined to one project. Each command lives in its own module under
-// ../lib/: add a command by adding a file and one line to the switch below, never by growing this
-// file. Anything that *serves* a path to a browser goes through ../lib/project.js's allow-list and
-// traversal check rather than reimplementing them; a command that merely reads a path you typed
-// yourself needs no such guard.
+// Read-only, zero dependencies, one project. Each command lives in its own module under ../lib/:
+// add one by adding a file and a line to the switch, never by growing this file. Anything that
+// *serves* a path to a browser goes through ../lib/project.js's allow-list and traversal check.
 
 const HELP = `dev-kit — optional local helper
 

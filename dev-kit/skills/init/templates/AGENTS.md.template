@@ -3,120 +3,102 @@ Template: AGENTS.md
 Usage: copy to the project root, replace <angle brackets> with real content, delete any section
 you do not need, and delete this comment block at the end.
 Hard rules:
-  1. This file holds only four things — project facts, the must-read routing table,
-     non-negotiable engineering principles, and a quick architecture map. Every "how exactly"
-     detail sinks into docs/, leaving only a link here.
+  1. Only four things live here — project facts, the must-read routing table, non-negotiable
+     principles, a quick architecture map. Every "how exactly" detail sinks into docs/.
   2. Every principle must be decidable + land on a concrete extension point in this repository
      + carry a why. Missing any of the three means do not write it.
-  3. For entries that already have a mechanical check, note the enforcement source and the
-     exemption policy at the end.
-  4. A fact exists in exactly one place. If what you are about to write is already in docs/ →
-     link to it, do not copy it.
+  3. Where a mechanical check exists, note the enforcement source and the exemption policy.
+  4. A fact exists in exactly one place — if it is already in docs/, link to it.
 -->
 
 # AGENTS.md
 
-This file is the **single source of guidance** for every AI coding agent (Claude Code / Codex / Cursor / Pi and friends) working in this repository. `CLAUDE.md` is nothing but a one-line `@AGENTS.md` pointing here — **change the rules here, not there, and above all do not split the rules across both**.
+This file is the **single source of guidance** for every AI coding agent working in this repository. `CLAUDE.md` is nothing but a one-line `@AGENTS.md` — **change the rules here, and do not split them across both**.
 
-<!-- The routing table: the most important part of the whole file. Write it as "when → read
-     what → what it owns", not as a list of documents. Each entry needs at least three
-     elements: the trigger, the target document, and what it owns. Add a scope reminder where
-     needed. -->
+<!-- The routing table: the most important part of the file. "When → read what → what it owns",
+     not a list of documents. Add a scope reminder where needed. -->
 
-> **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development standards: common commands, directory structure, code style, the test mechanism, the commit flow. This file keeps only the non-negotiable principles and the architecture map; the concrete "how" is in that document.
+> **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development standards: commands, directory structure, code style, the test mechanism, the commit flow.
 
-> **Before writing, changing or deleting any test, read [`docs/testing.md`](docs/testing.md)** — how tests are designed, what to write, **what not to write**, how to clean up, how to run them. TDD's two exceptions are there too, so **do not infer exceptions from the principles in this file**.
+> **Before writing, changing or deleting any test, read [`docs/testing.md`](docs/testing.md)** — how tests are designed, what to write, **what not to write**, how to clean up, how to run them. TDD's two exceptions are there, so **do not infer exceptions from the principles in this file**.
 
-> **To confirm a change really works, read [`docs/verification.md`](docs/verification.md)** — driving the real application end to end with a one-off scratch script, producing a human-readable report. This is not the test suite that gets committed to the repository.
+> **To confirm a change really works, read [`docs/verification.md`](docs/verification.md)** — driving the real application end to end with a one-off scratch script. This is not the committed test suite.
 
 <!-- Keep when observability was done -->
-> **When adding logs, metrics or traces to a critical path, or investigating/reproducing a problem with them, read [`docs/observability.md`](docs/observability.md)** — how to choose a log level, where to instrument, what must never be logged, and how to verify and reproduce using logs.
+> **When adding logs, metrics or traces to a critical path, or investigating with them, read [`docs/observability.md`](docs/observability.md)** — choosing a level, where to instrument, what must never be logged.
 
 <!-- Keep when there is a front end -->
-> **Before creating or modifying any page, dialog or section, read [`docs/design.md`](docs/design.md)** — the design system: colour tokens, the component palette, theming, layout/motion/state patterns, the new-page recipe. **Its Core Constraints apply to every UI change, not just new ones.**
+> **Before creating or modifying any page, dialog or section, read [`docs/design.md`](docs/design.md)** — colour tokens, the component palette, theming, layout/motion/state patterns, the new-page recipe. **Its Core Constraints apply to every UI change, not just new ones.**
 
 <!-- Keep when there are more than 3 docs -->
-> **Before adding, editing or reorganising any contributor documentation (this file, `CLAUDE.md`, `docs/*`), read [`docs/documentation.md`](docs/documentation.md)** — documentation organisation rules + fact-checking discipline against the current branch. *If `git grep` cannot find it on this branch, do not claim it.*
+> **Before adding, editing or reorganising any contributor documentation, read [`docs/documentation.md`](docs/documentation.md)** — organisation rules + fact-checking against the current branch. *If `git grep` cannot find it on this branch, do not claim it.*
 
 > **Documentation index:** [`docs/README.md`](docs/README.md)
-
----
 
 ## Project overview
 
 <project name> — <one sentence on what it is and what problem it solves>.
 
 - Stack: <language and version / framework / build tooling>
-- Package manager: **<pnpm / go mod / uv ...>**<(if there is an enforcement mechanism, say so: e.g. a preinstall guard)>
+- Package manager: **<pnpm / go mod / uv …>** <(and its enforcement mechanism, if any)>
 - Module path / package name: `<module path>`
-- Output: <binary / extension package / image ...>
-
-<!-- With several outputs, explain the difference between each; do not leave the agent guessing -->
-
----
+- Output: <binary / extension package / image …>
 
 ## Engineering principles (non-negotiable)
 
-Whatever the mechanisms in `docs/*` say, the following hold. Where the scope is limited, state that within the entry.
+Whatever the mechanisms in `docs/*` say, these hold. Where the scope is limited, say so in the entry.
 
-<!-- Tag each entry: "enforced by <gate>" or "review-only".
-     That review-only column is the standing pool of guardrail candidates — next time one is
-     violated, take it out of the pool and pin it. -->
+<!-- Tag each entry "enforced by <gate>" or "review-only" — the review-only column is the
+     standing pool of guardrail candidates. Draw on these per project, preferring few and
+     accurate over many and hollow. Shape: conclusion (bold) + concrete form + why + link. -->
 
-<!-- Draw on these according to the project's actual situation. Prefer few and accurate over
-     many and hollow.
-     The shape of each entry: conclusion (bold) + concrete form + why + link to the detail +
-     mechanical enforcement note. -->
+- **TDD/BDD first — the failing test before any change to observable behaviour.** Describe it as `Given/When/Then` or `describe`/`it`, covering the happy path plus at least one edge or failure case **the contract genuinely owns** (the criterion is the gate in [`docs/testing.md`](docs/testing.md#covering-the-behaviour-space-deliberately) — a contract with no edge gets only the happy path, not a manufactured one). The two exceptions are in [`docs/testing.md`](docs/testing.md#exceptions-to-tdd) and are **not** a blanket rule by file or task category.
 
-- **TDD/BDD first — write the failing test before changing observable behaviour.** Describe the behaviour with `Given/When/Then` or BDD-style `describe`/`it`, covering the happy path plus at least one edge or failure case **the contract genuinely owns** (the criterion is the gate in [`docs/testing.md`](docs/testing.md#covering-the-behaviour-space-deliberately) — if the contract really has no edge, write only the happy path rather than manufacturing one), **and then** write the implementation. The two exceptions (a genuinely behaviour-preserving refactor, and automation genuinely not being feasible) are in [`docs/testing.md`](docs/testing.md#exceptions-to-tdd) — **not** a blanket rule by file or task category.
+- **Confirm the bug really exists before fixing it.** Reproduce it **with a failure reason matching the report**, fix the reproduction into a failing test, then change the implementation. When you cannot reproduce it, **say so plainly and stop** — do not fix a hallucinated bug.
 
-- **Confirm the bug really exists before fixing it.** Reproduce it first, **with a failure reason matching the report**; fix the reproduction into a failing test, then change the implementation. When you cannot reproduce it, **say so plainly and stop** — do not fix a hallucinated bug, and do not "fix it roughly like this". The order is: confirm it exists → write the test / record the evidence → fix.
+- **Fix the root cause, do not patch.** No guard at the consumer to paper over a bad value from the producer; normalise once at the boundary, not repeatedly at call sites. Refactoring **the unit you are changing** is in scope — a different thing from the drive-by refactoring banned below.
 
-- **Fix the root cause, do not patch.** Do not add a guard at the consumer to paper over a bad value from the producer; do not normalise the same field repeatedly at several call sites — normalise once at the boundary. Refactoring **the unit you are currently changing** is in scope, which is a different thing from the drive-by refactoring banned below.
+- **Scope discipline — touch only what this task needs.** One change = the producer + its tests + at most one drive-by drift fix. **Banned**: smuggled-in refactors, rename sweeps, formatting, import reordering, unrelated test changes — they drown the real change and break `git bisect`. Unrelated mess gets **reported, not fixed in passing**. Three lines of similar code beat a premature abstraction.
 
-- **Scope discipline — touch only what this task needs.** One change = the producer + its tests + at most one drive-by drift fix (an obvious one-line error). **Banned**: smuggled-in refactors / rename sweeps / formatting / import reordering / unrelated test changes — they drown the real change and break `git bisect`. When you see unrelated mess, **report it and ask; do not fix it in passing**. Three lines of similar code beat a premature abstraction.
+- **Reuse first — grep before writing.** Two parallel implementations drift within weeks. Decidable heuristics: a new file importing both a UI primitive **and** a data store is probably rebuilding <existing component>; copying more than 10 lines → extract it; the same fix in two similar blocks → **the second is a bug**, delete it and call the first. <This repository's shared entry points: components, hooks, utilities.>
 
-- **Reuse first — grep before writing.** Two parallel implementations drift within weeks. A decidable heuristic: a new file importing both a UI primitive **and** a data store is probably rebuilding <existing component>; copying more than 10 lines → extract it; the same fix appearing in two similar blocks → **the second one is a bug**, so delete it and call the first. <List this repository's existing shared entry points: components, hooks, utilities, cross-cutting concerns>
+- **SOLID / high cohesion, low coupling — on this repository's own extension points.**
+  - <Adding an X → implement `<interface name>` and `Register()` it in `init()`; **do not `switch` on a type string in shared code**.>
+  - <Depend on interfaces through a getter; a service must not import another service's repository.>
+  - <Dependency direction is one-way: `A → B → C`; `<cross-cutting layer>` is a leaf.>
+  *<Enforced by `<check name>` since `<date>` (inside `<command>`); the exemption list **only shrinks**.>*
 
-- **SOLID / high cohesion, low coupling — landing on this repository's existing extension points.** <Write each as a concrete shape in this repository, e.g.:>
-  - <Adding an X → implement `<interface name>` and `Register()` it in `init()`; **do not `switch` on a type string in shared code** — that is exactly the coupling the registry exists to remove.>
-  - <Depend on interfaces, obtained through a getter; a service must not import another service's repository.>
-  - <Dependency direction is one-way: `A → B → C`; `<cross-cutting layer>` is a leaf and must not import backwards.>
-  *<The mechanically checkable part has been enforced by `<check name>` since `<date>` (running inside `<command>`); the exemption list **only shrinks**.>*
+- **No defensive code — a pointless fallback is a liability.** Defences for the impossible, swallowed errors and shims for retired data become noise nobody dares delete, while the real bug hides behind the guard.
+  - **Validate at boundaries only** — <this repository's boundaries: external input / IPC / plugin host calls>. Internal calls trust each other.
+  - **Do not swallow errors** — `catch { return defaultState }` masks failure and propagates dirty state.
+  - **Do not double-fallback a user-configurable field** — `value || "default"` overrides a deliberate empty value.
+  - **Do not leave runtime shims for retired data** — a migration runs once, so delete the field.
 
-- **No defensive code — a pointless fallback is a liability.** Defences written for the impossible, swallowed errors and shims left for retired data all turn into noise nobody dares delete, while the real bug hides behind the guard.
-  - **Validate at boundaries only** — <list this repository's boundaries: external input / IPC entry points / plugin host calls>. Internal calls trust each other; do not write `if x == nil`.
-  - **Do not swallow errors** — `if err != nil { return nil }` / `catch { return defaultState }` masks failure and propagates dirty state.
-  - **Do not double-fallback a user-configurable field** — `value || "default"` overrides a deliberate empty value from the user and masks bugs in the helper.
-  - **Do not leave runtime shims for retired data** — a migration runs once, so delete the field from the model.
+- **Direct replacement beats an adapter sandwich.** When swapping a backend or library, **replace in place**; no `interface Foo + LegacyImpl + NewImpl` unless both coexist at runtime. A sandwich forces every call site to work out which layer it is on.
 
-- **Direct replacement beats an adapter sandwich.** When swapping a backend or a library, **replace it in place**; do not build `interface Foo + LegacyImpl + NewImpl` unless the two genuinely have to coexist at runtime. A sandwich forces every call site to work out "which layer am I on now".
+- **Leave no dead code and no deletion markers.** Git remembers; delete it outright.
 
-- **Leave no dead code and no deletion markers.** Git remembers. Delete it outright; do not leave `_deprecated` placeholders.
+- **Before adding a dependency, ask whether what exists can do it.** A permanent maintenance and security burden. When genuinely needed: lockfile committed, one package manager only (<enforcement mechanism>), and the PR explains why the existing approach was insufficient.
 
-- **Before adding a dependency, ask whether what exists can do it.** A new dependency is a permanent maintenance and security burden. When one genuinely is needed: the lockfile must be committed; one package manager only (<this repository's enforcement mechanism>); and explain in the PR why the existing approach was insufficient.
+- **Credentials and sensitive data stay out of the repository, the logs and the reports.** Secrets in `.env` (gitignored) or <secret management>. Redact before pasting anywhere. <This project's data red lines.>
 
-- **Credentials and sensitive data stay out of the repository, the logs and the reports.** Secrets go in `.env` (already gitignored) or <secret management approach>. Redact logs and verification reports before pasting them anywhere — they have far more readers than you imagine. <This project's specific data red lines: e.g. personal / order / financial data.>
-
-- **Critical paths must be observable.** <External calls / state changes / permission decisions / failure degradations> emit structured logs carrying a correlation id — so that when something goes wrong the logs can reconstruct "what actually happened" instead of you guessing. How to choose a level, where to instrument and what must never be logged are in [`docs/observability.md`](docs/observability.md).
-
----
+- **Critical paths must be observable.** <External calls / state changes / permission decisions / failure degradations> emit structured logs with a correlation id, so a failure can be reconstructed rather than guessed at. Details in [`docs/observability.md`](docs/observability.md).
 
 ## Architecture
 
-> **In depth:** [`docs/architecture.md`](docs/architecture.md) — layering, dependency direction, each subsystem, and the "how to add an X" recipes. Below is only a quick map.
+> **In depth:** [`docs/architecture.md`](docs/architecture.md) — layering, dependency direction, subsystems, the "how to add an X" recipes. Below is a quick map only.
 
 ```
-<an ASCII diagram: the main modules / processes / layers, and the call direction between them>
+<an ASCII diagram: the main modules / processes / layers, and the call direction>
 ```
 
 - **<module A>** — <one-sentence responsibility>
 - **<module B>** — <one-sentence responsibility>
 
-<!-- Key constraint facts; every one must be verifiable with git grep -->
+<!-- Every constraint below must be verifiable with git grep -->
 ### Key constraints
 
-- <e.g. Front end and back end communicate only via <IPC mechanism>; no new HTTP-style endpoints.>
-- <e.g. New migrations may only be appended to the end of `<list>`; **modifying an existing migration is banned**.>
-- <e.g. Critical flows must log: `<logging entry point>`, message prefix `<package.Method:>`, with dynamic values in structured fields.>
-- <e.g. `<generated directory>` is generated output; do not hand-edit it, regenerate with `<command>`.>
+- <Front end and back end communicate only via <IPC mechanism>; no new HTTP-style endpoints.>
+- <New migrations may only be appended to `<list>`; **modifying an existing migration is banned**.>
+- <Critical flows must log through `<logging entry point>`, prefix `<package.Method:>`, dynamic values in structured fields.>
+- <`<generated directory>` is generated output; regenerate with `<command>` rather than hand-editing.>

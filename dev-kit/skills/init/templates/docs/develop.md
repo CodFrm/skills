@@ -40,7 +40,7 @@ most common initialisation accident.
 - The package manager is **<pnpm / go mod / uv ...>**. <State the enforcement mechanism, if any>
 - <This repository's particular traps, e.g.: `go test ./...` picks up a directory it should not, so use `<alternative command>` by default>
 
-> **These are this repository's only command entry points.** The docs, pre-commit and CI all call them; do not write an equivalent bare command anywhere else — three copies drifting apart produce "green locally, red in CI" with nobody knowing why.
+> **These are this repository's only command entry points.** The docs, pre-commit and CI all call them; an equivalent bare command written elsewhere drifts, and produces "green locally, red in CI" with nobody knowing why.
 > <In a front-and-back-end monorepo, state the boundary: front-end commands go through `<package manager>`, and back-end and cross-stack aggregate commands go through `make`.>
 
 ## Directory structure
@@ -95,13 +95,13 @@ Path aliases: `<@App/*>` → `<src/*>` (defined in `<config file>`).
 <!-- Keep when the project has any persistence (database, messaging, files on disk, client-side
      local storage); delete this section for a purely stateless project -->
 
-**Code can be `git revert`ed; data already written out cannot.** Whenever a change will rewrite or reinterpret **data that already exists** — <enumerate this project's forms: `<schema / migrations>`, `<message body schema>`, `<export file format>`, `<client-side local storage>`> — follow the steps below rather than treating it as an ordinary change:
+**Code can be `git revert`ed; data already written out cannot.** Whenever a change rewrites or reinterprets **data that already exists** — <`<schema / migrations>`, `<message body schema>`, `<export file format>`, `<client-side local storage>`>:
 
-1. **Say it before changing it.** In the PR / issue / requirements discussion, state: what changes, how much existing data it affects, whether it can be rolled back, and which parts are irreversible. **Dropping columns or tables, losing precision and destructive backfills get named separately with a backup / export plan**, rather than being waved past in the change list.
-2. **Structure and backfill go in two separate commits** — combined, a backfill blowing up leaves you unable to tell whether the DDL or the data was at fault, and rollback can only unwind the whole thing.
+1. **Say it before changing it.** State in the PR: what changes, how much existing data it affects, whether it can be rolled back, and which parts are irreversible. **Dropped columns, lost precision and destructive backfills get named separately with a backup / export plan.**
+2. **Structure and backfill go in two separate commits** — combined, a failed backfill leaves you unable to tell whether the DDL or the data was at fault.
 3. **Migrations are append-only; history is not edited** — environments that already ran them will not re-run. See "Data and migrations" in [`architecture.md`](./architecture.md).
-4. **Verify in both directions against a database holding real existing data**: `<migration up command>` and `<migration down command>` once each, keeping two results of the same query before and after (row counts, edge values of the rewritten fields, NULL counts). **Green on an empty database is the same as not running it.**
-5. **Review escalates a tier**: this class of PR requires `<two reviewers / the data owner's sign-off>`, and the reviewer specifically looks at: whether the migration is rerunnable, whether the backward direction really restores the data, edge values in the existing data (NULL / empty string / dirty values / two historical shapes), whether the backfill can be batched and re-run after an interruption, how old and new code read each other's data during a rolling release, and whether the existing data was confirmed to satisfy a unique/not-null constraint before it was added.
+4. **Verify in both directions against a database holding real existing data**: `<up command>` and `<down command>` once each, keeping the same query's results before and after (row counts, edge values, NULL counts). **Green on an empty database is the same as not running it.**
+5. **Review escalates a tier** — `<two reviewers / the data owner's sign-off>`, looking specifically at: is the migration rerunnable; does the backward direction really restore the data; edge values in the existing data (NULL / empty / dirty / two historical shapes); can the backfill be batched and resumed; how old and new code read each other's data during a rolling release; was the existing data confirmed to satisfy a new unique/not-null constraint.
 
 ## Commits and PRs
 

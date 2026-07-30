@@ -21,9 +21,8 @@ escape_for_json() {
 
 # emit_additional_context <hookEventName> <text>
 #
-# The two harnesses read different fields: Claude Code reads the nested hookSpecificOutput,
-# while Copilot CLI and friends read a top-level additionalContext (the SDK's standard shape).
-# Emit only the one the current platform wants.
+# Claude Code reads the nested hookSpecificOutput; Copilot CLI and friends read a top-level
+# additionalContext (the SDK's standard shape). Emit only the one this platform wants.
 # printf rather than a heredoc, to dodge the bash 5.3+ heredoc hang.
 emit_additional_context() {
     local event="$1" text
@@ -35,9 +34,8 @@ emit_additional_context() {
     fi
 }
 
-# If it cannot be read, exit silently and inject nothing. Stuffing an "Error reading …" line
-# into the context is worse: it would be wrapped in <EXTREMELY_IMPORTANT> and sent into the
-# session, leaving the agent to read that error message as its bootstrap.
+# If it cannot be read, exit silently and inject nothing: an "Error reading …" line would be
+# wrapped in <EXTREMELY_IMPORTANT> and read by the agent as its bootstrap.
 bootstrap_content="$(cat "${PLUGIN_ROOT}/skills/using-dev-kit/SKILL.md" 2>/dev/null)" || exit 0
 [ -n "$bootstrap_content" ] || exit 0
 

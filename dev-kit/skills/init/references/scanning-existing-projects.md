@@ -4,17 +4,9 @@
 >
 > This file is **the deep scan's toolbox**: a set of commands producing **quantified evidence** to hold up step 2's diagnostic report.
 >
-> **Everything uses `git grep` / `git ls-files`, never `grep -r` / `rg` / `ls`.** The former search only tracked files — orders of magnitude faster (measured at 0.08s vs 21s) and they do not count your local uncommitted experimental code as the project's current state.
+> **Everything uses `git grep` / `git ls-files`, never `grep -r` / `rg` / `ls`.** The former search only tracked files — orders of magnitude faster, and they do not count your local uncommitted experimental code as the project's current state.
 
-## Why quantify rather than "yes / no"
-
-**"There are hardcoded colours" and "there are 137 hardcoded colours" lead to completely different actions**: the former gets fixed on the spot, the latter has to go through a ratchet baseline. Without numbers the user cannot decide, and you cannot give a responsible recommendation.
-
-Likewise: "there are tests" carries no information, while "there are 240 tests, 30 of which are pure pass-through renders" does.
-
-**Every finding has to trace back to a specific file and line**, so that when the user pushes back you can lay it out on the spot rather than saying "I think".
-
----
+**Quantify rather than answering yes / no.** "137 hardcoded colours" and "there are hardcoded colours" lead to different actions — the first needs a ratchet baseline, the second gets fixed on the spot. **Every finding traces back to a specific file and line**, so that when the user pushes back you lay it out rather than saying "I think".
 
 ## The scan checklist
 
@@ -80,10 +72,9 @@ git grep -nE '\bprint\(' -- '*.py' | wc -l
 
 # Hardcoded user-visible strings (adjust the character range to the project's source language;
 # the example below is a Chinese-source project).
-# Use an explicit character range rather than \p{Han}: under ERE, [\p{Han}] is treated as a
-# literal character set (measured at 304 false positives on a real repository), and `git grep -P`
-# has no PCRE/UCP support in many git builds and silently returns 0 — which is worse than a
-# false positive, because it tells you "no hardcoded strings, all good".
+# Use an explicit character range, not \p{Han}: under ERE, [\p{Han}] is a literal character set,
+# and `git grep -P` lacks PCRE/UCP support in many git builds and silently returns 0 — worse than
+# a false positive, because it reads as "no hardcoded strings, all good".
 git grep -nE '>[^<>{]*[一-龥]' -- '*.tsx' '*.jsx' | wc -l
 git grep -nE '>[^<>{]*[一-龥]' -- '*.tsx' '*.jsx' | grep -vE '__tests__|\.test\.|//' | head -5
 
@@ -91,11 +82,11 @@ git grep -nE '>[^<>{]*[一-龥]' -- '*.tsx' '*.jsx' | grep -vE '__tests__|\.test
 git grep -lniE 'logger|notify|toast|formatDate' -- '*/lib/*' '*/pkg/*' '*/utils/*' | head
 ```
 
-> **These are heuristic scans and they over-report.** The hardcoded-strings one drags in comments and test files (the second command above does a rough filter). **A human looks at the numbers before they go in the report** — reporting an inflated number makes the user decide against the wrong scale.
+> **These are heuristic scans and they over-report** — the hardcoded-strings one drags in comments and test files. **Look at the numbers before they go in the report**: an inflated number makes the user decide against the wrong scale.
 
-**`git grep ... | wc -l` counts matching lines, not occurrences** — two palette class names on one line counts as 1. That is enough for a scale judgement, but **the report says "N lines" or "N files", not "N occurrences"**, or the user decides against a number that is too small. For an exact count use `git grep -o ... | wc -l` (needs a reasonably recent git).
+**`git grep ... | wc -l` counts matching lines, not occurrences**, which is enough for a scale judgement — so **the report says "N lines" or "N files", never "N occurrences"**. For an exact count, `git grep -o ... | wc -l`.
 
-For each entry, **record the line count, the number of files involved and the first 3 samples** (file:line) together. The scale decides the landing strategy:
+For each entry **record the line count, the number of files and the first 3 samples** (file:line). The scale decides the landing strategy:
 
 | Count | Landing strategy |
 |---|---|
@@ -170,8 +161,8 @@ git grep -lE 'prometheus|opentelemetry|otel' | head
 
 ## Once the scan is done
 
-Turn each item into **one row** of `SKILL.md` step 2's recommendation list: **what to do → the evidence behind it, with its number → cost**. The finding and the recommendation it justifies live in the same row — the report has no separate findings section, so **an item that justifies no row (not even a "not recommended" one) does not reach the report at all.**
+Turn each item into **one row** of `SKILL.md` step 2's recommendation list: **what to do → the evidence with its number → cost**. The finding and the recommendation live in the same row, so **an item that justifies no row — not even a "not recommended" one — does not reach the report at all.**
 
-**Do not dump raw command output at the user.** Several hundred lines of grep results is not a report — the numbers, the conclusions and the costs are. **Keep the `file:line` samples as a reserve** for when the user pushes back, and print them only where the number does not make the case on its own.
+**Do not dump raw command output at the user**; the numbers, conclusions and costs are the report. **Keep the `file:line` samples as a reserve** for when the user pushes back.
 
-**The scan produces no changes.** This step writes not one character into the project: read only.
+**The scan writes not one character into the project.**

@@ -4,13 +4,12 @@ REM Cross-platform polyglot dispatcher (modelled on obra/superpowers, MIT).
 REM Windows: cmd.exe takes the batch branch, locates bash and calls it.
 REM Unix: the shell runs the whole file as a script (: is a no-op in bash).
 REM
-REM Hook scripts use extensionless file names (e.g. "session-start" rather than
-REM "session-start.sh") to avoid Claude Code on Windows auto-prefixing bash onto commands
-REM containing .sh, which would interfere.
+REM Hook scripts are named without an extension ("session-start", not "session-start.sh") so
+REM that Claude Code on Windows does not auto-prefix bash onto commands containing .sh.
 REM
-REM This file is stored with LF endings on purpose (see the repository .gitattributes): the
-REM bash half below does not survive CRLF. cmd.exe reads LF-only batch files fine as long as
-REM there are no labels — so **do not add a label or a `goto` here**.
+REM Stored with LF endings on purpose (see .gitattributes): the bash half below does not
+REM survive CRLF. cmd.exe reads LF-only batch files fine as long as there are no labels —
+REM so **do not add a label or a `goto` here**.
 REM
 REM Usage: run-hook.cmd <script-name> [args...]
 
@@ -30,32 +29,27 @@ REM 2. Installed somewhere else (scoop / winget / portable): derive bash from gi
 REM    location rather than from PATH — <git root>\cmd\git.exe sits next to <git root>\bin\bash.exe.
 if not defined BASH_EXE for /f "delims=" %%G in ('where git 2^>nul') do if not defined BASH_EXE if exist "%%~dpG..\bin\bash.exe" set "BASH_EXE=%%~dpG..\bin\bash.exe"
 
-REM 3. Last resort: bash on PATH — **skipping System32's bash.exe**, which is the WSL launcher.
-REM    WSL bash cannot open a Windows path like C:\Users\...\hooks\session-start, so handing
-REM    the hook to it does not degrade, it fails. `where bash` finds it first on any machine
-REM    that has WSL enabled and Git installed outside the two locations above, which is
-REM    exactly the case this branch exists to serve.
+REM 3. Last resort: bash on PATH — **skipping System32's bash.exe**, the WSL launcher. WSL bash
+REM    cannot open a Windows path like C:\Users\...\hooks\session-start, so handing it the hook
+REM    fails outright, and `where bash` finds it first on exactly the machines this branch is for
+REM    (WSL enabled, Git installed outside the two locations above).
 if not defined BASH_EXE for /f "delims=" %%B in ('where bash 2^>nul') do if not defined BASH_EXE if /i not "%%~dpB"=="%SystemRoot%\System32\" if /i not "%%~dpB"=="%SystemRoot%\SysWOW64\" set "BASH_EXE=%%B"
 
-REM If bash cannot be found, exit silently: the plugin still works, just without the hooks.
-REM This has to come first and be its own statement — `where bash` failing above leaves a
-REM non-zero ERRORLEVEL behind, and falling through to a bare `exit /b` would report that as
-REM the hook's own failure.
+REM No bash: exit silently — the plugin still works, just without the hooks. This has to be its
+REM own statement, because `where bash` failing above leaves a non-zero ERRORLEVEL behind that a
+REM bare `exit /b` would report as the hook's own failure.
 if not defined BASH_EXE exit /b 0
 
-REM Deliberately not inside a parenthesised block, and deliberately a bare `exit /b`:
-REM `%ERRORLEVEL%` inside a block is expanded when cmd parses the block, i.e. *before* bash
-REM runs, so `exit /b %ERRORLEVEL%` there hands back a stale code and the hook's real result
-REM never gets out. A bare `exit /b` preserves whatever bash just returned.
-REM (%2..%9 rather than %* because %~1 has to be dropped; hooks.json passes no further
-REM arguments, and anything that needs quoting-safe passthrough should go via the bash half.)
+REM Not inside a parenthesised block, and a bare `exit /b` on purpose: inside a block cmd expands
+REM `%ERRORLEVEL%` when it parses the block — before bash runs — so `exit /b %ERRORLEVEL%` hands
+REM back a stale code. A bare `exit /b` preserves whatever bash just returned.
+REM (%2..%9 rather than %* because %~1 has to be dropped; hooks.json passes no further arguments.)
 "%BASH_EXE%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
 exit /b
 CMDBLOCK
 
-# Unix: run the named script directly. The empty-argument check has to stay aligned with the
-# batch branch above — without it, `run-hook.cmd` would exec the directory itself and report
-# an inscrutable "is a directory".
+# Unix: run the named script directly. The empty-argument check mirrors the batch branch above —
+# without it, `run-hook.cmd` execs its own directory and reports "is a directory".
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT_NAME="${1:-}"
 if [ -z "$SCRIPT_NAME" ]; then

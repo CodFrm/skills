@@ -2,9 +2,8 @@
 
 // Run: node --test dev-kit/tests/*.test.js
 //
-// These cover lib/project.js, which is the CLI's security boundary. The traversal cases are the
-// reason this file exists: they are the ones a "looks obviously right" prefix check gets wrong, and
-// nothing else in the kit re-checks them.
+// Covers lib/project.js, the CLI's security boundary. The traversal cases are the reason this file
+// exists: they are the ones a "looks obviously right" prefix check gets wrong.
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -15,7 +14,7 @@ const path = require('node:path')
 
 const { findRoot, resolveInside } = require('../lib/project')
 
-// macOS puts temp dirs behind /var -> /private/var, and resolveInside compares realpaths, so the
+// macOS puts temp dirs behind /var -> /private/var and resolveInside compares realpaths, so the
 // fixture root has to be realpath'd too or every assertion fails for the wrong reason.
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-test-')))
 const root = path.join(tmp, 'repo')
@@ -61,8 +60,8 @@ test('resolveInside: a symlink inside the root pointing out of it is refused', a
 })
 
 test('resolveInside: a symlinked root still resolves (the worktree case)', async () => {
-  // Inside a git worktree, .dev-kit is a symlink back to the main repository. The root and the
-  // target are both realpath'd, so this has to keep working rather than being read as an escape.
+  // Inside a git worktree, .dev-kit is a symlink back to the main repository — both sides are
+  // realpath'd, so this has to keep working rather than being read as an escape.
   const wt = path.join(tmp, 'worktree')
   await fsp.mkdir(wt, { recursive: true })
   await fsp.symlink(path.join(root, '.dev-kit'), path.join(wt, '.dev-kit'))

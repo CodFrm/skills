@@ -2,11 +2,10 @@
 
 // Run: node --test dev-kit/tests/*.test.js
 //
-// Covers the SessionStart hook by running the real script. Everything it does is invisible when it
-// breaks: a hook that emits malformed JSON, or JSON whose additionalContext lost half the bootstrap
-// to a missed escape character, does not fail loudly — the session simply starts without dev-kit and
-// looks like a plugin that "doesn't do anything". So the assertions here are the round trip a
-// harness performs: parse the output, and check the bootstrap came back out of it intact.
+// Covers the SessionStart hook by running the real script. It fails invisibly: malformed JSON, or
+// JSON whose additionalContext lost half the bootstrap to a missed escape, does not fail loudly —
+// the session just starts without dev-kit. So the assertions are the round trip a harness performs:
+// parse the output, and check the bootstrap came back out of it intact.
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -23,12 +22,11 @@ const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-hooks-
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
-// Invoked through bash rather than by path, so that a lost executable bit fails one dedicated test
-// below instead of every test here with an EACCES nobody reads as "chmod +x".
+// Invoked through bash rather than by path, so a lost executable bit fails one dedicated test below
+// instead of every test here with an EACCES nobody reads as "chmod +x".
 // CLAUDE_PLUGIN_ROOT only selects the output shape — the script finds the bootstrap relative to its
-// own directory — so pointing it at the real plugin root and pointing it anywhere would both work;
-// it is set to the real one to match how Claude Code actually invokes the hook. COPILOT_CLI is
-// cleared throughout: set, it flips the Claude Code branch back to the flat shape.
+// own directory — and is set to the real root to match how Claude Code invokes the hook. COPILOT_CLI
+// is cleared throughout: set, it flips the Claude Code branch back to the flat shape.
 function run(script = SESSION_START, { pluginRoot } = {}) {
   const env = { ...process.env }
   delete env.COPILOT_CLI
@@ -64,9 +62,8 @@ test('the whole SKILL.md file comes back out, so the hook and the file cannot dr
 })
 
 test('JSON escaping survives the real file: quotes, backslashes, tabs and newlines', () => {
-  // The assertion that catches a broken escape_for_json. Escaping bugs do not corrupt the whole
-  // output, they truncate it at the first offending character — or produce JSON that still parses
-  // but has lost everything after it — so the premise is asserted first: if SKILL.md ever stops
+  // An escaping bug does not corrupt the output, it truncates at the first offending character —
+  // often into JSON that still parses. The premise is asserted first: if SKILL.md ever stops
   // containing these characters, this test has stopped testing anything and should say so.
   const body = fs.readFileSync(BOOTSTRAP, 'utf8')
   assert.ok(body.includes('"'), 'fixture premise: SKILL.md contains a double quote')

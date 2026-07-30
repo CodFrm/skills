@@ -2,19 +2,14 @@
 
 // Run: node --test dev-kit/tests/*.test.js
 //
-// Covers lib/serve.js by driving handle() in process — which is what it is exported for. The server
-// is read-only and bound to loopback, so the interesting failures are not crashes; they are the ones
-// that keep answering 200 while handing out something they should not:
+// Covers lib/serve.js by driving handle() in process. The interesting failures are not crashes but
+// the ones that keep answering 200 while handing out something they should not:
 //
-//   the two CSP strings   Loosening CSP_PAGE to allow script turns a filename into an XSS payload,
-//                         because renderDir interpolates filenames into the listing. Handing
-//                         CSP_FILE to a .svg lets an image execute — an image dropped in
-//                         .dev-kit/artifacts/ read a sibling spec and navigated it off-origin, which
-//                         is why cspFor() exists. Both strings are written out literally below: a
+//   the two CSP strings   Loosening CSP_PAGE turns a filename into an XSS payload; handing CSP_FILE
+//                         to a .svg lets an image execute. Both are written out literally below — a
 //                         test that imports the constant it checks cannot fail when it changes.
-//   the boundary wiring   project.test.js proves resolveInside() correct on its own. Nothing proved
-//                         handle() called it, or called it with the right root. The traversal cases
-//                         here go through the URL, so they fail if that argument is ever wrong.
+//   the boundary wiring   project.test.js proves resolveInside() correct; nothing proved handle()
+//                         calls it with the right root. The traversal cases here go through the URL.
 //   the generated links   A listing that links to a 404 is a bug you only find by following one.
 
 const test = require('node:test')
@@ -32,22 +27,21 @@ const CSP_FILE = "default-src 'self'; img-src 'self' data:; media-src 'self'; st
 
 const MAX_ENTRIES = 500
 
-// macOS puts temp dirs behind /var -> /private/var, and the boundary compares realpaths, so the
+// macOS puts temp dirs behind /var -> /private/var and the boundary compares realpaths, so the
 // fixture root has to be realpath'd too or every assertion fails for the wrong reason.
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-serve-')))
 const root = path.join(tmp, 'repo')
 const specs = path.join(root, 'docs', 'specs')
 const artifacts = path.join(root, '.dev-kit', 'artifacts')
 
-// Three secrets at three distances, so a 404 that leaked would say which argument was wrong: one
-// outside the project entirely, one inside the project but outside both served roots, one behind a
-// symlinked directory.
+// Three secrets at three distances, so a leak says which argument was wrong: outside the project,
+// inside it but outside both served roots, and behind a symlinked directory.
 const OUTSIDE = 'SECRET-OUTSIDE-THE-PROJECT'
 const IN_ROOT = 'SECRET-IN-THE-PROJECT-ROOT'
 const VIA_LINK = 'SECRET-BEHIND-A-SYMLINK'
 
-// A mockup carrying inline script and inline style is the case `serve` exists for; it must keep its
-// permissive policy while the .svg beside it loses one.
+// A mockup carrying inline script and style is the case `serve` exists for; it keeps the permissive
+// policy while the .svg beside it does not.
 const MOCKUP = '<!doctype html><title>m</title><style>body{color:#111}</style><script>document.title="ran"</script>'
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("/specs/design.md")</script></svg>'
 
@@ -72,8 +66,7 @@ test.before(() => {
   // listing forgets to escape them.
   write(path.join(specs, 'a#b.md'), 'hash body\n')
   write(path.join(specs, 'q?x&y.md'), 'query body\n')
-  // A literal percent in the name: the escape of an escape, and the one that catches a second
-  // decode being added anywhere on the way to the boundary.
+  // A literal percent catches a second decode being added anywhere on the way to the boundary.
   write(path.join(specs, 'read%20me.md'), 'percent body\n')
   write(path.join(specs, '<img src=x onerror=alert(1)>.md'), 'tag body\n')
   write(path.join(specs, 'x"onmouseover=alert(1) y.md'), 'quote body\n')
@@ -81,8 +74,8 @@ test.before(() => {
   write(path.join(specs, 'sub', 'index.html'), '<h1>sub index</h1>')
   write(path.join(specs, 'plain', 'one.md'), 'one\n')
 
-  // An artifact directory can contain anything, including symlinks someone dropped in — one to a
-  // file, one to a directory. project.test.js only covers the file.
+  // An artifact directory can contain anything, including symlinks someone dropped in.
+  // project.test.js only covers the file case.
   fs.symlinkSync(path.join(tmp, 'outside.txt'), path.join(specs, 'escape-file'))
   fs.symlinkSync(path.join(tmp, 'outside-dir'), path.join(specs, 'escape-dir'))
 
@@ -102,8 +95,7 @@ test.after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 
 // --- driving handle() ----------------------------------------------------------------------------
 
-// serveFile pipes a read stream into the response, so the double has to be a real writable rather
-// than a pair of stub methods.
+// serveFile pipes a read stream into the response, so the double has to be a real writable.
 class Capture extends Writable {
   constructor() {
     super()
@@ -141,16 +133,16 @@ const linkTo = (html, text) => links(html).find((l) => l.text === text)
 // --- the two policies ----------------------------------------------------------------------------
 
 test('every page this CLI generates itself is served under a policy that cannot run script', async () => {
-  // Not cosmetic: renderDir interpolates filenames into this page. Allow script here and a file
-  // named `<img src=x onerror=...>` stops being escaped text and starts being a payload.
+  // renderDir interpolates filenames into this page: allow script here and `<img src=x onerror=…>`
+  // stops being escaped text and starts being a payload.
   for (const url of ['/', '/specs/', '/specs/plain/', '/nope']) {
     assert.equal((await req(url)).headers['content-security-policy'], CSP_PAGE, url)
   }
 })
 
 test('an HTML artifact keeps the policy that lets its own inline script and styles run', async () => {
-  // The reason `serve` exists. Loosening this breaks self-contained mockups; tightening it to allow
-  // an external origin is what the "no CDN" rule in the skills is enforcing.
+  // Loosening this breaks self-contained mockups; opening it to an external origin is what the
+  // "no CDN" rule in the skills forbids.
   const res = await req('/specs/mock.html')
   assert.equal(res.status, 200)
   assert.equal(res.headers['content-type'], 'text/html; charset=utf-8')
@@ -159,11 +151,9 @@ test('an HTML artifact keeps the policy that lets its own inline script and styl
 })
 
 test('an SVG is still an image, but is not allowed to run the script inside it', async () => {
-  // The delivery path is what these directories are for: .dev-kit/artifacts/ holds generated
-  // mockups and docs/specs/ accumulates images. Under CSP_FILE this file executed on direct
-  // navigation, read a sibling spec same-origin, and left with it in a URL — CSP has no directive
-  // that stops a document navigating away. Keeping image/svg+xml keeps diagrams rendering; the
-  // policy is what removes the script.
+  // Under CSP_FILE this file executes on direct navigation, reads a sibling spec same-origin and
+  // leaves with it in a URL — CSP has no directive that stops a document navigating away. Keeping
+  // image/svg+xml keeps diagrams rendering; the policy is what removes the script.
   const res = await req('/specs/diagram.svg')
   assert.equal(res.status, 200)
   assert.equal(res.headers['content-type'], 'image/svg+xml', 'an SVG diagram must still render as one')
@@ -188,8 +178,8 @@ test('every response carries nosniff and no-store', async () => {
 // --- the boundary, driven through the URL --------------------------------------------------------
 
 test('the served roots are reachable and are the only thing reachable', async () => {
-  // The other half of the traversal cases: if the root handed to resolveInside were ever wrong,
-  // these would 404 instead, so the escapes below cannot pass by refusing everything.
+  // The other half of the traversal cases: if the root handed to resolveInside were ever wrong
+  // these would 404 too, so the escapes below cannot pass by refusing everything.
   assert.equal((await req('/specs/design.md')).status, 200)
   assert.equal((await req('/artifacts/note.txt')).status, 200)
   assert.equal((await req('/etc/passwd')).status, 404)
@@ -197,9 +187,9 @@ test('the served roots are reachable and are the only thing reachable', async ()
 })
 
 test('a traversal out of the served root is refused however it is spelled', async () => {
-  // `/specs/../x` never reaches the boundary — the URL parser folds the dot segment away first, and
-  // so does `%2e%2e`. The encoded slash is the one that arrives intact as `../../root-secret.txt`,
-  // and it is the case a prefix check waves through.
+  // `/specs/../x` never reaches the boundary — the URL parser folds the dot segment away, and so
+  // does `%2e%2e`. The encoded slash arrives intact as `../../root-secret.txt`, which is the case
+  // a prefix check waves through.
   const escapes = [
     '/specs/../root-secret.txt',
     '/specs/%2e%2e/root-secret.txt',
@@ -223,6 +213,7 @@ test('a traversal out of the served root is refused however it is spelled', asyn
 
 test('a symlink out of the served root is refused, whether it points at a file or a directory', async () => {
   // Both are listed, because readdir reports the link itself. Following one is what must not happen.
+  // A symlinked directory is the one that would turn the whole tree below it into a listing.
   const listing = (await req('/specs/')).body
   assert.ok(linkTo(listing, 'escape-file'), 'the link is visible in the listing')
   assert.ok(linkTo(listing, 'escape-dir'), 'the link is visible in the listing')
@@ -231,8 +222,6 @@ test('a symlink out of the served root is refused, whether it points at a file o
   assert.equal(file.status, 404)
   assert.ok(!file.body.includes(OUTSIDE))
 
-  // project.test.js covers only the file case; a symlinked directory is the one that would turn the
-  // whole tree below it into a listing.
   const dir = await req('/specs/escape-dir/')
   assert.equal(dir.status, 404)
   assert.ok(!dir.body.includes('loot.txt'), 'a directory outside the root must not be enumerated')
@@ -290,15 +279,14 @@ test('the root page lists the served directories and says which do not exist yet
 // --- the listing ---------------------------------------------------------------------------------
 
 test('a listing links to files with every path-position character encoded', async () => {
-  // encodeURI leaves #, ? and & alone. A listed `a#b.md` therefore linked to `/specs/a#b.md`, the
-  // browser sent `/specs/a`, and the file 404'd while being perfectly servable by hand. The raw &
-  // was invalid inside the attribute on top of that.
+  // encodeURI leaves #, ? and & alone: `a#b.md` linked to `/specs/a#b.md`, the browser sent
+  // `/specs/a`, and the file 404'd while being perfectly servable by hand.
   const listing = (await req('/specs/')).body
 
   assert.equal(linkTo(listing, 'a#b.md').href, '/specs/a%23b.md')
   assert.equal(linkTo(listing, 'q?x&amp;y.md').href, '/specs/q%3Fx%26y.md')
-  // A name containing a percent has to come back escaped once and decoded exactly once. Decoding
-  // twice anywhere between here and resolveInside turns this into a 404 for a file that exists.
+  // Escaped once, decoded exactly once: a second decode anywhere between here and resolveInside
+  // turns this into a 404 for a file that exists.
   assert.equal(linkTo(listing, 'read%20me.md').href, '/specs/read%2520me.md')
 
   const round = [['a#b.md', 'hash body'], ['q?x&amp;y.md', 'query body'], ['read%20me.md', 'percent body']]
@@ -348,8 +336,8 @@ test('a listing past MAX_ENTRIES is truncated, and says so rather than looking c
 // --- the Host header -----------------------------------------------------------------------------
 
 test('a Host that does not name this loopback server is refused', async () => {
-  // Binding 127.0.0.1 keeps nobody out on its own: a page on the internet points a hostname it
-  // controls at 127.0.0.1 and reads every spec here as same-origin, with only the port to guess.
+  // The DNS-rebinding case: a page on the internet points a hostname it controls at 127.0.0.1 and
+  // reads every spec here as same-origin, with only the port to guess.
   for (const host of ['evil.example.com', 'evil.example.com:8080', 'rebind.test:41234', '127.0.0.1.nip.io', '']) {
     const res = await req('/specs/design.md', { host })
     assert.equal(res.status, 403, JSON.stringify(host))
@@ -365,8 +353,7 @@ test('the loopback names a browser actually sends are served', async () => {
 })
 
 test('a Host naming a loopback name but the wrong port is refused', async () => {
-  // The rebinding case that survives a hostname check alone: the attacker knows the name, and is
-  // guessing which port the server took.
+  // What survives a hostname check alone: the attacker knows the name and is guessing the port.
   assert.equal((await req('/specs/design.md', { host: '127.0.0.1:41234', localPort: 41234 })).status, 200)
   assert.equal((await req('/specs/design.md', { host: '127.0.0.1:41235', localPort: 41234 })).status, 403)
   assert.equal((await req('/specs/design.md', { host: 'localhost:41235', localPort: 41234 })).status, 403)
@@ -395,8 +382,8 @@ function fetchPath(port, target, headers = {}) {
 }
 
 test('over a real socket, the link the listing prints is a link that works', async () => {
-  // The in-process cases above hand handle() a request target directly. This one takes the href out
-  // of the generated HTML and puts it back on the wire, which is what a browser does.
+  // The cases above hand handle() a request target directly. This one takes the href out of the
+  // generated HTML and puts it back on the wire, which is what a browser does.
   const server = await listen()
   try {
     const port = server.address().port

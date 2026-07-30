@@ -19,11 +19,10 @@ risk, write "none beyond the project's existing gates" rather than deleting the 
 Numbered, and **each one has to point at its evidence** — a file and line, a command and its output,
 a real observed session, a user report. A problem nobody can locate is a preference.
 
-**Evidence comes in two strengths, and they do not get to look alike.** Something that went wrong and
-was observed — an error, a commit that had to clean it up, a session, a user report — is the strong
-kind. A document stating that the thing is missing is the weak kind: it proves the gap was
-acknowledged, not that it cost anything. Use the strong kind where it exists, and **where only the
-weak kind does, say so in the entry** rather than letting a doc quote pass for a failure.
+**Evidence comes in two strengths.** Something that went wrong and was observed — an error, a commit
+that had to clean it up, a session, a user report — is the strong kind. A document stating that the
+thing is missing is the weak kind: it proves the gap was acknowledged, not that it cost anything. Use
+the strong kind where it exists, and **where only the weak kind does, say so in the entry.**
 
 1. **<the problem in one bold phrase>.** What is wrong now, where it shows, and what it costs.
 2. …
@@ -43,8 +42,7 @@ those are exactly the ones with no other record.
 
 **A row is one or two sentences, and the argument is made exactly once.** Where a section below
 develops the same reasoning, the row names the decision and what it beat and **points at that
-section** — writing the case in both places is the same fact in two copies, which is what the rest of
-this kit spends its time forbidding, and the copies start drifting the first time one is revised.
+section**.
 
 | # | Decision | Why (and what was rejected) |
 |---|---|---|
@@ -59,8 +57,7 @@ the way you would explain it to someone who has to build it.
 **This spec does not carry a checklist, and each requirement has to be written so that someone could
 build one from it.** State the behaviour as something observable — what is true afterwards, under
 which precondition, and what the failure looks like — not as "works properly" or "handles the edge
-cases". Turning that into commands and verdicts belongs to the round that implements it; what is
-settled here is *what must be true*, which is the part the user is approving.
+cases". Turning that into commands and verdicts belongs to the round that implements it.
 
 What has to be covered somewhere in here, in whatever shape fits:
 
@@ -85,9 +82,9 @@ What has to be covered somewhere in here, in whatever shape fits:
 ## Testing decisions
 
 **Prefer the seams that already exist, and use the highest one that can observe the behaviour.**
-The fewer seams a change introduces, the better; a new seam is proposed at the highest point it can
-sit. **Confirm this table with the user** — agreeing the seams up front is how the testing effort
-lands on the critical paths instead of on every edge case.
+A new seam is proposed at the highest point it can sit. **Confirm this table with the user** —
+agreeing the seams up front is how the testing effort lands on the critical paths instead of on
+every edge case.
 
 | Seam | What it verifies | Prior art |
 |---|---|---|

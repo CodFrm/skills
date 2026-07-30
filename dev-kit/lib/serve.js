@@ -2,9 +2,9 @@
 
 // `devkit serve` — a read-only static server over the project's spec and artifact directories.
 //
-// It exists for one case the skills genuinely need: a UI mockup that cannot run a dev server has to
-// be built to a static bundle and opened in a browser, and `file://` blocks ES module imports on
-// origin grounds. Browsing specs and artifacts is convenience on top.
+// It exists for one case: a UI mockup that cannot run a dev server has to be built to a static
+// bundle and opened in a browser, and `file://` blocks ES module imports on origin grounds.
+// Browsing specs and artifacts is convenience on top.
 
 const fs = require('fs')
 const fsp = require('fs/promises')
@@ -27,39 +27,33 @@ const TYPES = {
   '.mp4': 'video/mp4', '.webm': 'video/webm',
 }
 
-// Pages this CLI generates itself need no script and no external anything, and neither does any file
-// it serves that is not HTML. This is the policy that must not be loosened: the directory listing
-// interpolates filenames, so script here would make a filename an XSS payload.
+// Pages this CLI generates itself, and every file it serves that is not HTML. Must not be loosened
+// to allow script: the directory listing interpolates filenames, so script here would make a
+// filename an XSS payload.
 const CSP_PAGE = "default-src 'none'; style-src 'unsafe-inline'"
-// An HTML artifact may carry its own inline script and styles — that is the entire point of `serve`
-// — and every subresource it pulls has to come from this origin, which is why a self-contained
-// mockup must not pull Tailwind or anything else off a CDN.
+// An HTML artifact may carry its own inline script and styles — the point of `serve` — and every
+// subresource has to come from this origin, which is what the "no CDN" rule in the skills enforces.
 //
-// What this does *not* buy is confinement, and the comment here used to claim it did. No CSP
-// directive restricts where a document may navigate (`navigate-to` was specified and never shipped),
-// so a script running under this policy can read same-origin files and carry them off in a URL it
-// navigates to. The guarantee is therefore narrower than "nothing leaves this origin": it is that
-// only text/html gets to run script at all. Everything else goes out under CSP_PAGE — .svg above
-// all, which is an ordinary image right up until you click it in the listing, at which point it is a
-// document with its own script.
+// It does not buy confinement: no CSP directive restricts where a document may navigate, so a
+// script here can read same-origin files and carry them off in a URL. The guarantee is only that
+// nothing but text/html gets to run script at all — .svg above all, an ordinary image right up
+// until you click it in the listing, at which point it is a document with its own script.
 const CSP_FILE = "default-src 'self'; img-src 'self' data:; media-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
 
 const cspFor = (type) => (type.startsWith('text/html') ? CSP_FILE : CSP_PAGE)
 
-// Only 127.0.0.1 is bound, and that on its own stops nothing: a page anywhere on the internet can
-// point a hostname it controls at 127.0.0.1 and then read every spec and artifact here as
-// same-origin, with the random port the only thing it has to guess. So a request whose Host does not
-// name this loopback server is refused before any path is looked at.
+// Binding 127.0.0.1 stops nothing on its own: a page anywhere can point a hostname it controls at
+// 127.0.0.1 and read every spec and artifact here as same-origin, with only the port to guess. So a
+// request whose Host does not name this loopback server is refused before any path is looked at.
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ))
 
-// encodeURI deliberately leaves #, ? and & alone, because all three are legal *somewhere* in a URL —
-// just not in a path segment, where a literal # truncates the path before the browser ever sends it
-// and a literal & is an undefined entity inside the href attribute. So a listed `a#b.md` linked to a
-// 404 while being perfectly servable. Encoding segment by segment is what actually links to the file.
+// encodeURI leaves #, ? and & alone — legal somewhere in a URL, but not in a path segment, where a
+// literal # truncates the path before the browser sends it and a literal & is an undefined entity
+// inside the href attribute. Encoding segment by segment is what actually links to the file.
 const encodePath = (p) => p.split('/').map((seg) => encodeURIComponent(seg)).join('/')
 
 function hostAllowed(req) {
@@ -203,8 +197,8 @@ function cmdServe(argv) {
     })
   })
 
-  // A fixed default port is exactly the one the instance you already have open would be holding, so
-  // the default is drawn at random and one project per instance is the normal case.
+  // A fixed default port is exactly the one the instance you already have open would be holding,
+  // so the default is drawn at random.
   let attempts = 0
   const pick = () => (pinned ? pinned + attempts : 10000 + Math.floor(Math.random() * 10000))
 
