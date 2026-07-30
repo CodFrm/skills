@@ -54,7 +54,8 @@ tasks:
       new session rather than 401." This is what the implementer makes true.
     deps: []                    # ids that must be done first. [] means it can start now
     files: [src/auth/]          # what it expects to touch — this is the parallelism check
-    model: null                 # optional; see "Choosing a model" below
+    model: null                 # cheap | mid | strong — a tier, not an id. See below
+    interfaces: null            # names and types this task produces that a later one consumes
     status: todo                # todo → doing → done | blocked
     note: null                  # only when blocked, or when done came out different
 
@@ -62,6 +63,7 @@ tasks:
     goal: ...
     deps: [1]
     files: [src/auth/session.ts, tests/auth/session.test.ts]
+    interfaces: "consumes refreshSession(token: string): Session from task 1"
     status: todo
 
 review:                  # wrap-up state, so a resumed session knows where it stands
@@ -70,6 +72,8 @@ review:                  # wrap-up state, so a resumed session knows where it st
 ```
 
 **`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at the same time: overlapping paths means they run one after the other instead. Guess it wide rather than narrow — a task that turns out to touch more than it declared is the one that corrupts a sibling's work.
+
+**`interfaces` is where a signature crosses a task boundary.** When task 2 calls something task 1 builds, that name and its type go on task 2's line — **not into the dispatch prompt**. A fact typed only into a prompt has to be retyped into the next one, and the one after that; it is the class of fact a compaction destroys while the plan survives. Leave it `null` where nothing crosses.
 
 ## Cutting the tasks
 
@@ -82,11 +86,23 @@ review:                  # wrap-up state, so a resumed session knows where it st
 
 **Aim for parallelism where the work genuinely splits, and do not manufacture it.** Three tasks in disjoint directories are worth cutting apart; three tasks that all edit one file are one task wearing three hats.
 
-## Choosing a model
+## Choosing a model: a tier, never an id
 
-`model` is a hint the executor passes on when it dispatches. Leave it `null` and the task inherits the session's model, which is the right answer most of the time.
+**`model` names one of three relative tiers — `cheap`, `mid`, `strong` — and the executor resolves it against whatever the harness actually offers at dispatch time.**
 
-Set it when the task is clearly off-centre: **mechanical and well-specified** (a rename across many files, a codegen step, a fixture) can take a faster, cheaper model; **design-sensitive, cross-cutting, or expected to need debugging** is worth a stronger one. Anything you cannot justify in a few words, leave `null`.
+**Never write a model id into the plan.** One repository gets worked on from several harnesses, so an id pinned here is authoritative on none of them and wrong on most; name a model the harness does not have and the dispatch either fails outright or silently falls back to something nobody chose.
+
+Read the tier off the task's own text — how much of the *how* is already written down, and how much is left for the implementer to work out:
+
+| What the task looks like | Tier |
+|---|---|
+| The task already says how: names the file, the command, the pattern to copy | `cheap` |
+| Cross-file coordination, following an existing pattern, or investigating a fault | `mid` |
+| Design judgement, or a large stretch of code to read before a line can be written | `strong` |
+
+**Pick per task, not once for the round** — a plan's tasks are not one size, and one tier for all of them is wrong in both directions at once: it either pays the hard task's price ten times over or sends the hard task out underpowered, and the second is the expensive mistake.
+
+**Rounds cost more than unit price.** The cheapest tier often burns two or three attempts on a task the middle tier would finish in one, which costs more overall. So the floor for `cheap` is narrow: it only has to follow the task text and run the tests. **Anything requiring the implementer to work something out for itself starts at `mid`.** Leaving it `null` is fine and inherits the session's model — usually the most expensive tier there is, which is why it is worth a moment's thought on the tasks that clearly do not need it.
 
 ## The gate, then freeze
 
@@ -107,6 +123,8 @@ Set it when the task is clearly off-centre: **mechanical and well-specified** (a
 - [ ] `deps` expresses every real ordering constraint; nothing depends on list order
 - [ ] `files` is filled in for every task, wide rather than narrow
 - [ ] Tasks that can genuinely run at once have disjoint `files`
+- [ ] Every signature crossing a task boundary is on the consuming task's `interfaces`, not left for a prompt
+- [ ] `model` is a tier word or `null` — never a model id
 - [ ] The breakdown went past the user and `status` is `ready`
 
 ## Red Flags
@@ -118,5 +136,7 @@ Set it when the task is clearly off-centre: **mechanical and well-specified** (a
 | "Task 1: write the tests. Task 2: make them pass" | That is one round of TDD split across two contexts, and GREEN needs the failure output RED produced. One task. |
 | "I know roughly how this module works, that is enough to plan it" | Roughly is where the task list stops matching the code, and the person who discovers it is a subagent with no way to check. Open the file, take the `file:line`. |
 | "`files` is bookkeeping, I will fill it in later" | It is what decides whether two tasks may run at the same time. Blank means everything serialises, or worse, two agents write one file. |
+| "I will put the exact model id in, to be unambiguous" | Unambiguous on this harness and wrong on the next one, where it fails or silently falls back. Name the tier; the executor resolves it. |
+| "Task 2 needs task 1's signature — I will put it in the dispatch prompt" | Then it has to be retyped for every later task, and a compaction destroys it while the plan survives. It goes on task 2's `interfaces`. |
 | "The plan and the branch can have different names, it is only a name" | Two names is two things to keep in step and nothing declares either. One slug, from the spec. |
 | "This came out differently, I will update the plan to match" | Then the plan records nothing and the next session cannot tell a decision from a drift. Say what changed, then change it on purpose. |

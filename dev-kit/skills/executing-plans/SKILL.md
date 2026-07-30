@@ -30,7 +30,7 @@ How should I run them?
    context, and the three independent ones run in parallel
 2. Run them inline in this session
 
-Worktree: I'll cut one at .dev-kit/worktree/oauth-login — src/ has
+Worktree: I'll cut one at .dev-kit/worktrees/oauth-login — src/ has
 uncommitted changes that aren't part of this round. Say so if you'd rather not.
 ```
 
@@ -43,8 +43,11 @@ Whichever way it goes, that skill's setup is still owed: the `.dev-kit` link so 
 ## The loop
 
 ```
-pick every task that is ready → dispatch the batch → record what comes back → commit → repeat
+pick every task that is ready → mark them doing → dispatch the batch → judge what comes back
+  → record the status → full suite once → repeat
 ```
+
+The implementer commits its own task; you never commit on its behalf.
 
 **Ready** means `status: todo` and every id in `deps` is `done`. Take all of them, not the first.
 
@@ -52,21 +55,30 @@ pick every task that is ready → dispatch the batch → record what comes back 
 
 Mark every task in the batch `doing` **before** dispatching, and write the file then. That field is what a resumed session, or you after a compact, reads to find out what was already in flight.
 
-Hand each task [the implementer prompt](references/prompts.md#implementer). Three things it must carry, and none of them are optional: **the task's `goal` verbatim**, **the spec path plus which of its requirements this serves**, and **TDD is mandatory** — a subagent with no context will otherwise write the code first and test it afterwards, which is the one thing that cannot be repaired later. Pass `model` where the task sets one.
+Hand each task [the implementer prompt](references/prompts.md#implementer). Four things it must carry, none of them optional: **the task's `goal` verbatim**, **the spec path plus which of its requirements this serves**, **TDD stated as mandatory** — a subagent with no context will otherwise write the code first and test it afterwards, which is the one thing that cannot be repaired later — and **that it must not write the plan file or set its own status**. Resolve `model`'s tier against what this harness offers; [never pass an invented id](references/prompts.md#what-every-dispatch-shares).
 
 **Parallel tasks run only their own tests.** The full suite is yours, once per batch, after the batch lands — a sibling's half-finished tree fails a suite run for reasons that have nothing to do with the task running it.
 
+**The implementer commits its own work, by path, and reports the SHA.** It knows what it touched; you do not, beyond what `files` declared. `git add -A` is banned in the prompt for a reason that a subagent cannot see for itself: it has no way of knowing a sibling task is writing into the same tree beside it.
+
+**The detail goes to a file, not into your context.** Each task's full report lands at `.dev-kit/artifacts/<spec-slug>/tasks/<id>-report.md` and the message back to you is capped at 15 lines. **A dispatch that returns its whole transcript has bought you nothing** — the context you were protecting is spent anyway, and you may as well have run it inline.
+
 ### Judging what comes back
 
-A task is `done` against **a command, an exit code and an observation**, checked point by point against its `goal`. Not against the implementer saying so, and not against how confident the report reads.
+A task is `done` against **a command, an exit code and an observation**, checked point by point against its `goal` — not against the implementer saying so, and not against how confident the report reads. **What comes back is a report, not a verdict.** A report claiming the goal now holds without naming the command and its exit code has not shown it.
 
-- **Short of the goal** → send it back once, naming exactly what is missing. **A second shortfall stops that task** — mark it `blocked` with a `note`, carry on with everything its `deps` do not gate, and raise it at the end. A third dispatch on the same task is how a session spends an hour going nowhere.
-- **Off-expectation but you can settle it** — a name, a file layout, an error type nobody specified — settle it, put one line in `note`, keep going.
-- **Off-expectation and you cannot settle it** — the answer changes what gets built and it is not in the spec — that is a stop. See below.
+The implementer returns one of four statuses, and they are not four flavours of failure — **they want four different responses**, and treating them alike is how a task that needed one missing fact gets abandoned:
 
-Then: **one commit per task, by path.** `git add <the task's files>`, never `git add -A` — in a parallel batch a sibling has uncommitted work in the same tree, and `-A` sweeps it into the wrong commit. No task id in the message; the plan is gitignored, so an id in the history points at nothing anyone can open.
+| Status | What you do |
+|---|---|
+| **complete** | Check the evidence against the `goal` point by point. Only once it holds: `status: done`, next task. |
+| **complete with concerns** | Read the concerns first. Anything about correctness or scope gets resolved before `done`; a pure observation ("this file is getting large") goes into `note` and waits for the wrap-up review. |
+| **missing context** | **Usually a hole in the plan, and cheap.** Write the missing fact into the plan's `context`, then dispatch again — it will not be missing next time. A fact that *contradicts* an entry already there is not a hole but a collision: that one goes to the user. |
+| **stuck** | Work out which kind. Not enough context → fill it in and re-dispatch. Needs more reasoning → **re-dispatch a tier up**, not again at the same one. Task too large → split it, which is yours to do. **The plan itself is wrong → that is the user's call**: park it `blocked` and take it to them. **Never re-dispatch unchanged** — it already told you that path does not work. |
 
-Write `status: done` the moment you have judged it. **Not at the end of the turn** — a plan file saved up is a plan file that loses everything when the session ends.
+**Two rounds is the limit on any one task.** A second shortfall after you have already fed something back marks it `blocked` with a `note`; carry on with everything its `deps` do not gate and raise it at the end. A third dispatch on the same task is how a session spends an hour going nowhere.
+
+Write the status **the moment you have judged it**. Not at the end of the turn — a plan file saved up is a plan file that loses everything when the session ends.
 
 ## When to stop, and when not to
 
@@ -89,9 +101,15 @@ When every task is `done` or `blocked`, **dispatch two subagents in parallel** �
 | **Spec verification** | the spec + the whole branch diff | Does this do what the spec says? Which requirements are unmet, partly met, or unobservable? Is there behaviour here nobody agreed to? |
 | **Code review** | the whole branch diff | Correctness, edge cases, error handling, tests that assert nothing, dead code, security. Nothing about whether it was the right thing to build |
 
-Prompts for both are in [prompts.md](references/prompts.md). **Dispatch them even in `inline` mode** — this is the one dispatch that buys isolation rather than context, and reviewing your own branch inside the session that wrote it provides none of it. With nobody to dispatch to, hand the user the diff and the two prompts and say the round is not finished until they come back.
+Prompts for both are in [prompts.md](references/prompts.md). **Both go out at the `strong` tier** — between them they are the only reading this code ever gets from anyone who did not write it, so this is the one dispatch in the round not to economise on, and a tier chosen for cost here is choosing to find fewer defects.
 
-The diff range is `git merge-base HEAD <baseline>`, and **say how many commits it covers** — a range taken from where the branch happens to begin silently drops anything that landed on the baseline first.
+**Dispatch them even in `inline` mode** — this is the one dispatch that buys isolation rather than context, and reviewing your own branch inside the session that wrote it provides none of it. With nobody to dispatch to, hand the user the diff and the two prompts and say the round is not finished until they come back.
+
+**Keep them unmerged.** They answer different questions, and a single reviewer holding both lets the louder answer stand in for the quieter one. Two files, two sets of findings, no combined ranking.
+
+**Do not write the verdict into either prompt.** Nothing you send tells a reviewer what it may not raise — [prompts.md spells out the four phrases to stop on](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt). Bounding the method is legitimate; bounding the conclusion is sparing yourself a fix.
+
+The diff range is `git merge-base HEAD <baseline>`, and **say how many commits it covers** — a range taken from where the branch happens to begin silently drops anything that landed on the baseline first. Work the baseline out rather than guessing *or* asking: `git symbolic-ref --short refs/remotes/origin/HEAD` for the remote's default, `git reflog show <branch> | tail -1` for where this branch was cut. Get it wrong and the reviewers are reading a pile of somebody else's changes.
 
 ## The fix loop, and the ceiling of three
 
@@ -137,8 +155,13 @@ Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SK
 | "Only one task is ready, so I will run them one at a time all the way down" | Ready means `todo` with `deps` settled — take every task that qualifies, not the first. Serialising work the plan cut apart throws away what the plan was for. |
 | "These two both touch `src/auth/`, but they are small — run them together" | Two agents editing one file in one workspace produce a tree neither of them tested. Disjoint `files`, or one after the other. |
 | "The implementer says it is done" | It reported. You judge — against a command, an exit code and an observation, point by point against the task's `goal`. |
-| "Third time lucky on this task" | Two shortfalls is the limit. Mark it `blocked`, carry on with what it does not gate, raise it at the end. |
-| "`git add -A` and commit" | In a parallel batch that sweeps a sibling's half-finished work into this task's commit. Commit the task's declared files by path. |
+| "It came back `stuck`, so send it out again" | It already told you that path does not work. Something has to change first: a fact filled in, a tier up, a split, or the user's call. Re-dispatching unchanged is asking the same question twice. |
+| "`missing context` means the task failed" | It means the plan had a hole and the implementer stopped instead of guessing, which is the cheapest outcome available. Write the fact into `context` and send it back. |
+| "Third time lucky on this task" | Two rounds is the limit. Mark it `blocked`, carry on with what it does not gate, raise it at the end. |
+| "`git add -A` and commit" | In a parallel batch that sweeps a sibling's half-finished work into this task's commit. The prompt bans it because a subagent cannot see the sibling for itself. |
+| "The subagent came back with everything I need to know, right here" | Then you paid for its whole transcript and dispatching bought you nothing. Full report to a file, 15 lines back. |
+| "I will tell the reviewer that bit was deliberate, to save it flagging it" | That is writing the verdict into the prompt. You are spending the reviewer's one advantage — it was not there when the code was written. |
+| "Same model for every task, simpler" | Wrong in both directions at once: the easy tasks overpay and the hard one goes out underpowered. Read the tier off each task line. |
 | "I will write the plan file once at the end of the turn" | Then a session that ends early loses every status it learned. Write it the moment a status changes. |
 | "Let the subagents update their own task status" | Concurrent writes to one YAML file. They report; you record. |
 | "The task did not say TDD explicitly, but the implementer knows" | A subagent with no context writes the code first. Tests added afterwards are green on the first run, which proves nothing. Put it in the prompt every time. |

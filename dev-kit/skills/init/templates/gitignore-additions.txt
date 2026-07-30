@@ -5,7 +5,7 @@
 
 # dev-kit runtime: working material that belongs to a task rather than to the repository —
 # artifacts/<spec-slug>/ (UI mockups and other local working files) and isolated workspaces
-# (git worktree add .dev-kit/worktree/<short-name>). The approved spec itself is committed, at
+# (git worktree add .dev-kit/worktrees/<short-name>). The approved spec itself is committed, at
 # docs/specs/; only the working material around it lives here.
 # Leaving off the trailing slash is deliberate: inside a worktree, .dev-kit is a symlink back to
 # the main repository, and a trailing slash matches only directories, so it would not cover it.
