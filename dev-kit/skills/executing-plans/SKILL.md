@@ -184,6 +184,12 @@ Findings you deliberately let stand are fine, and they are **recorded in the tas
 
 Reviews passing means the code is right. The report is what shows the user **it actually does the thing** — and lets them see it for themselves.
 
+**The report finds; it does not fix.** By the time you are writing it the fix loop has settled and both reviewers have read the branch, so anything changed underneath the report is code nobody has reviewed, landing in the one document that claims everything was checked. And a step that repairs as it goes has verified its own repair — [the same reason both wrap-up reviewers are read-only](references/prompts.md#spec-verification). Drive it, write down what happened, stop.
+
+**A requirement that does not hold is written down as not holding, and said out loud.** That verdict — and any flow you could not drive at all — goes to the user [at handing back](#handing-it-back), with what you would do about it and what it costs. Whether the round reopens for it is theirs to decide knowing that — it is still live until you set `status: done` — and not a repair you slip in on the way to reporting it green. The third option is the one that is never available: patch it quietly and write up the re-run as though the first run had passed.
+
+**Nothing gets softened to close the gap between what you saw and what the report says.** A check weakened until it passes, a "does not hold" moved to "holds" because the fix looks obvious, a flow that failed recorded as "not observed" — each of those turns a finding into a silence, and a silence is what the user reads as fine.
+
 **Run e2e when the change has a user-drivable flow and the project has a harness for it** (init's e2e track, or Playwright / Cypress / equivalent already present). The evidence is then screenshots or a recording. Otherwise the evidence is commands and their output. Say which way you went and why, in one line.
 
 **It goes to `e2e/scratch/<spec-slug>/report.md`** — one directory, on this round's own slug, with `logs/`, `resources/` and, for a UI, `screenshots/` and `videos/` beside it. **One home, whatever the project looks like.** Verification evidence is one kind of thing and belongs in one place; a report that moves depending on which docs a project happens to have is one nobody can find without checking first.
@@ -250,4 +256,6 @@ Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SK
 | "The reviewer is wrong about this one" | Then that is a finding let stand, with the reason recorded and repeated at delivery — not a finding closed. |
 | "The plan came out different, I will tidy it to match" | A plan edited into agreement with the code records nothing. Say what changed, then change it deliberately, per [`writing-plans`](../writing-plans/SKILL.md). |
 | "Tests are green, that is the verification report" | Green says the code does what its tests say. The report says it does what the *spec* says, and shows the user how to see it themselves. |
+| "Verification turned up a broken requirement — I will fix it and re-run before writing this up" | Then the report verified your own repair, over code no reviewer has read. The report finds and does not fix: write the verdict as it fell out, say it out loud, and let the user decide whether the round reopens. |
+| "It nearly works, so I will call that one 'not observed' rather than 'does not hold'" | "Not observed" means nobody looked. You looked and it failed — filing that as a gap turns a finding into a silence, and the user reads silence as fine. |
 | "The report is in `.dev-kit/artifacts/`, they can open it" | `.dev-kit/` is gitignored and never leaves this machine. Say the verdicts out loud, and put them in the PR body. |
