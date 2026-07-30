@@ -39,6 +39,8 @@ One exception: **if the repository already has contributor docs in a different l
 |-------|--------|
 | `init` | **When a project needs its "agent constraint system" set up or filled in.** Generates AGENTS.md / CLAUDE.md / layered docs, pins the high-value conventions into lint guardrails wired into CI, scaffolds the twin unit-test and e2e tracks, and sets up logging and observability conventions as needed. Also used on an older project to work through the checklist when "the docs are stale / there are no guardrails / the same class of problem keeps recurring". |
 | `brainstorming` | **When adding a feature, changing behaviour, designing UI, or when the requirements are still vague — and equally when the requirement is already clear and only needs writing down.** Explores intent read-only, asks one question at a time, compares options and secures agreement; where a visual choice is involved, builds HTML mockups under `.dev-kit/artifacts/<spec-slug>/mockups/`. **Ends by writing the agreed requirements into `docs/specs/<spec-slug>.md`, taking that file through the user, and committing it.** |
+| `writing-plans` | **Once a spec is approved and the change breaks into more than about three steps, or will span several sessions.** Turns the approved spec into `.dev-kit/plans/<spec-slug>.yaml` (gitignored, and on the spec's own slug): the finish line, facts verified with a `file:line` behind each, and tasks cut as **vertical slices** with their `deps` and the `files` each expects to touch. **The plan says how, never what** — no requirement is restated here, because verification reads the spec. The breakdown goes past the user, and once `ready` the plan is frozen except for its state fields. |
+| `executing-plans` | **When a `ready` plan exists**, and again at the start of any session that finds one whose `status` is not `done`. Reads the whole plan and the spec, **asks one question — dispatched subagents or inline, dispatched recommended — states the worktree decision rather than asking it**, then runs without stopping between tasks: every ready task dispatched, in parallel where their `files` are disjoint, each as a mandatory round of `test-driven-development`, each judged against a command, an exit code and an observation. **Only the orchestrator writes the plan file.** Wrap-up is two dispatched reviews at once — one against the spec, one on the code — then fixes, re-reviewed, to a ceiling of three rounds. Ends in a verification report whose last section is how the user reproduces it themselves. |
 | `using-git-worktrees` | **Before starting to implement**, and again when wrapping up to deliver the branch — also when trying a path that may be thrown away entirely, or when the current workspace still holds unrelated uncommitted changes. Shuts this round into its own directory and branch; **do not implement on main / master**. Detect an isolation you may already be in first, ask the user once rather than estimating the install cost, **make sure the approved spec is committed before cutting** (a worktree only ever sees `HEAD`), and prefer the harness's own worktree tool over `git worktree add` where there is one. Delivery ends in a menu — merge / PR / leave it — with your recommendation, and **what wrap-up learned is stated before the options**: every acceptance sentence not demonstrably true, the findings let stand, and any behaviour left unobserved. Cleanup removes only the workspace you created. **The branch has a life after the menu**: PR feedback comes back through the chain by size — a new round for the substantial, a straight fix under [the same standing obligations](#what-every-round-owes-whatever-its-size) for the rest. |
 | `test-driven-development` | **When implementing new behaviour, fixing a reproducible bug, or changing a public contract.** Failing test first, watched failing for the right reason, then the minimum code that makes it pass — one happy path plus the edge or failure case the contract genuinely owns, per round. **It does not require a spec**: with one, it takes the sentence it is making true from that spec's requirements and testing decisions; without one, it writes that sentence itself. How tests are designed comes from the project's `docs/testing.md` (the one `init` generates), so that the standard belongs to the project rather than to this kit. |
 | `systematic-debugging` | **On a bug, a test or build failure, a performance regression, an intermittent fault, or behaviour that does not match the spec — before proposing a fix.** No fix without a reproduction and a root cause: define the deviation, reproduce it, attribute the evidence to the right tree, instrument the boundaries, compare against something that works, and test one hypothesis at a time. The diagnostic phase is **read-only**, and an experiment that writes to an external system or production data needs the user's word first. Ends by handing the reproduction to `test-driven-development` as the failing test. Three attempts that do not move the evidence is a finding about the design, not a reason to try a fourth. |
@@ -47,7 +49,9 @@ One exception: **if the repository already has contributor docs in a different l
 
 ## The spec-driven chain, as far as it currently goes
 
-**As far as it currently goes is end to end**: requirement, approved spec, isolated workspace, the implementation rounds, the wrap-up review and gates, delivery. `init` is not a stage of it — it sets up the project the chain runs inside, and is reached for on its own. **When a gap opens up again, write it here**, because a gap nobody wrote down is one the next session finds out about mid-round.
+**As far as it currently goes is end to end**: requirement, approved spec, plan, isolated workspace, the task loop, the two wrap-up reviews, the verification report, delivery. `init` is not a stage of it — it sets up the project the chain runs inside, and is reached for on its own. **When a gap opens up again, write it here**, because a gap nobody wrote down is one the next session finds out about mid-round.
+
+**One slug carries the whole chain**: the spec's `YYYY-MM-DD-<short-name>` is also the plan's filename, the branch, the worktree directory and the artifacts directory. There is never a second name to keep in step.
 
 ```text
 requirement / fault
@@ -60,21 +64,36 @@ requirement / fault
        ├ written into docs/specs/<spec-slug>.md
        ├ ← gate: the user approves the written file (reading it, not recalling the conversation)
        └ committed on the current branch, by path
+       ↘ ≤3 steps and it holds in one session → no plan: straight to the worktree question
+           and the task loop below, as a single slice, under the same standing obligations
+  → writing-plans   (more than ~3 steps, or spanning sessions)
+       ├ read the ground first — every context entry is a fact with a file:line
+       ├ goal as the finish line; the plan says how, and restates no requirement — the
+       │   spec is what wrap-up measures against, so a second copy here only goes stale
+       ├ tasks cut as vertical slices: a complete capability, one fresh context window,
+       │   one whole RED→GREEN→REFACTOR round each — never "write the tests" as a task
+       ├ deps for ordering, files for what each task may touch — files is what decides
+       │   whether two tasks can run at the same time
+       ├ ← gate: the user sees the breakdown and vetoes — draft is not workable-from
+       └ .dev-kit/plans/<spec-slug>.yaml, gitignored, frozen after ready except for state
   → using-git-worktrees
        ├ already in an isolated workspace? detect before creating a second one
-       ├ ask the user once — the install cost is a fact about their machine, not the repo
+       ├ under a plan the decision is taken and stated, not asked — executing-plans folds
+       │   it into its one gate; standalone, using-git-worktrees asks
        ├ the approved spec must be committed before cutting: a worktree only sees HEAD
-       ├ the harness's own worktree tool where there is one, else git worktree add — one name
-       │   from the spec's slug for both branch and directory, into whatever location this
-       │   project already uses, else .dev-kit/worktree/
-       └ every path then owes the same setup: install, and run the baseline before the first
-           change, so a failure you inherited is never mistaken for one you caused
-  → implementation — cut the work into vertical slices and take them one at a time
-       ├ a slice is a complete capability, not a layer: never "write the tests" as its own
-       │   slice, and never a slice whose result nobody can observe
-       ├ before the first edit, say what will be observably true afterwards that is not true
-       │   now — taken from the spec's requirements, one sentence per slice
-       │  ↳ test-driven-development, one whole round per slice
+       ├ the harness's own worktree tool where there is one, else git worktree add — the
+       │   spec's slug for both branch and directory, into whatever location this project
+       │   already uses, else .dev-kit/worktree/
+       └ every path then owes the same setup: link .dev-kit in, install, run the baseline
+           first, so a failure you inherited is never mistaken for one you caused
+  → executing-plans — a loop, not a stage: everything indented below runs once per task
+       ├ ← gate: one question before the first task — dispatched subagents or inline?
+       │   dispatched recommended, with the worktree decision stated in the same message
+       ├ take every task that is ready (todo, deps done), not the first — dispatch the
+       │   batch in parallel where their files are disjoint, serially where they overlap
+       ├ then keep going: a finished task is not a checkpoint. The loop stops for a
+       │   question that changes what gets built, something destructive, or the ceiling
+       │  ↳ test-driven-development, inside the task and named in its dispatch
        │     ├ one sentence you are making true — taken from the spec's requirements and
        │     │   testing decisions, or written yourself when there is no spec
        │     ├ boundary per docs/testing.md: the narrowest one that can observe the real
@@ -88,26 +107,34 @@ requirement / fault
        │         experiment. Read-only until the cause is established. The reproduction comes
        │         back as this loop's RED, and three attempts that do not move the evidence is
        │         a finding, not a fourth guess
-       ├ a slice is finished against a command, an exit code and an observation — never
-       │   against how confident the code looks
-       ├ one commit per slice
+       ├ done means the goal checked point by point, with a command, an exit code and an
+       │   observation behind it; a second shortfall blocks that task rather than a third
+       │   dispatch, and the loop carries on with whatever it does not gate
+       ├ one commit per task, by path — never git add -A while a sibling task is in flight
+       ├ the plan file written the moment a status changes, and only ever by the orchestrator
        └ expensive verification — e2e, starting the real application — happens once at the
-           end, never per slice
-  → wrap-up, two steps in an order that cannot swap
-       1 overall review — the whole branch's diff in one pass, code axis and spec axis under
-         separate headings. Dispatch it: reviewing your own branch inside the context that
-         wrote it provides none of the isolation the review exists to buy
-       2 project gates + acceptance — the project's existing test / lint / build entry
-         points, then each acceptance sentence checked and its verdict stated. Dispatch the
-         runs too, for context rather than for isolation: what comes back is an observation,
-         and the verdict is yours to write from it
-       ↘ no separate report by default; write one only when the evidence cannot be command
-         output (screenshots, recordings, before-and-after data), and ask the user first
+           end, never per task
+  → wrap-up — two dispatched reviews at once, then fixes, to a ceiling of three rounds
+       1 spec verification — the spec plus the whole branch diff: is every requirement met,
+         is there behaviour nobody agreed to? Not about code quality
+       2 code review — the same diff on its own terms: correctness, edge cases, error paths,
+         tests that assert nothing, security. Not about whether it was the right thing
+       ↳ both dispatched even in inline mode: this is the dispatch that buys isolation, and
+         your own branch read in the context that wrote it is not a review
+       ↳ findings → fix as TDD rounds → re-run both. Three rounds with anything still open
+         stops the round and goes to the user: that is evidence about the design, and the
+         fourth pass is where findings get argued away instead of fixed
+  → the verification report — .dev-kit/artifacts/<spec-slug>/verification.md
+       ├ e2e where the change has a drivable flow and the project has a harness, so the
+       │   evidence is screenshots or a recording; otherwise commands and their output
+       ├ verdict per spec requirement, how it was verified, the evidence, what went
+       │   unobserved — and **how the user reproduces it themselves**, which is the point
+       └ the project's own docs/verification.md format wins where init has generated one
   → delivery (using-git-worktrees again)
        ├ the full suite runs once more on the tree actually being delivered
-       ├ what wrap-up learned, stated before the options: every acceptance sentence not
-         demonstrably true, the findings let stand, anything left unobserved — say it out
-         loud, because anything under .dev-kit/ is gitignored and never reaches them
+       ├ what wrap-up learned, stated before the options: every requirement whose verdict is
+         not "holds", tasks left blocked, findings let stand, anything unobserved — say it
+         out loud, because anything under .dev-kit/ is gitignored and never reaches them
        ├ merge / open a PR / leave it — their call, your recommendation and its evidence
        ├ PR feedback routes back in by size, under the same standing obligations
        └ cleanup removes only the workspace you created, and never by rm -rf
@@ -115,9 +142,11 @@ requirement / fault
 
 **`test-driven-development` does not check whether a spec exists.** It takes the sentence it is making true from one when there is one, and writes that sentence itself when there is not — so picking the skill up mid-implementation works, and so does a change that legitimately skipped the spec under the rule below. **Whether a change owes a spec is that rule's call, not this skill's.** The one thing the loop will not do is run *before* the requirement is settled: writing the failing test first buys nothing when the sentence it makes true is a guess.
 
-**Naming**: the spec file is `docs/specs/YYYY-MM-DD-<lowercase-short-name>.md`, the date being **the day the file was created**. It is not renamed afterwards — the branch, the worktree directory, the mockup directory and any later evidence directory all follow that slug, so renaming breaks all of them at once.
+**Naming**: the spec file is `docs/specs/YYYY-MM-DD-<lowercase-short-name>.md`, the date being **the day the file was created**. It is not renamed afterwards — the plan, the branch, the worktree directory, the mockup directory and the evidence directory all follow that slug, so renaming breaks all of them at once.
 
-**Stages can be skipped against a criterion; they cannot be skipped silently.** A pure bug fix still gets a small spec — at minimum the symptom, the promised behaviour, non-goals and what would count as a regression. Pure documentation or mechanical formatting changes can skip the spec, with the reason stated. The worktree can be skipped where the workspace holds no unrelated uncommitted changes, the change is not one you might throw away whole, and you are not standing on main / master — any of the three failing, cut one. **A branch is never optional: do not commit to main / master on any path.**
+**Stages can be skipped against a criterion; they cannot be skipped silently.** A pure bug fix still gets a small spec — at minimum the symptom, the promised behaviour, non-goals and what would count as a regression. Pure documentation or mechanical formatting changes can skip the spec, with the reason stated. **The plan comes off at three steps or fewer inside one session** — above that you are writing one, and it is `writing-plans` that owns the threshold. The worktree can be skipped where the workspace holds no unrelated uncommitted changes, the change is not one you might throw away whole, and you are not standing on main / master — any of the three failing, cut one. **A branch is never optional: do not commit to main / master on any path.**
+
+**The two documents are settled once and then left alone.** The spec says what to build, the plan says how, and **neither is edited because the code came out differently** — a document rewritten to agree with what happened records nothing, and the next session cannot tell a decision from a drift. Where the work genuinely shows one of them wrong, say so and change it deliberately: the plan with the user's eye on the re-cut tasks, the spec back through `brainstorming` and its gate.
 
 ## What every round owes, whatever its size
 
@@ -125,20 +154,20 @@ requirement / fault
 
 - **`test-driven-development`, in full.** On a small change with no slice list, it is the entire structure holding the work together, so shortening a round there removes the last thing there was. It needs no spec — it writes the sentence it is making true itself.
 - **The evidence bar.** Finished means a command, an exit code and an observation. "It is a two-line change" is a description of the diff, not a verification of it.
-- **One review, dispatched, before the change is called finished.** **Nothing is judged complete inside the context that produced it, and that invariant has no size exemption** — a small change reviewed by its own author is exactly the case where "it is obviously fine" goes unchallenged. Its scope is **the whole diff of this change against the branch point, read once**, on two axes under separate headings — code axis and spec axis, the spec axis skipped in one line where there legitimately is no spec.
+- **A dispatched review before the change is called finished.** **Nothing is judged complete inside the context that produced it, and that invariant has no size exemption** — a small change reviewed by its own author is exactly the case where "it is obviously fine" goes unchallenged. Its scope is **the whole diff of this change against the branch point**, on two axes: does it do what the spec says, and is the code right. Under a plan those are [two subagents run at once](../executing-plans/SKILL.md#wrap-up-two-reviews-at-once); on a change too small for a plan they are one dispatch with two headings, the spec axis skipped in one line where there legitimately is no spec.
 
   **With nobody to dispatch to, this becomes a handover, not an inline pass.** A fresh session is something the user can open even where you cannot, so give them the diff and the prompt, say the change is not finished until the review comes back, and **do not rule it finished in the meantime.** **Reviewing it yourself and disclosing that you did is not the degraded form of this step, it is the absence of it.**
 - **Say what you skipped and why, before the first edit.** One line: which stages came off, against which criterion. That line is the only artifact standing where a skipped stage's gate would be; unwritten, nobody can tell a judged shortcut from a forgotten one.
 
 **Where the evidence goes.** **The test you wrote is the durable record** — it is in the tree, it re-runs, and it outlives this session. The commands, exit codes and observations go into what you hand back to the user, and into the commit message where the project's convention has room. **Write a file only when the evidence cannot be command output** — screenshots, before-and-after data — and it lands at `.dev-kit/artifacts/<spec-slug>/verification.md`, on the same slug as the mockups and diagnostics; where the spec was legitimately skipped there is no slug to inherit, so take one of the same shape, today's date plus a short name. `.dev-kit/` is gitignored, so **nothing decisive may live only there**: a reviewer, or you on another machine, cannot open it.
 
-**How it ends.** **You rule it finished, not the reviewer** — against three things together: the review back with nothing open, the project's existing test / lint / build entry points green, and every acceptance sentence demonstrably true. Delivery is the same menu as ever — merge, open a PR, or leave it, their call with your recommendation and its evidence, per [`using-git-worktrees`](../using-git-worktrees/SKILL.md). **Do not merge it yourself.**
+**How it ends.** **You rule it finished, not the reviewer** — against three things together: the reviews back with nothing open, the project's existing test / lint / build entry points green, and every requirement the spec states demonstrably true. Delivery is the same menu as ever — merge, open a PR, or leave it, their call with your recommendation and its evidence, per [`using-git-worktrees`](../using-git-worktrees/SKILL.md). **Do not merge it yourself.**
 
 **Escalate rather than push on** the moment any of these shows up:
 
-- **the review returns a finding you cannot close with a test or a command**, or a second pass does not close it — on a small change you are author and fixer at once, so a finding argued away has nobody left to catch it;
+- **a review returns a finding that three rounds of fixing do not close** — that is evidence about the design or the requirement, and a fourth pass is where findings start getting argued away instead of fixed. Under a plan `executing-plans` counts the rounds; without one, count them yourself;
 - a decision surfaces that changes behaviour the user can observe — that goes to `brainstorming` under [gate 3 below](#when-to-ask-the-user-look-it-up-decide-it-and-only-then-ask), not into your own judgement;
-- the change has grown past what the skipped stages were judged against — **re-judge it, do not defend it.** Picking a stage back up late costs almost nothing: the spec, the tests and the commits you already have carry straight over.
+- the change has grown past what the skipped stages were judged against — **re-judge it, do not defend it.** Picking a stage back up late costs almost nothing: the spec, the tests and the commits you already have carry straight over, and a plan can be written around work already done.
 
 ## When to ask the user: look it up, decide it, and only then ask
 
@@ -178,7 +207,7 @@ The main session is the **orchestrator**: it holds the goal, the constraints, th
 - **Tightly coupled short loops** — splitting one tight cycle across two agents leaves half the evidence in someone else's context. `test-driven-development`'s RED→GREEN is the case to know: GREEN needs the specific failure output that RED produced, so the whole round travels together or not at all.
 - **Parallel work hitting the same resource** — two agents writing one file, or two runs fighting over the same port and data directory. Parallelism is for **read-only** work, or for work with disjoint outputs.
 
-**The one thing that must be dispatched** is the [wrap-up review](#what-every-round-owes-whatever-its-size) — not for context, but for isolation. Where this lands in each skill is in the individual SKILL.md files (`brainstorming`'s parallel options and exploration, `init`'s deep scan and self-verification, `test-driven-development`'s whole-round dispatch).
+**The one thing that must be dispatched** is the [wrap-up review](#what-every-round-owes-whatever-its-size) — not for context, but for isolation, and it is the one dispatch `inline` mode does not exempt. **The clearest parallel case is the wrap-up pair**: spec verification and code review read the same diff, write nothing, and answer different questions, so they run at once. Where the rest lands is in the individual SKILL.md files (`brainstorming`'s parallel options and exploration, `init`'s deep scan and self-verification, `executing-plans`' ready-task batches, `test-driven-development`'s whole-round dispatch).
 
 ## The optional CLI
 
@@ -193,7 +222,10 @@ The main session is the **orchestrator**: it holds the goal, the constraints, th
 | "This one is simple, no need to check for a skill" | A question is a task too. Check for a skill first. |
 | "Let me understand the code a bit first" | Checking for a skill comes before clarifying or exploring. |
 | "The user was perfectly clear, no need for a spec" | A clear conversation is exactly what is easiest to turn into a short spec; whoever implements it still needs a basis that survives the session. |
-| "It is a small change, so I will just make it" | Small takes stages off against a criterion — it takes nothing off [the standing obligations](#what-every-round-owes-whatever-its-size): TDD, evidence, and one dispatched review before you call it finished. |
+| "It is a small change, so I will just make it" | Small takes stages off against a criterion — it takes nothing off [the standing obligations](#what-every-round-owes-whatever-its-size): TDD, evidence, and a dispatched review before you call it finished. |
+| "This task is done — I will check in with the user before the next one" | Under a plan the loop does not stop between tasks. It stops for a question that changes what gets built, for something destructive, and for the three-round ceiling. A finished task is not a checkpoint. |
+| "The spec is vague here, I will settle it in the plan" | That is a requirement being decided by whoever is writing the route, with nobody's agreement. The plan says how; what to build goes back to the spec and its gate. |
+| "This came out differently from the plan, I will tidy the plan to match" | A document rewritten to agree with what happened records nothing, and the next session cannot tell a decision from a drift. Say what changed, then change it deliberately. |
 | "It has grown past what I judged it against, but I am nearly done" | The judgement is against the change, not against how far in you are. What you have already built carries over unchanged; re-arguing the boundary is how the cheap route becomes the only route. |
 | "The tests will probably pass, just say it is done" | Not run means not done. Every verification comes with a command, an exit code and an observation. |
 | "This code is obvious, write it and add the tests afterwards" | A test written against code that already exists is green on its first run, and green proves nothing there — you never saw it fail, so nothing says it would fail if the behaviour broke. `test-driven-development` has the rest. |

@@ -1,6 +1,8 @@
 # dev-kit
 
-规格驱动开发的技能集。一轮开发按这条链路走完：探索需求 →「spec 获批并提交」→ 隔离工作区 → 逐段实现（每段一轮 TDD，遇到故障转系统化调试）→ 一次派发出去的整体评审 + 项目门禁 → 交付。每一步都有明确的产物和用户闸门，判「完成」只认命令、退出码和观察到的现象，任何东西都不在生产它的上下文里被判定完成。链路之外另有 `init`，负责把项目自身的约束立起来：AGENTS.md、分层文档、接进 CI 的 lint 护栏，以及单测与 e2e 两条验证轨道。
+规格驱动开发的技能集。一轮开发按这条链路走完：探索需求 →「spec 获批并提交」→ 写成执行计划 → 隔离工作区 → 逐任务推进（默认派发 subagent，依赖允许就并行，每个任务强制一轮 TDD）→ 两个 subagent 分别审 spec 与代码 → 出验证报告 → 交付。
+
+**spec 决定做什么，plan 决定怎么做**，两者都不因为「代码写出来不一样」而被回头改。判「完成」只认命令、退出码和观察到的现象，任何东西都不在生产它的上下文里被判定完成。链路之外另有 `init`，负责把项目自身的约束立起来：AGENTS.md、分层文档、接进 CI 的 lint 护栏，以及单测与 e2e 两条验证轨道。
 
 ## 安装
 
@@ -31,7 +33,7 @@ ln -s /path/to/skills/dev-kit ~/.claude/skills/dev-kit          # skill 正文 +
 ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选，会话之外也能用 CLI；换成你 PATH 上的目录
 ```
 
-`~/.claude/skills/<name>/` 下的目录会在下个会话自动以 `<name>@skills-dir` 加载，六个 skill 和那个 hook 都算数——拿 `claude plugin details dev-kit@skills-dir` 看它的组件清单可以确认。
+`~/.claude/skills/<name>/` 下的目录会在下个会话自动以 `<name>@skills-dir` 加载，八个 skill 和那个 hook 都算数——拿 `claude plugin details dev-kit@skills-dir` 看它的组件清单可以确认。
 
 **两种装法不能并存，而且冲突时不报错。** 插件按名字抢先：`dev-kit@codfrm-skills` 一旦装上，软链接那份就在 `claude plugin list` 里变成 `✘ Not loaded`，症状只是「改动突然不生效了」。要软链接生效，先 `claude plugin uninstall dev-kit@codfrm-skills`。
 
@@ -54,17 +56,23 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选，会�
 | [using-dev-kit](./skills/using-dev-kit/) | 每个开发会话的开头，以及写代码、跑命令、向用户提问之前——这套 kit 的引导页 |
 | [init](./skills/init/) | 项目要立规矩：初始化 AGENTS.md / 开发规范 / 护栏；或老项目文档过期、没有护栏、同一类问题反复出现 |
 | [brainstorming](./skills/brainstorming/) | 要加功能、改行为、设计 UI，需求还模糊；需求已经清楚但只是没写下来时同样适用——在任何实现动作之前 |
+| [writing-plans](./skills/writing-plans/) | spec 获批之后，改动拆下来超过约三步，或要跨会话 |
 | [using-git-worktrees](./skills/using-git-worktrees/) | 开始实现之前、以及分支收尾交付时；也用于可能整个丢弃的尝试，或当前工作区还压着别的未提交改动 |
+| [executing-plans](./skills/executing-plans/) | 已有定稿的 `.dev-kit/plans/*.yaml` 要推进或收尾；会话开头发现有未完成的计划时同样 |
 | [test-driven-development](./skills/test-driven-development/) | 实现新行为、修可复现的 bug、改公开契约——在写生产代码之前 |
 | [systematic-debugging](./skills/systematic-debugging/) | 碰到 bug、测试失败、构建报错、性能回退、偶发故障，或行为与 spec 不符——在提出修复方案之前 |
 
 ## 链路
 
 1. `brainstorming`——需求探索，写成 `docs/specs/<slug>.md`，过用户后提交
-2. `using-git-worktrees`——把这一轮关进独立的工作区和分支
-3. 实现——每段行为一轮 `test-driven-development`（遇到故障转 `systematic-debugging`），一段一次提交
-4. 收尾——一次**派发出去**的整体评审，再跑项目自己的 test / lint / build 门禁，逐条核对 spec 里的验收句子
-5. 交付——回到 `using-git-worktrees`：先讲清楚收尾留下了什么，再给 merge / PR / 先放着的菜单
+2. `writing-plans`——转成 `.dev-kit/plans/<同一个 slug>.yaml`（gitignored）：只写怎么做，任务切成垂直切片，`deps` 排序、`files` 决定谁能并行；过用户后定稿
+3. `using-git-worktrees`——把这一轮关进独立的工作区和分支
+4. `executing-plans`——**只问一个问题**（subagent 还是 inline，worktree 是直接决定并告知的），然后不停：每一批 ready 的任务派发出去，`files` 不重叠就并行，每个任务强制一轮 TDD（遇到故障转 `systematic-debugging`）
+5. 收尾——两个 subagent 同时跑：一个对着 spec 验，一个只看代码。修完再跑一遍，**最多三轮**，还不行就停下来告诉用户
+6. 验证报告——有可驱动的界面且项目有 e2e 就跑一轮取截图/录屏，否则用命令和输出；报告里必须有**用户自己怎么复现**
+7. 交付——回到 `using-git-worktrees`：先讲清楚收尾留下了什么，再给 merge / PR / 先放着的菜单
+
+**一个 slug 贯穿全链路**：spec 文件名、plan 文件名、分支、工作区目录、产物目录，全都是它，不存在第二个名字要对齐。
 
 带闸门、产物和分支点的完整那张图在 [skills/using-dev-kit/SKILL.md](./skills/using-dev-kit/SKILL.md)，这里不重复。`init` 不是链路的一环——它设置链路运行所在的那个项目，单独触发。
 

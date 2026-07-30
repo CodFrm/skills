@@ -36,7 +36,7 @@ Three files, and they do not repeat each other:
 
 ## Before the loop
 
-**Have one sentence you are making true.** "Given this precondition, doing this, you observe this." If the project has an approved spec, take it from that spec's requirements and testing decisions — the seams there were already confirmed with the user, so use them rather than inventing your own, and the slice you are on says which requirement it serves. Without one, write the sentence yourself. **Not being able to write it means you do not yet know what you are building** — go read the code or ask, do not start typing tests.
+**Have one sentence you are making true.** "Given this precondition, doing this, you observe this." If the project has an approved spec, take it from that spec's requirements and testing decisions — the seams there were already confirmed with the user, so use them rather than inventing your own. Under a plan, the task you are on carries that sentence already and names which requirement it serves. Without either, write the sentence yourself. **Not being able to write it means you do not yet know what you are building** — go read the code or ask, do not start typing tests.
 
 **A bug needs a stable reproduction first** — `systematic-debugging` is what establishes one and locates the cause, and what it hands back is exactly the RED this loop starts from. A fix with nothing that reproduces the fault has no red to watch, and "it does not happen any more" is indistinguishable from "I did not trigger it this time".
 

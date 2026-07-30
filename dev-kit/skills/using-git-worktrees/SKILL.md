@@ -47,6 +47,8 @@ Equal paths, or a non-empty superproject, means an ordinary checkout. Continue t
 
 ### 0b · Ask, once — do not estimate
 
+**Running under a plan? The decision is taken, not asked.** [`executing-plans`](../executing-plans/SKILL.md#the-one-gate) folds it into its single gate: it decides against [the criteria above](#when-to-use--when-not-to), states which way it went in one clause alongside the mode question, and lets a word from the user overturn it. The reasoning below still holds for a one-off change, and weakens under a plan for two reasons — a multi-task round is long enough to absorb an install, and the decision is usually forced anyway by uncommitted changes or by standing on main. **Spending a second question on a decision that is usually not a decision is how a gate stops being read.**
+
 **If your instructions already state a worktree preference, honour it without asking.** Otherwise ask, in one line, and wait:
 
 > "Shall I set up an isolated worktree for this? It keeps your current branch and working tree untouched. It does mean reinstalling dependencies in the new directory."
@@ -70,7 +72,7 @@ Cut it the other way round and nothing errors — the worktree comes up fine, an
 
 The same test applies to anything else this round needs — a `.env.example` addition, a fixture, a config change made while exploring. Commit it, or accept that the worktree will not see it.
 
-**`.dev-kit/` is the one thing that does not travel this way.** It is gitignored by design, so committing is not its route into the workspace — [the link in the setup section](#link-dev-kit-into-the-workspace) is. Two mechanisms, and it is worth keeping them straight: **the spec is committed so that the worktree checks out its own copy; `.dev-kit/` is linked so that the worktree reads the main repository's mockups and artifacts and there goes on being exactly one set of them.**
+**`.dev-kit/` is the one thing that does not travel this way.** It is gitignored by design, so committing is not its route into the workspace — [the link in the setup section](#link-dev-kit-into-the-workspace) is. Two mechanisms, and it is worth keeping them straight: **the spec is committed so that the worktree checks out its own copy; `.dev-kit/` is linked so that the worktree reads the main repository's plan and artifacts and there goes on being exactly one of each.**
 
 ## Step 1: create the workspace
 
@@ -101,7 +103,7 @@ Four conventions here, and [a fifth thing every path owes](#link-dev-kit-into-th
 
 ### Link `.dev-kit` into the workspace
 
-**The link is required whenever this round already has something under `.dev-kit/artifacts/`** — the mockups `brainstorming` built against the spec, above all. `.dev-kit/` is gitignored, so none of it travels with the workspace: without the link the mockups the design was agreed on are simply absent from the directory the implementation happens in, and the obvious workaround — rebuilding them inside the workspace — leaves two sets that never line up again. It also gives this round's own evidence somewhere to land, and `devkit serve` something to serve. **With no mockups and nothing else in `artifacts/` the link is optional**, since the spec itself is committed and therefore present — make it anyway if there is any chance evidence will be written this round.
+**The link is required whenever this round has a plan.** `.dev-kit/` is gitignored, so none of it travels with the workspace — and `.dev-kit/plans/<slug>.yaml` is what the implementation is working from, and the one file the orchestrator writes status into. Without the link, the workspace cannot see the plan at all, and the obvious workaround — starting a second plan file inside the workspace — leaves two that never line up again. The same link buys `.dev-kit/artifacts/`: the mockups the design was agreed on, this round's evidence and its verification report, and something for `devkit serve` to serve. **With no plan and nothing in `artifacts/` the link is optional**, since the spec itself is committed and therefore present — make it anyway if there is any chance evidence will be written this round.
 
 ```bash
 # from the workspace root
@@ -110,7 +112,7 @@ ln -s "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.de
 
 **Compute the target; do not count `../` from memory.** `--git-common-dir` resolves to the *main* repository's `.git` from inside any linked workspace, so its parent is the repo root wherever the workspace itself was put — which is the point, because **a native tool may have placed it somewhere you did not choose**, and a memorised relative path then points confidently at nothing. For the `.dev-kit/worktree/<name>` default the relative form is `../../../.dev-kit`, counting `<name>` → `worktree` → `.dev-kit` → repo root — and for a project that keeps its worktrees in `.worktrees/<name>` it is `../../.dev-kit` instead, which is exactly why the depth is not a constant worth memorising. One level short lands on a real directory that `ls` will not complain about and none of what you want is in.
 
-**Then check the link resolves before relying on it** — `readlink .dev-kit` and `ls .dev-kit/artifacts/`. On Windows `ln -s` needs Developer Mode or an elevated shell, and otherwise fails with "operation not permitted"; use `mklink /D` from cmd instead. `--path-format` needs git 2.31 or newer; on an older git, take the relative form above and count.
+**Then check the link resolves before relying on it** — `readlink .dev-kit` and `ls .dev-kit/plans/`. On Windows `ln -s` needs Developer Mode or an elevated shell, and otherwise fails with "operation not permitted"; use `mklink /D` from cmd instead. `--path-format` needs git 2.31 or newer; on an older git, take the relative form above and count.
 
 **One trap: writing `.dev-kit/` with a trailing slash in `.gitignore` does not cover this symlink** — a trailing slash matches only directories, and a symlink is not a directory, so `git status` grows a permanent `?? .dev-kit` and `git add -A` commits it. Drop the slash and write `.dev-kit`, which covers both (`init`'s gitignore template already does, and says why).
 
@@ -147,13 +149,13 @@ The conversation often states it outright as well. **Say what you worked out and
 
 **The two answer different questions, and the order matters when this round did not start clean.** `origin/HEAD` names the branch you are delivering *into*. The reflog names the commit this branch was *cut from* — which is the same thing only if nothing from this round had already landed before the branch existed. Where an earlier task was committed straight onto the baseline and the branch was cut afterwards, the reflog points at that commit, and **a review range starting there silently omits it** — from the one pass that was ever going to read this code. So take the range from the baseline branch (`git merge-base HEAD <baseline>`), not from where the branch happens to begin, and **say how many commits it covers** so a missing one is visible rather than merely absent.
 
-**3. Say what wrap-up left open — before the options, not after.** [Wrap-up](../using-dev-kit/SKILL.md#the-spec-driven-chain-as-far-as-it-currently-goes) — the dispatched whole-branch review, then the project's gates and the acceptance sentences — hands three items over, and they go to the user here, ahead of the menu, because the whole point is that they rule on delivery **knowing** them. Three lines, not a report:
+**3. Say what wrap-up left open — before the options, not after.** [Wrap-up](../executing-plans/SKILL.md#handing-it-back) — the two dispatched reviews, the fix rounds, the verification report — hands three items over, and they go to the user here, ahead of the menu, because the whole point is that they rule on delivery **knowing** them. Three lines, not a report:
 
-1. every acceptance sentence that is not demonstrably true, with how far it got and why;
-2. the findings the review raised that were let stand rather than fixed, with the reason;
+1. every spec requirement whose verdict is not "holds", plus any task left `blocked`;
+2. the findings the reviews raised that were let stand rather than fixed, with the reason;
 3. which behaviours went unobserved this round — anything the gates could not actually exercise.
 
-**Nothing open is also one line, and it is worth the line** — "all 6 acceptance sentences check out, no findings left standing" and silence look identical to the user, and only one of them is a statement anybody can be held to.
+**Nothing open is also one line, and it is worth the line** — "all 9 requirements hold, no findings left standing" and silence look identical to the user, and only one of them is a statement anybody can be held to.
 
 Say it rather than pointing at the files, because the files do not leave this machine: anything under `.dev-kit/artifacts/<spec-slug>/` sits inside gitignored `.dev-kit/`, so these lines are the only form in which any of it reaches the user at all.
 
@@ -200,7 +202,7 @@ git branch -d <the branch>
 
 **Route the feedback by size, size meaning what it asks for rather than how long it is:**
 
-- **Substantial** — behaviour nobody agreed, a design the reviewer wants changed, work spanning several files. **It re-enters [the chain](../using-dev-kit/SKILL.md#the-spec-driven-chain-as-far-as-it-currently-goes) at the top**: [`brainstorming`](../brainstorming/SKILL.md) where the requirement itself moved, and its own round of slices from there. A second round is cheap next to a large change built on a comment thread.
+- **Substantial** — behaviour nobody agreed, a design the reviewer wants changed, work spanning several files. **It re-enters [the chain](../using-dev-kit/SKILL.md#the-spec-driven-chain-as-far-as-it-currently-goes) at the top**: [`brainstorming`](../brainstorming/SKILL.md) where the requirement itself moved, and a plan of its own from there. A second round is cheap next to a large change built on a comment thread.
 - **Small** — a rename, a missed edge case, one line of docs, a test the reviewer wants added. Take it straight, under [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size) and nothing less.
 
 **Neither route lowers the bar, and that is why this section is here.** Every commit already on the branch cleared the evidence bar — a command, an exit code, an observation — and the branch as a whole was read once by somebody who did not write it. A fix typed into the kept worktree because "the PR is basically done" clears neither, and it lands in the same branch the user is about to merge, after the point where anything was still watching. **The invariant has no expiry**: nothing is judged finished inside the context that produced it, so a follow-up commit owes the same dispatched read as everything under it.
@@ -222,17 +224,17 @@ git branch -d <the branch>
 | "`.dev-kit/worktree/` is where worktrees go" | It is the default, not the rule. A project already keeping them in `.worktrees/` or `worktrees/` gets them there — put them somewhere else and it now has two places, both needing cleanup by hand and only one of them where anyone looks. |
 | "I need a branch name, I will make one up" | The spec's slug is the only name anything upstream produces, which is why the branch comes off it — one name for the branch and the directory both, plus this project's own branch prefix if it has one. A second invented name is a fact that lives only in this session. |
 | "`.dev-kit` keeps showing up in git status, commit it" | That is a symlink pointing back at the main repository, not content. Fix `.gitignore` by dropping the trailing slash. |
-| "The mockups are not in the worktree, so I will rebuild them here" | What you get is a second set while the main repository's stays as agreed, and the two never line up again. Make the link first, and `readlink` it — a link pointing one level short resolves to a real directory with nothing in it. |
-| "The harness's worktree tool set this up, so it is ready to work in" | It created a branch in a directory. The `.dev-kit` link, the install and the baseline run are all still owed, and the link is the one that fails quietly: the agreed mockups are missing, and the round's evidence lands in a tree nobody opens. |
+| "There is no plan in the worktree, so I will start one here" | What you get is a second plan while the main repository's stays on the old state, and the two never line up again. Make the link first, and `readlink` it — a link pointing one level short resolves to a real directory with nothing in it. |
+| "The harness's worktree tool set this up, so it is ready to work in" | It created a branch in a directory. The `.dev-kit` link, the install and the baseline run are all still owed, and the link is the one that fails quietly: the plan is invisible, the agreed mockups are missing, and the round's evidence lands in a tree nobody opens. |
 | "`../../../.dev-kit` — that is the path, I have written it before" | It is the path *for the standard location*. A native tool may have put this workspace anywhere, and a relative path counted from the wrong depth still creates a link successfully. Compute the target from `--git-common-dir`. |
-| "The symlink failed, so copy the artifacts across" | Same outcome by a slower route: two copies, two writers, no way back to one. Fix the link, or read and write `.dev-kit/` from the main repository (`cd` back for those, stay in the worktree for everything else) and say out loud that this workspace has no link. |
-| "The symlink failed and this round has no mockups — unusable" | Still usable. The spec is committed and therefore present, and the link only ever buys the gitignored artifacts. Say it is missing and carry on. |
+| "The symlink failed, so copy the plan file across" | Same outcome by a slower route: two copies, two writers, no way back to one. Fix the link, or read and write `.dev-kit/` from the main repository (`cd` back for those, stay in the worktree for everything else) and say out loud that this workspace has no link. |
+| "The symlink failed and this round has no plan — unusable" | Still usable. The spec is committed and therefore present, and with no plan the link only buys the gitignored artifacts. Say it is missing and carry on. |
 | "`remove` was refused, add `--force`" | The refusal means there are uncommitted changes inside. Run `git status` and see what they are rather than deleting them outright. |
 | "The tests went green just now, merge it" | That green only proves the tree it ran on. Run it again on the tree being delivered, and again on the merge result. |
 | "The baseline branch is obviously main" | It counts once you have worked it out — the remote's HEAD, or `git reflog show <branch> \| tail -1` — or asked because both came up empty. Merging into the wrong baseline is expensive to undo. |
 | "The reflog says where the branch was cut, so that is the review range" | Only when nothing from this round landed before the branch did. Otherwise that range drops the commits that went onto the baseline first, out of the only pass that reads this code. Take `git merge-base HEAD <baseline>` and state the commit count. |
 | "Not sure which baseline, better ask the user" | Take the lookup first. Asking a question the reflog answers trades their time for your thirty seconds — see [asking-users.md](../using-dev-kit/references/asking-users.md). |
-| "Implementation complete — straight to the menu" | Complete is not the same as clean. Whatever wrap-up left open — acceptance sentences not demonstrably true, findings let stand, behaviours unobserved — goes over *before* the options, because it is the one input into their decision they cannot look up for themselves: nothing under `.dev-kit/` ever leaves this machine. |
+| "Implementation complete — straight to the menu" | Complete is not the same as clean. Whatever wrap-up left open — requirements whose verdict is not "holds", tasks left `blocked`, findings let stand, behaviours unobserved — goes over *before* the options, because it is the one input into their decision they cannot look up for themselves: nothing under `.dev-kit/` ever leaves this machine. |
 | "This round never went through wrap-up, so there is nothing to say before the menu" | Then that is the one line: what you ran, and whether anyone other than you read this diff. Silence and a clean round are indistinguishable to the person reading them. |
 | "The user said 'it is finished', so they want me to merge" | How it is delivered is the user's decision. Give them the three options — with your recommendation — and wait. |
 | "Hand the three options over bare; picking for them would be presumptuous" | Give the options *and* the recommendation. You just ran the tests on this tree and just read this repo's merge history — staying silent about that is not neutrality, it is pushing the judgement cost onto them. Recommending is not deciding: you still wait. |
