@@ -108,7 +108,14 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 **A `draft` plan is not something to work from.** Put the task breakdown to the user — the slices, the order, what runs in parallel — and let them veto. They are ruling on how the work is cut, not re-approving what it does; that was the spec's gate and it is already settled. Set `status: ready` only after that.
 
-**Once it is `ready`, the plan is frozen except for state.** `status`, `note`, `mode`, `worktree` and `review` are written during execution — that is what they are for. `goal`, `tasks`, `deps` and `files` are not.
+**Once it is `ready`, what is frozen is the shape of the work — not the file.** Two kinds of field go on being written during execution, and the line between them is worth holding:
+
+| Written during execution | Frozen until the user re-cuts it |
+|---|---|
+| **State** — `status` (plan and task), `note`, `mode`, `worktree`, `review` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
+| **Facts discovered** — appended to `context`, and to a task's `interfaces` | |
+
+**Facts accrete; the shape of the work does not.** A task coming back `missing context` has usually found something true about the code that nobody had written down — that goes into `context` so the next dispatch has it, and doing so is not editing the plan, it is finishing it. **A fact that contradicts an entry already there is a different thing**: that is a collision, and it goes to the user.
 
 **When the plan turns out to be wrong, say so and change it deliberately.** A slice that will not decompose the way you cut it, a dependency nobody saw, a task the spec does not actually require — those are real, and the answer is to stop, state what changed, and re-cut the affected tasks with the user. What is not allowed is editing the plan quietly so that it agrees with what already happened; a plan rewritten to match the code records nothing, and the next session cannot tell a decision from a drift.
 
