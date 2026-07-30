@@ -115,7 +115,7 @@ A requirement drifts as the design settles, so an id attached to one is a handle
 
 A **decision** is the opposite: it is the part someone argues with three weeks later, and an argument needs to name the row it disagrees with. A **problem** needs a number for the same reason, plus its evidence.
 
-**Every requirement in the prose must be able to answer "given what precondition, performing what action, observing what result".** "Works properly", "feels good" and "covers the edge cases" are all unacceptable — not because a checklist is coming, but because a requirement nobody can observe cannot be built to, reviewed against, or turned into an `acceptance` entry later.
+**Every requirement in the prose must be able to answer "given what precondition, performing what action, observing what result".** "Works properly", "feels good" and "covers the edge cases" are all unacceptable — not because a checklist is coming, but because a requirement nobody can observe cannot be built to, reviewed against, or turned into a check later.
 
 ### UI evidence
 
