@@ -1,0 +1,17 @@
+{
+  "name": "dev-kit",
+  "description": "Spec-driven development, end to end: explore a requirement into an approved, committed spec, shut the round into an isolated worktree, build it as red-green-refactor rounds with a reproduction-first route for every fault, then a dispatched review and the project's gates before delivery. Plus init, which establishes the project's agent constraint system: AGENTS.md and layered docs, lint guardrails wired into CI, and the twin unit-test and e2e tracks. A SessionStart hook puts the bootstrap into every session.",
+  "version": "0.3.0",
+  "author": {
+    "name": "CodFrm",
+    "url": "https://github.com/CodFrm"
+  },
+  "homepage": "https://github.com/CodFrm/skills/tree/main/dev-kit",
+  "repository": "https://github.com/CodFrm/skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "development",
+    "workflow"
+  ]
+}

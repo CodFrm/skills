@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+'use strict'
+
+// dev-kit's optional CLI — argument dispatch only.
+//
+// Read-only, zero dependencies, confined to one project. Each command lives in its own module under
+// ../lib/: add a command by adding a file and one line to the switch below, never by growing this
+// file. Anything that *serves* a path to a browser goes through ../lib/project.js's allow-list and
+// traversal check rather than reimplementing them; a command that merely reads a path you typed
+// yourself needs no such guard.
+
+const HELP = `dev-kit — optional local helper
+
+  devkit serve [--port <n>]    Read-only static server over docs/specs/ and .dev-kit/artifacts/
+  devkit help                  This text
+
+The project root is found by walking up from the working directory for .git or .dev-kit.
+The port defaults to a random one in 10000-20000, so several projects can be served side by side.`
+
+function main(argv) {
+  switch (argv[0]) {
+    case 'serve': return require('../lib/serve').cmdServe(argv.slice(1))
+    case undefined: case 'help': case '-h': case '--help': console.log(HELP); return 0
+    default:
+      console.error(`devkit: unknown command "${argv[0]}"\n`)
+      console.error(HELP)
+      return 1
+  }
+}
+
+process.exitCode = main(process.argv.slice(2))
