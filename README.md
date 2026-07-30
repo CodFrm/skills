@@ -48,7 +48,7 @@
 
 ### 开发工具
 
-合集说明：[dev-kit](./dev-kit/)——规格驱动开发的技能集。**spec 决定做什么，plan 决定怎么做**：需求 → spec 获批并提交 → 执行计划 → 隔离工作区 → 逐任务 TDD 推进并互审 → 收尾审查 → 验证报告 → 交付。链路之外另有 `init`，负责立起项目自身的约束。
+合集说明：[dev-kit](./dev-kit/)——规格驱动开发的技能集。**spec 决定做什么，plan 决定怎么做**：需求 → spec 获批并提交 → 执行计划 → 隔离工作区 → 逐任务 TDD 推进并互审 → 两项静态收尾审查 → 独立 runtime 验证报告 → 交付。链路之外另有 `init`，负责立起项目自身的约束。
 
 | Skill | 说明 |
 |-------|------|
@@ -57,7 +57,7 @@
 | [dev-kit / brainstorming](./dev-kit/skills/brainstorming/) | 探索需求并逐节达成一致，写成 `docs/specs/<日期-短名>.md`，过用户后提交 |
 | [dev-kit / writing-plans](./dev-kit/skills/writing-plans/) | 把获批的 spec 转成执行计划：任务切成垂直切片，`deps` 排序、`files` 决定谁能并行 |
 | [dev-kit / using-git-worktrees](./dev-kit/skills/using-git-worktrees/) | 把一轮工作关进独立工作区再动手，收尾时给出合并 / PR / 搁置的选项 |
-| [dev-kit / executing-plans](./dev-kit/skills/executing-plans/) | 批量派发 ready 任务并行推进，按命令与退出码判完成，每个 commit 由没写它的 subagent 审并修；收尾两个 subagent 分头审 spec 与代码 |
+| [dev-kit / executing-plans](./dev-kit/skills/executing-plans/) | 批量派发 ready 任务并行推进，每个 commit 由没写它的 subagent 审并修；收尾两个 subagent 静态审 spec 与代码，通过后由全新的第三 subagent 跑 runtime 验证并写报告 |
 | [dev-kit / test-driven-development](./dev-kit/skills/test-driven-development/) | 先写失败测试、确认它为「行为缺失」而红、再写最小实现 |
 | [dev-kit / systematic-debugging](./dev-kit/skills/systematic-debugging/) | 没有复现和根因就不动生产代码，复现件交给 TDD 当红 |
 

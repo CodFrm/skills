@@ -74,7 +74,7 @@ Three judgements; the mechanism is in [mockups.md](references/mockups.md).
 
 `docs/specs/<spec-slug>.md` is the single basis for what this change should do. When the implementation, the tests or a report later conflict with it, **revise the spec and get agreement again.**
 
-It settles what must be true and what is out of bounds; it carries no checklist, and it does not say how. The route is the plan's ([`writing-plans`](../writing-plans/SKILL.md)); the commands and verdicts belong to the round that implements it, which [verifies against this file](../executing-plans/SKILL.md#wrap-up-two-reviews-at-once). **The plan is gitignored and states no requirements, so this file is the only committed, durable statement of what the change owes** — and what a verifier subagent, with no memory of this conversation, holds the diff against.
+It settles what must be true and what is out of bounds; it carries no checklist, and it does not say how. The route is the plan's ([`writing-plans`](../writing-plans/SKILL.md)); the commands and verdicts belong to the round that implements it, whose [static spec verifier](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once) checks the diff before [runtime verification](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent). **The plan is gitignored and states no requirements, so this file is the only committed, durable statement of what the change owes.**
 
 Before writing, mark every fact as verified in the repository, decided by the user, or still unknown. Something unknown that changes what the thing has to do is a stop-and-ask.
 
@@ -169,7 +169,7 @@ The spec is committed. **Now count the steps the change breaks into, and take on
 
 Whichever route, [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size) is unchanged.
 
-**On the short route that review has no plan to hang off**, so it is one dispatch over the whole diff, carrying both headings: does it do what the spec says, and is the code right. With nobody to dispatch to it becomes a handover — give the user the diff and that prompt, and do not rule it finished until it comes back.
+**On the short route the final dispatches have no plan to hang off**, so fill them from the spec and branch range: the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent). With nobody to dispatch to, hand the user the diff and prompts; do not rule it finished.
 
 **Coming back here later is normal, not a failure.** A requirement that turns out wrong during implementation, or a reviewer asking for behaviour nobody agreed, re-enters at the top of this skill and leaves through this same gate — the spec is revised and re-approved, never patched to match what the code did.
 

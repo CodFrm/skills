@@ -1,21 +1,22 @@
 # Dispatch prompts
 
-Four templates, in two files by the stage that sends them:
+Five templates, in three files by the stage that sends them:
 
 | Stage | Templates |
 |---|---|
 | **The task loop** — [task-prompts.md](task-prompts.md) | [implementer](task-prompts.md#implementer), [task review and fix](task-prompts.md#task-review-and-fix) |
-| **Wrap-up** — [wrap-up-prompts.md](wrap-up-prompts.md) | [spec verification](wrap-up-prompts.md#spec-verification), [code review](wrap-up-prompts.md#code-review) |
+| **Static wrap-up** — [wrap-up-prompts.md](wrap-up-prompts.md) | [static spec verification](wrap-up-prompts.md#static-spec-verification), [code review](wrap-up-prompts.md#code-review) |
+| **Runtime verification** — [verification-prompt.md](verification-prompt.md) | [runtime verifier](verification-prompt.md#runtime-verification-prompt) |
 
-**This page is what holds for all four; open only the stage you are about to dispatch.** Fill the `<>` slots from the plan and the spec — **never send a slot through unfilled**, a subagent cannot ask you what it meant.
+**This page is what holds for all five; open only the stage you are about to dispatch.** Fill the `<>` slots from the plan and the spec — **never send a slot through unfilled**, a subagent cannot ask you what it meant.
 
 ## What every dispatch shares
 
 **A prompt describes one task, not the history of the session.** Point at paths for earlier output; do not paste contents — every word pasted in stays in your context until the session ends.
 
-**What comes back is the conclusion, not the working transcript.** Left unsaid, a subagent returns everything it read and ran, and the isolation you dispatched for is gone. Every template bounds the return **by form**: an implementer's evidence is a few commands with their exit codes, a reviewer's is one line per finding.
+**What comes back is the conclusion, not the working transcript.** Left unsaid, a subagent returns everything it read and ran, and the isolation you dispatched for is gone. Every template bounds the return **by form**: an implementer's evidence is a few commands with their exit codes, a reviewer's is one line per finding, and the runtime verifier returns the report path, verdicts and evidence index.
 
-**No report files.** You judge an implementer's evidence as it arrives and record the outcome in the plan; the reviewers' findings go straight into the fix round. **The round's one durable artifact is the verification report at the end.**
+**Implementers and reviewers create no report files.** You judge an implementer's evidence as it arrives and record the outcome in the plan; the reviewers' findings go straight into the fix round. The runtime verifier alone writes the round's durable report under `e2e/scratch/<spec-slug>/`.
 
 **A subagent reports evidence and never rules its own work complete.** A prompt missing that line gets back "done ✅" instead of the command that proves it.
 

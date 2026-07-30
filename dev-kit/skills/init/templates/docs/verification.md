@@ -98,7 +98,7 @@ The whole directory is gitignored: **local evidence only, never committed.** Do 
 
 Create it from [`references/verification-report-template.md`](./references/verification-report-template.md) **before starting**, then fill it in as you go rather than reconstructing it from memory.
 
-**When wrapping up acceptance against a spec, `<task-name>` is the spec's own slug** — that is what keeps a round's evidence in one directory. There the template's acceptance-evidence section is mandatory: one subsection per acceptance criterion, carrying what a reader needs to reach the same verdict themselves. **The verdicts themselves go under "Verdict"**, one line per criterion, in one place, never restated as a second table beside the evidence.
+**When wrapping up acceptance against a spec, `<task-name>` is the spec's own slug** — that is what keeps a round's evidence in one directory. There the template's acceptance-evidence section is mandatory: one subsection per acceptance criterion, carrying what a reader needs to reach the same verdict themselves. **The verdicts themselves go under "Verdict"**, one line per criterion using `holds` / `does not hold` / `not observed`, in one place, never restated as a second table beside the evidence.
 
 ## Step 4 · Report honestly
 

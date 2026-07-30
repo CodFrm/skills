@@ -70,11 +70,19 @@ tasks:
 review:                  # wrap-up state, so a resumed session knows where it stands
   round: 0               # fix rounds spent; three is the ceiling
   status: pending        # pending → passed | stopped
+
+verification:            # runtime-verifier state; executing-plans writes every field
+  status: pending        # pending → running → reported → accepted | blocked
+  report: null           # e2e/scratch/<spec-slug>/report.md once dispatched
+  head: null             # exact reviewed HEAD the verifier must run
+  note: null             # interruption or blocker; never a softened verdict
 ```
 
 **`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at once; overlapping paths run one after the other instead. Guess it wide rather than narrow.
 
 **`reviewing` is a state, not a formality.** A task whose commit is in the tree and whose [review and fix](../executing-plans/SKILL.md#the-task-review-and-its-fix-the-second-gate-before-done) have not finished sits there, so a resumed session re-dispatches the review instead of sending an implementer at code that is already written. A plan run `inline` has no per-task review, so its tasks go from `doing` straight to `done`.
+
+**`verification` survives an interrupted final run.** `running` means a verifier was dispatched but its report has not been accepted; `reported` means its output returned and still needs the orchestrator's inspection. Only that inspection writes `accepted`. A resumed session never infers completion from a report file alone.
 
 **`interfaces` is where a signature crosses a task boundary** — that name and its type go on the *consuming* task's line, **not into the dispatch prompt**, because a fact typed only into a prompt is the class of fact a compaction destroys while the plan survives. `null` where nothing crosses.
 
@@ -113,7 +121,7 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 | Written during execution | Frozen until the user re-cuts it |
 |---|---|
-| **State** — `status` (plan and task), `note`, `mode`, `worktree`, `review` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
+| **State** — `status` (plan and task), `note`, `mode`, `worktree`, `review`, `verification` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
 | **Facts discovered** — appended to `context`, and to a task's `interfaces` | |
 
 **Facts accrete; the shape of the work does not.** A task coming back `missing context` has usually found something true nobody had written down — that goes into `context`, which is finishing the plan, not editing it. **A fact that contradicts an entry already there is a collision, not a hole**, and it goes to the user.

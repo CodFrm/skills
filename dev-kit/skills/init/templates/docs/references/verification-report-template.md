@@ -17,7 +17,7 @@ It exists so **a reader can judge whether the implementation is right**, which i
 | Wrap-up acceptance against a spec | "Acceptance evidence" — one subsection per criterion | "Reproduction steps", "Minimal reproduction" |
 | Ad-hoc investigation / reproducing a bug | "Reproduction steps", "Minimal reproduction", "Verdict" | "Acceptance evidence", "Persistent data changes" |
 
-**One list of verdicts, in one place.** For wrap-up acceptance the "Verdict" section carries them — one line per acceptance criterion, each `passed` / `passed (mocked)` / `failed` / `not-run`, with how it was checked and the command a reader runs themselves. "Acceptance evidence" holds the **evidence** behind them; **do not restate the verdicts there** — two copies means one goes stale, and the stale one is always what nothing reads.
+**One list of verdicts, in one place.** For wrap-up acceptance the "Verdict" section carries them — one line per acceptance criterion, each `holds` / `does not hold` / `not observed`, with how it was checked and the command a reader runs themselves. A mocked path does not make a real-integration criterion `holds`; write `not observed` and say what the mock established. "Acceptance evidence" holds the **evidence** behind them; **do not restate the verdicts there** — two copies means one goes stale, and the stale one is always what nothing reads.
 
 ## Where the files go
 
@@ -72,8 +72,8 @@ what nobody observed; written last, per "Filling-in discipline" below>
 
   | # | Criterion | Verdict | How | Check it yourself |
   | --- | --- | --- | --- | --- |
-  | V1 | `<copied verbatim from the spec>` | passed | drove the real UI | `<command a reader runs>` |
-  | V2 | `<…>` | not-run | the staging account was unavailable | - |
+  | V1 | `<copied verbatim from the spec>` | holds | drove the real UI | `<command a reader runs>` |
+  | V2 | `<…>` | not observed | the staging account was unavailable | - |
 
 ## Reproduction steps
 
@@ -99,8 +99,8 @@ Check it yourself:
 | --- | --- |
 | ![before](screenshots/v1-before.png) | ![after](screenshots/v1-after.png) |
 
-**Anything uncertain, unreached or half-run is `not-run` under "Verdict"**, with a note on what
-was missing; **never write something unverified as passed**. Where a criterion did not hold, put
+**Anything uncertain, unreached or half-run is `not observed` under "Verdict"**, with a note on what
+was missing; **never write something unverified as `holds`**. Where a criterion did not hold, put
 a two-column table (what the spec requires / what actually happens) here rather than a paragraph.
 
 ## Evidence index
@@ -122,9 +122,9 @@ $ echo $?
 
 ## Persistent data changes
 
-| The change | Forward migration | Backward migration | Before/after | Verdict |
-| --- | --- | --- | --- | --- |
-| `<what changed, as announced to the user>` | `<command>` exit 0 | `<command>` exit 0 | [query](resources/a1.txt) | passed |
+| The change | Forward migration | Backward migration | Before/after |
+| --- | --- | --- | --- |
+| `<what changed, as announced to the user>` | `<command>` exit 0 | `<command>` exit 0 | [query](resources/a1.txt) |
 
 - **Which database it ran against**: where the fixture came from, how many existing rows, which
   edge values (NULL / empty / dirty). **Green on an empty database is not evidence.**
@@ -158,11 +158,11 @@ $ echo $?
 
 1. **Whether it holds** — the behaviour holds, the bug reproduced, or where the round stands overall.
 2. **What that rests on** — the one observation that decides it. A clause, not a section.
-3. **What nobody observed** — every criterion that is not `passed`, named by its id, and what a reader accepts by shipping anyway. **Say so when there are none**, because "nothing written" and "nothing outstanding" read identically.
+3. **What nobody observed** — every criterion marked `not observed`, named by its id, and what a reader accepts by shipping anyway. **Say so when there are none**, because "nothing written" and "nothing outstanding" read identically.
 
-**Anything short of every criterion `passed` cannot be summarised as holding**: `not-run` says nobody looked, `failed` says someone looked and it did not hold, and neither is something a single word absorbs. The conclusion is **not** a second pass through the verdict table, and **not** the evidence — **one sentence to a short paragraph**, or it becomes a second report that gets skimmed past.
+**Anything short of every criterion `holds` cannot be summarised as holding**: `not observed` says nobody reached a decisive observation, `does not hold` says someone looked and saw the requirement fail, and neither is something a single word absorbs. The conclusion is **not** a second pass through the verdict table, and **not** the evidence — **one sentence to a short paragraph**, or it becomes a second report that gets skimmed past.
 
-> **Seven of the eight criteria hold; V6 is not-run.** Returning to the initiating page and the 400 on an expired code were both seen in the real app. V6 needed a staging account this round could not get, so concurrent multi-device login was observed by nobody — that is what merging accepts.
+> **Seven of the eight criteria hold; V6 is not observed.** Returning to the initiating page and the 400 on an expired code were both seen in the real app. V6 needed a staging account this round could not get, so concurrent multi-device login was observed by nobody — that is what merging accepts.
 
 In `verifying a change` mode delete "Reproduction steps" / "Minimal reproduction". In `reproducing a bug` mode keep them: a later reader should be able to **re-trigger the bug from `report.md` alone**, without reading the code. **"Persistent data changes" is kept only when this round touched persistent data**, and then carries one row per change.
 

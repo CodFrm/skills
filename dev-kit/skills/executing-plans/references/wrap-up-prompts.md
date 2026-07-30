@@ -1,13 +1,13 @@
 # Wrap-up prompts
 
-The branch's only reading as a branch: the two go out in parallel, at `strong`, read-only. **[The rules every dispatch shares](prompts.md#what-every-dispatch-shares) hold for both**, and so does **[do not write the verdict into either prompt](prompts.md#do-not-write-the-verdict-into-either-review-prompt)** — read that before adding a word of your own. Fill every `<>` slot.
+The branch's only static reading as a branch: the two go out in parallel, at `strong`, read-only. **[The rules every dispatch shares](prompts.md#what-every-dispatch-shares) hold for both**, and so does **[do not write the verdict into either prompt](prompts.md#do-not-write-the-verdict-into-either-review-prompt)** — read that before adding a word of your own. Fill every `<>` slot.
 
-## Spec verification
+## Static spec verification
 
-Wrap-up, dispatched at `strong` alongside the code review. **Say nothing to either about the per-task reviews that came before.**
+Wrap-up, dispatched at `strong` alongside the code review. This is static verification against the spec and diff; a fresh subagent performs runtime verification only after this review loop passes. **Say nothing to either reviewer about the per-task reviews that came before.**
 
 ```
-Verify this branch against its spec. Read the spec in full first: <spec path> — the
+Statically verify this branch against its spec. Read the spec in full first: <spec path> — the
 requirements are in its design prose, so there is no shortcut section to read instead.
 
 Scope: git diff $(git merge-base <baseline branch> HEAD)..HEAD — <n> commits.
@@ -23,7 +23,8 @@ Quote the spec's own sentence for every finding, then say what the diff does ins
 file:line. A finding with no quote behind it is an opinion about the design.
 
 You are not reviewing code quality — that is running separately, right now. Only: does this
-do what was agreed?
+diff implement what was agreed? Do not claim runtime behaviour was observed; a fresh runtime
+verifier runs after both static reviews pass.
 
 Rules:
 - Read only. Do not touch the working tree, the index, HEAD or any branch, and repair
@@ -74,7 +75,7 @@ Rules:
 - Stay inside the range. Step outside only to judge a risk you can name, and say what you
   were worried about and what you checked.
 
-The bar is "would you ship this" — there is no later stage to catch what gets waved through.
+The bar is "would you ship this" — there is no later code review to catch what gets waved through.
 
 Report the findings themselves, most severe first, one entry each: severity, file:line, what
 breaks, and the input or state that makes it break. No report file. Do not summarise the

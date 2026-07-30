@@ -1,6 +1,6 @@
 # dev-kit
 
-规格驱动开发的技能集。一轮开发的链路：需求 →「spec 获批并提交」→ 执行计划 → 隔离工作区 → 逐任务 TDD 推进并互审 → 收尾审查 → 验证报告 → 交付。
+规格驱动开发的技能集。一轮开发的链路：需求 →「spec 获批并提交」→ 执行计划 → 隔离工作区 → 逐任务 TDD 推进并互审 → 两项静态收尾审查 → 独立 runtime 验证报告 → 交付。
 
 **spec 决定做什么，plan 决定怎么做**，两者都不因为「代码写出来不一样」而回头改。判「完成」只认命令、退出码和观察到的现象，且不在生产它的上下文里判定。链路之外另有 `init`，负责立起项目自身的约束：AGENTS.md、分层文档、接进 CI 的 lint 护栏，以及单测与 e2e 两条验证轨道。
 
@@ -60,9 +60,10 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 4. `executing-plans`——**只问一个问题**（subagent 还是 inline），然后不停：每批 ready 的任务派发出去，`files` 不重叠就并行，每个任务强制一轮 TDD（遇故障转 `systematic-debugging`）
    - **证据站得住不等于 done**（派发模式）：那个 commit（`git show <sha>`，不是工作区）交给另一个没写它的 subagent，审任务目标、项目规范、代码本身三条轴，**审完自己修**——每条 finding 一轮 TDD 落在自己的 commit 里，并配上覆盖它的测试报回来
    - 两种它不修、直接交回：修法属于设计决策的，以及说 plan 本身错了的。**一审一修**：还剩 blocking 的任务转 `blocked`，其余记进 `note` 带到收尾
-5. 收尾——两个 subagent 同时跑，一个对着 spec 验、一个只看代码；修完再跑，**最多三轮**。跨任务的重复实现、两端对不齐的接口，只拿着一个 commit 的审查者看不见
-6. 验证报告——有可驱动的界面且项目有 e2e 就跑一轮取截图，否则用命令和输出；报告里必须有**用户自己怎么复现**
-7. 交付——回到 `using-git-worktrees`，先讲清收尾留下了什么，再给 merge / PR / 先放着的菜单
+5. 静态收尾——两个 subagent 同时跑，一个只拿 spec + diff 验实现范围，一个只看代码；修完再跑，**最多三轮**。跨任务的重复实现、两端对不齐的接口，只拿着一个 commit 的审查者看不见
+6. Runtime 验证——静态审查通过后派一个全新的第三 subagent，启动真实目标并按需驱动 UI / e2e，把逐项 verdict、证据和**用户自己怎么复现**写进 gitignored `e2e/scratch/<spec-slug>/report.md`；它只报告不修复，也不判整轮 done
+7. 编排验收——主会话打开报告和证据，逐项判断覆盖，讲清所有 `does not hold` / `not observed`，只有它写 `status: done`
+8. 交付——回到 `using-git-worktrees`，先讲清收尾留下了什么，再给 merge / PR / 先放着的菜单
 
 **一个 slug 贯穿全链路**：spec 文件名、plan 文件名、分支、工作区目录、产物目录都是它。
 

@@ -10,15 +10,17 @@ description: >-
 
 You are the orchestrator. You hold the plan, the spec and the conversation; the work goes out to tasks and comes back as evidence you judge. Three invariants:
 
-1. Nothing is judged finished inside the context that produced it — [the task review](#the-task-review-and-its-fix-the-second-gate-before-done) and again at [wrap-up](#wrap-up-two-reviews-at-once).
+1. Nothing is judged finished inside the context that produced it — [the task review](#the-task-review-and-its-fix-the-second-gate-before-done), [static wrap-up](#wrap-up-two-static-reviews-at-once), then [runtime verification](#runtime-verification-a-fresh-third-subagent).
 2. **Only you write the plan file.** Tasks report; you record. With parallel tasks that is not style — two agents writing one YAML file corrupt it.
 3. **The loop does not stop between tasks.** A finished task is not a checkpoint.
 
 ## Before anything: read the plan whole, and the spec with it
 
-Read the entire plan — `goal`, `context`, every task, `review` — then the spec it points at. **The spec is what the work is measured against at the end**, and a session that never opened it cannot judge a task against anything but the plan's own words.
+Read the entire plan — `goal`, `context`, every task, `review`, `verification` — then the spec it points at. **The spec is what the work is measured against at the end**, and a session that never opened it cannot judge a task against anything but the plan's own words.
 
 Resuming a half-finished plan. A task at `doing` was dispatched and never recorded: check the tree for its work first — a commit whose message matches, or the files it declared — then either move it to `reviewing` on the evidence you can see, or reset it to `todo`. A task at `reviewing` has its commit in the tree and no verdict: look for a fix commit on top of it, and with one, judge it as you would have then; without one, dispatch [the review](#the-task-review-and-its-fix-the-second-gate-before-done) again. Either way **never re-dispatch the implementer** — its code is already committed.
+
+Resume runtime verification from its own state, not from the presence of `report.md`: `pending` follows the normal route after static review; `running` means first check whether its dispatch is still active, and otherwise inspect the partial scratch directory before sending a fresh verifier to continue and re-observe incomplete evidence; `reported` goes straight to orchestrator inspection; `accepted` goes to handing back; `blocked` goes to the user with `verification.note`. Never rerun static wrap-up merely because runtime verification was interrupted.
 
 ## The one gate
 
@@ -129,18 +131,20 @@ Four limits, and no two are the same limit:
 
 **The three-round ceiling belongs to wrap-up alone** — there is no round counter over tasks.
 
-## Wrap-up: two reviews, at once
+## Wrap-up: two static reviews, at once
 
-When every task is `done` or `blocked`, dispatch two subagents in parallel — read-only, disjoint outputs:
+When every task is `done` or `blocked`, first check `git check-ignore -q e2e/scratch/<spec-slug>/report.md`. Where it is not ignored, add the ignore entry through the normal implementation and review path before wrap-up; the runtime verifier is forbidden to change tracked files after these reviews pass.
+
+Then dispatch two subagents in parallel — static, read-only, disjoint outputs:
 
 | | Reads | Asks |
 |---|---|---|
-| Spec verification | the spec + the whole branch diff | Does this do what the spec says? Which requirements are unmet, partly met, or unobservable? Is there behaviour nobody agreed to? |
+| Static spec verification | the spec + the whole branch diff | Does the diff implement what the spec says? Which requirements are unmet or partly met? Is there behaviour nobody agreed to? |
 | Code review | the whole branch diff | Correctness, edge cases, error handling, tests that assert nothing, dead code, security. Nothing about whether it was the right thing to build |
 
 Prompts for both are in [wrap-up-prompts.md](references/wrap-up-prompts.md). Both go out at `strong` — this is the only reading the branch gets as a branch, so a tier chosen for cost is choosing to find fewer defects. **The task reviews do not shrink it**: the same concern solved two ways in two tasks, an interface that does not line up at both ends, what the branch adds up to whole — all invisible to a reviewer holding one commit.
 
-Dispatch them even in `inline` mode. With nobody to dispatch to, hand the user the diff and the two prompts and say the round is not finished until they come back.
+Dispatch them even in `inline` mode. With nobody to dispatch to, hand the user the diff and the two prompts and say the round cannot reach runtime verification until they come back.
 
 Keep them unmerged — one reviewer holding both questions lets the louder answer stand in for the quieter one. **Do not write the verdict into either prompt**; [prompts.md spells out the four phrases to stop on](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
@@ -154,15 +158,19 @@ Findings come back, you fix them as TDD rounds — the finding becomes a failing
 
 Findings deliberately let stand are fine, recorded in the task's `note` and repeated at delivery. A finding closed because you disagreed with it in your own context is not.
 
-## The verification report
+When both static reviews pass, set `review.status: passed`. Only then prepare runtime verification: write `verification.status: running`, its report path and the exact current HEAD into the plan **before** dispatching.
 
-Reviews passing means the code is right. The report shows the user **it actually does the thing**, and lets them see it for themselves.
+## Runtime verification: a fresh third subagent
+
+Static reviews passing means the spec and code survive reading. Runtime verification observes whether the built result **actually does the thing**.
+
+Dispatch one fresh, dedicated subagent at `strong` with [verification-prompt.md](references/verification-prompt.md). Do not reuse an implementer, task reviewer or static wrap-up reviewer: this verifier must arrive after the fix loop with no stake in its conclusions. It may run commands, start the application, drive UI or e2e, and write scratch scripts, evidence and the report under `e2e/scratch/<spec-slug>/`; documented ignored build/runtime artifacts are allowed only as disposable effects of those commands. With nobody to dispatch to, hand the user that prompt and say the round is not finished until its report comes back; do not verify inline.
 
 **The report finds; it does not fix.** Anything changed underneath it is code nobody has reviewed, landing in the one document that claims everything was checked — and a step that repairs as it goes has verified its own repair. A requirement that does not hold is written down as not holding, and said out loud, going to the user [at handing back](#handing-it-back) with what you would do and what it costs. Nothing gets softened: a check weakened until it passes, a "does not hold" moved to "holds", a flow that failed recorded as "not observed" — each turns a finding into a silence, and silence reads as fine.
 
-Run e2e when the change has a user-drivable flow and the project has a harness (init's e2e track, or Playwright / Cypress / equivalent); the evidence is then screenshots or a recording. Otherwise commands and their output. Say which way you went.
+The verifier runs e2e when the change has a user-drivable flow and the project has a harness (init's e2e track, or Playwright / Cypress / equivalent); the evidence is then screenshots or a recording. Otherwise it uses commands and their output. It follows `docs/verification.md` where present.
 
-It goes to `e2e/scratch/<spec-slug>/report.md`, with `logs/`, `resources/` and, for a UI, `screenshots/` and `videos/` beside it. **Where the project has `docs/verification.md` and its report template, that format wins.** Otherwise five sections:
+The report goes to `e2e/scratch/<spec-slug>/report.md`, with `logs/`, `resources/` and, for a UI, `screenshots/` and `videos/` beside it. **Where the project has `docs/verification.md` and its report template, that format wins.** Its verdict still uses `holds` / `does not hold` / `not observed` for every spec requirement. Otherwise it has five sections:
 
 1. Verdict — one line per spec requirement: holds / does not hold / not observed, each with how it was checked. The only place verdicts appear.
 2. How it was verified — the exact steps in order.
@@ -170,11 +178,13 @@ It goes to `e2e/scratch/<spec-slug>/report.md`, with `logs/`, `resources/` and, 
 4. Not verified — what went unobserved, and why. An unmentioned gap reads exactly like no gap.
 5. Reproduce it yourself — the shortest path from a clean checkout to seeing it work. **This section is the point of the report.**
 
-Check `e2e/scratch/` is actually ignored before writing there (`git check-ignore -q e2e/scratch`), and where it is not, add the line and commit that first. Because it is gitignored, **the verdict lines have to be said out loud** as well, and put in the PR body.
+If the verifier returns a blocker or no complete report, write `verification.status: blocked` and the exact reason into `verification.note`, then stop and tell the user; do not mark it `reported`, `accepted` or plan `done`. Otherwise write `verification.status: reported` before judging the report. Open it and its evidence yourself: account for every spec requirement, check that each `holds` has a command, exit code and deciding observation, inspect linked files, and verify its before/after HEAD, clean-tree record and plan checksum. A summary is not evidence. An unsupported `holds` is a coverage gap, an observed failure is `does not hold`, and any integrity mismatch also sets `verification.status: blocked` with `verification.note` instead of `done`.
+
+Say every non-hold, unsupported claim and unobserved requirement aloud. **Only you set `verification.status: accepted`, then plan `status: done`**, after judging coverage and evidence; here `done` means the verification round finished with its findings intact, not that every requirement holds. Then hand delivery to `using-git-worktrees`. Because the report is gitignored, put the verdict lines in the PR body too.
 
 ## Handing it back
 
-Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#delivery-and-cleanup) for delivery. Three things go over **before** the menu, because they are what the user is deciding with:
+After inspecting runtime verification and setting `status: done`, go to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#delivery-and-cleanup) for delivery. Three things go over **before** the menu, because they are what the user is deciding with:
 
 1. every spec requirement whose verdict is not "holds", and any task left `blocked`;
 2. the findings let stand rather than fixed, with the reason;
