@@ -76,7 +76,11 @@ The implementer returns one of four statuses, and they are not four flavours of 
 | **missing context** | **Usually a hole in the plan, and cheap.** Write the missing fact into the plan's `context`, then dispatch again — it will not be missing next time. A fact that *contradicts* an entry already there is not a hole but a collision: that one goes to the user. |
 | **stuck** | Work out which kind. Not enough context → fill it in and re-dispatch. Needs more reasoning → **re-dispatch a tier up**, not again at the same one. Task too large → split it, which is yours to do. **The plan itself is wrong → that is the user's call**: park it `blocked` and take it to them. **Never re-dispatch unchanged** — it already told you that path does not work. |
 
-**Two rounds is the limit on any one task.** A second shortfall after you have already fed something back marks it `blocked` with a `note`; carry on with everything its `deps` do not gate and raise it at the end. A third dispatch on the same task is how a session spends an hour going nowhere.
+**The normal shape is one dispatch.** A task is one round of TDD and comes back done — that is what cutting it as a vertical slice was for, and anything else is the exception.
+
+**When the evidence falls short of the `goal`, you send it back once**, naming exactly what is missing. **A second shortfall marks it `blocked`** with a `note`; carry on with everything its `deps` do not gate, and raise it at the end. A third dispatch on the same task is how a session spends an hour going nowhere.
+
+**`missing context` and `stuck` do not spend that send-back.** They are not shortfalls — they are the implementer stopping instead of guessing, which is the outcome you want, and charging for it would make the cheapest good result the one that gets punished. What limits those is the rule above them: **never re-dispatch unchanged.** Each attempt needs a fact filled in, a tier up, or a split, and when there is nothing left to change, that is the plan being wrong and the user's call.
 
 Write the status **the moment you have judged it**. Not at the end of the turn — a plan file saved up is a plan file that loses everything when the session ends.
 
@@ -95,7 +99,7 @@ Everything else is recorded and carried. **`blocked` tasks do not stop the loop*
 
 | Limit | What it bounds | What happens at it |
 |---|---|---|
-| **Two rounds** | one task | that task goes `blocked`; **the loop carries on** |
+| **One send-back** | one task whose evidence fell short | that task goes `blocked`; **the loop carries on** |
 | **Two reasons above** | the loop | you stop and ask; the round is still live |
 | **[Three rounds](#the-fix-loop-and-the-ceiling-of-three)** | wrap-up's fix loop | the round stops and goes to the user |
 
@@ -173,7 +177,8 @@ Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SK
 | "The implementer says it is done" | It reported. You judge — against a command, an exit code and an observation, point by point against the task's `goal`. |
 | "It came back `stuck`, so send it out again" | It already told you that path does not work. Something has to change first: a fact filled in, a tier up, a split, or the user's call. Re-dispatching unchanged is asking the same question twice. |
 | "`missing context` means the task failed" | It means the plan had a hole and the implementer stopped instead of guessing, which is the cheapest outcome available. Write the fact into `context` and send it back. |
-| "Third time lucky on this task" | Two rounds is the limit. Mark it `blocked`, carry on with what it does not gate, raise it at the end. |
+| "Third time lucky on this task" | One send-back is the limit on a shortfall. Mark it `blocked`, carry on with what it does not gate, raise it at the end. |
+| "It came back `missing context` twice, so it is out of chances" | Nothing was spent — that is not a shortfall, it is the implementer declining to guess. What bounds it is that each re-dispatch needs something changed; run out of changes and the plan is wrong, which is the user's call. |
 | "`git add -A` and commit" | In a parallel batch that sweeps a sibling's half-finished work into this task's commit. The prompt bans it because a subagent cannot see the sibling for itself. |
 | "The subagent came back with everything it read, right here" | Then you paid for its whole transcript and dispatching bought you nothing. Ask for the conclusion — the commands, the exit codes, the findings — and nothing about how it got there. |
 | "I should file each task's report somewhere for the record" | Nothing reads it afterwards: you judge the evidence as it arrives and the plan records the outcome. The round has one durable artifact, and it is the verification report. |
