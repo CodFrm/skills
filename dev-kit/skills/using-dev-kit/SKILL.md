@@ -91,8 +91,10 @@ requirement / fault
        │   dispatched recommended, with the worktree decision stated in the same message
        ├ take every task that is ready (todo, deps done), not the first — dispatch the
        │   batch in parallel where their files are disjoint, serially where they overlap
-       ├ then keep going: a finished task is not a checkpoint. The loop stops for a
-       │   question that changes what gets built, something destructive, or the ceiling
+       ├ then keep going: a finished task is not a checkpoint. The loop stops for exactly
+       │   two things — a question that changes what gets built, or something destructive.
+       │   A task that falls short twice goes blocked and the loop carries on past it;
+       │   the three-round ceiling is wrap-up's alone and does not bound this loop
        │  ↳ test-driven-development, inside the task and named in its dispatch
        │     ├ one sentence you are making true — taken from the spec's requirements and
        │     │   testing decisions, or written yourself when there is no spec
@@ -226,7 +228,7 @@ The main session is the **orchestrator**: it holds the goal, the constraints, th
 | "Let me understand the code a bit first" | Checking for a skill comes before clarifying or exploring. |
 | "The user was perfectly clear, no need for a spec" | A clear conversation is exactly what is easiest to turn into a short spec; whoever implements it still needs a basis that survives the session. |
 | "It is a small change, so I will just make it" | Small takes stages off against a criterion — it takes nothing off [the standing obligations](#what-every-round-owes-whatever-its-size): TDD, evidence, and a dispatched review before you call it finished. |
-| "This task is done — I will check in with the user before the next one" | Under a plan the loop does not stop between tasks. It stops for a question that changes what gets built, for something destructive, and for the three-round ceiling. A finished task is not a checkpoint. |
+| "This task is done — I will check in with the user before the next one" | Under a plan the loop does not stop between tasks. It stops for a question that changes what gets built, or for something destructive — and nothing else. A finished task is not a checkpoint, and the three-round ceiling is wrap-up's, not the loop's. |
 | "The spec is vague here, I will settle it in the plan" | That is a requirement being decided by whoever is writing the route, with nobody's agreement. The plan says how; what to build goes back to the spec and its gate. |
 | "This came out differently from the plan, I will tidy the plan to match" | A document rewritten to agree with what happened records nothing, and the next session cannot tell a decision from a drift. Say what changed, then change it deliberately. |
 | "It has grown past what I judged it against, but I am nearly done" | The judgement is against the change, not against how far in you are. What you have already built carries over unchanged; re-arguing the boundary is how the cheap route becomes the only route. |

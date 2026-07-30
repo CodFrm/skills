@@ -84,13 +84,22 @@ Write the status **the moment you have judged it**. Not at the end of the turn �
 
 **Do not stop for:** a task finishing, a batch finishing, a green suite, a decision you can make and justify, or a report that is merely long. Between tasks you keep going.
 
-**Stop for exactly three things:**
+**Stop for exactly two things:**
 
 1. **A question whose answer changes what gets built**, and which the spec does not settle. State what you found, what you would do, and what it costs to be wrong — [the three gates](../using-dev-kit/SKILL.md#when-to-ask-the-user-look-it-up-decide-it-and-only-then-ask) apply here as everywhere: look it up first, decide it if it is cheap to reverse, ask only if it is neither.
 2. **Something destructive or outward-facing** — a migration against real data, a deploy, anything that leaves this machine.
-3. **The wrap-up ceiling** below.
 
 Everything else is recorded and carried. **`blocked` tasks do not stop the loop** — they stop themselves, and you keep running whatever they do not gate.
+
+**Three limits, and they are not the same limit** — mixing them up is how a loop stops for something that was never meant to stop it:
+
+| Limit | What it bounds | What happens at it |
+|---|---|---|
+| **Two rounds** | one task | that task goes `blocked`; **the loop carries on** |
+| **Two reasons above** | the loop | you stop and ask; the round is still live |
+| **[Three rounds](#the-fix-loop-and-the-ceiling-of-three)** | wrap-up's fix loop | the round stops and goes to the user |
+
+**The three-round ceiling belongs to wrap-up alone.** It counts review-and-fix passes after every task is finished, and it has nothing to say about the task loop — there is no round counter over tasks, and no number of finished tasks that is a reason to pause.
 
 ## Wrap-up: two reviews, at once
 
@@ -157,7 +166,8 @@ Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SK
 
 | Thought | Reality |
 |---|---|
-| "Task done — I will check in with the user before the next one" | A finished task is not a checkpoint. The loop stops for a question that changes what gets built, something destructive, or the three-round ceiling. Nothing else. |
+| "Task done — I will check in with the user before the next one" | A finished task is not a checkpoint. The loop stops for a question that changes what gets built, or for something destructive. Nothing else. |
+| "That is three tasks now, time to stop and review" | There is no round counter over tasks. Three is wrap-up's ceiling on fix passes, after every task is done — it says nothing about how many tasks run before you get there. |
 | "Only one task is ready, so I will run them one at a time all the way down" | Ready means `todo` with `deps` settled — take every task that qualifies, not the first. Serialising work the plan cut apart throws away what the plan was for. |
 | "These two both touch `src/auth/`, but they are small — run them together" | Two agents editing one file in one workspace produce a tree neither of them tested. Disjoint `files`, or one after the other. |
 | "The implementer says it is done" | It reported. You judge — against a command, an exit code and an observation, point by point against the task's `goal`. |
