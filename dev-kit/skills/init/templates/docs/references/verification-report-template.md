@@ -85,9 +85,14 @@ The settings page renders correctly and readably under both themes — proving i
 
 ### Recording
 
-<video src="videos/run.mp4" poster="videos/run-poster.png" controls preload="metadata" width="720"></video>
+<video controls preload="metadata" width="720" poster="videos/run-poster.png">
+  <source src="videos/run.mp4" type="video/mp4">
+  This viewer cannot play embedded video. Use the direct link below.
+</video>
 
-The complete recording from the list page to the settings page; watch it to confirm the navigation process and the final stable state.
+[Open the recording directly](videos/run.mp4)
+
+The recording shows the complete path from the list page to the settings page, proving the navigation completed and the final state became stable.
 
 The decisive moments from the same run (a recording can neither be skimmed nor played by every viewer):
 
@@ -247,7 +252,7 @@ In `verifying a change` mode, delete the "Reproduction steps" / "Minimal reprodu
 - **Expectation and reality disagreeing** — a two-column table (what was required / what actually happens), not a paragraph describing the difference.
 - **APIs / data** — the request (method, path, payload) + status code + the response body's key fields; for data, put two results of the same query before and after side by side. Trim to what supports the verdict; do not paste a whole dump.
 - **Screenshots** — `![caption](screenshots/….png)` plus **one sentence on what it proves**. Put pairs (before/after, light/dark) in a two-column table so the comparison takes one glance rather than two screens. **Only when there is a UI** — screenshotting a terminal is worse than pasting the text (unsearchable, undiffable, and likely to drag in the neighbouring window).
-- **Recordings** — `<video src="videos/….mp4" poster="videos/….png" controls preload="metadata" width="720"></video>`, in **mp4 / h264** so it plays everywhere without anyone checking a browser version. `controls` is required (without it the recording is a picture nobody can operate), `poster` gives it a frame before anything is fetched, and `preload="metadata"` stops a large file being pulled the moment the page opens. A recording is hard to skim in any case, so **capture the decisive moments as stills during the run** and put them next to it. **The stills are what carry the verdict, not the recording.**
+- **Recordings** — use the complete `<video>` shape shown in the Evidence index example: a `<video controls preload="metadata" width="720" poster="videos/….png">` wrapper, an explicit `<source src="videos/….mp4" type="video/mp4">`, fallback text inside the element, and a plain relative link immediately after `</video>`. The link is required because some Markdown renderers sanitize raw HTML. Store recordings as **mp4 / h264** so they play without anyone checking a browser version. `controls` is required (without it the recording is a picture nobody can operate), `poster` gives it a frame before anything is fetched, and `preload="metadata"` stops a large file being pulled the moment the page opens. Do not use `autoplay`, absolute paths or base64-embedded media. A recording is hard to skim in any case, so **capture the decisive moments as stills during the run** and put them next to it. **The stills are what carry the verdict, not the recording.**
 - **Logs** — paste the lines the conclusion rests on into a code block, then link the full capture. Giving only a link forces the reader to reconstruct which line mattered.
 - **Resources** — embed short text fixtures (YAML/JSON/scripts) directly into a code block. Leave a link only for large files or binaries, saying what is in it.
 - **Redact before embedding** tokens, cookies and real credentials — embedding puts it in front of every reader.

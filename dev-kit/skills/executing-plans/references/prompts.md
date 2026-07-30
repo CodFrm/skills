@@ -6,7 +6,9 @@ Three templates. Fill the `<>` slots from the plan and the spec — **do not sen
 
 **A prompt describes one task, not the history of the session.** Point at paths for earlier output; do not paste contents. Every word pasted in stays in your context until the session ends and is re-read on every later turn — which is the cost dispatching exists to avoid.
 
-**The full report goes to a file; the message back to you is capped.** Reports land under `.dev-kit/artifacts/<spec-slug>/`: `tasks/<id>-report.md` for an implementer, `review-spec.md` and `review-code.md` for the two wrap-up reads. **The final message is at most 15 lines.** Without that cap a subagent returns its whole working transcript, you pay for all of it, and the isolation you dispatched for is gone. Inside a worktree `.dev-kit` is a symlink back to the main repository, so reports survive the workspace being removed.
+**What comes back is the conclusion, not the working transcript.** Left unsaid, a subagent returns everything it read and ran; you pay for all of it, and the isolation you dispatched for is gone. So every prompt below bounds what comes back — and bounds it **by form, not by truncation**: an implementer's evidence is a few commands with their exit codes, a reviewer's is one line per finding. Neither is long. What must not come back is the exploring that produced it.
+
+**No report files.** The orchestrator judges an implementer's evidence the moment it arrives and records the outcome in the plan; the reviewers' findings go straight into the fix round. Nothing reads any of it afterwards, so a file written for each would be write-only — and re-running the reviews regenerates them anyway. **The one durable artifact of the round is the verification report at the end.**
 
 **A subagent reports evidence and never rules its own work complete.** That judgement is yours. A prompt missing the line gets back "done ✅" instead of the command that proves it.
 
@@ -59,9 +61,8 @@ Ask rather than guess — stopping is allowed and costs you nothing:
 - Say `stuck` when the task needs a design decision with several defensible answers, when
   you have read file after file without the picture coming together, or when you are not
   convinced your own approach is right.
-- Either way the specifics go in the **final message**, not only in the report: what you are
-  stuck on, what you already tried, what would unblock you. "Stuck" alone hands me a
-  guessing game instead of a decision.
+- Either way the specifics come back with it: what you are stuck on, what you already tried,
+  what would unblock you. "Stuck" alone hands me a guessing game instead of a decision.
 
 Before reporting, read your own diff with fresh eyes. Nobody else reads it until the whole
 branch is reviewed at the end, so what you miss here travels a long way:
@@ -72,14 +73,18 @@ branch is reviewed at the end, so what you miss here travels a long way:
 - Patterns: does this read like the code around it, or like your own dialect dropped in?
 - Tests: do they verify real behaviour rather than the mock's? Would they fail if the
   implementation were wrong?
-Fix what this finds in your own diff now, then record it in the report.
+Fix what this finds in your own diff now, and say in one line that you did.
 
-Reporting:
-- Full report to .dev-kit/artifacts/<spec-slug>/tasks/<id>-report.md: what you did, every
-  command with its exit code and what you observed, your goal checked point by point, RED
-  and GREEN evidence, the commit's short SHA, and anything contradicting the plan's context.
-- Final message to me: at most 15 lines — status, short SHA, one line of test summary, your
-  concerns, the report path. Nothing else.
+Report back in at most 15 lines. Do not write a report file, and do not replay how you got
+there — I need only what lets me judge it:
+- status (below), and the commit's short SHA
+- the commands you ran, each with its exit code — including the RED run and what it failed on
+- what you actually observed, not what you expected
+- your goal confirmed point by point, or which part of it is not yet true
+- concerns, and anything that contradicts the plan's context
+
+Everything you read, every file you opened, every path you tried and abandoned stays with you.
+Sending it costs me context and tells me nothing I act on.
 
 Status is one of four: complete / complete with concerns / stuck / missing context.
 If you are unsure which, say so — something forced out costs more than something not produced.
@@ -119,10 +124,11 @@ Rules:
 
 Severity on every finding: blocking / significant / minor.
 
-Reporting:
-- Full judgement to .dev-kit/artifacts/<spec-slug>/review-spec.md.
-- Final message: at most 15 lines — the counts by severity, one line per blocking finding,
-  and the file path. Nothing else.
+Report the findings themselves, most severe first, one entry each: severity, file:line, the
+spec sentence quoted, and what the diff does instead. Do not write a report file. Do not
+summarise the diff back to me, do not narrate how you read it, and do not list what you
+checked and found fine — the findings are the whole deliverable, and everything else is
+context I pay for and never act on. Nothing found is one line saying so.
 ```
 
 ## Code review
@@ -161,10 +167,11 @@ Rules:
 
 The bar is "would you ship this" — there is no later stage to catch what gets waved through.
 
-Reporting:
-- Full judgement to .dev-kit/artifacts/<spec-slug>/review-code.md.
-- Final message: at most 15 lines — the counts by severity, one line per blocking finding,
-  and the file path. Nothing else.
+Report the findings themselves, most severe first, one entry each: severity, file:line, what
+breaks, and the input or state that makes it break. Do not write a report file. Do not
+summarise the diff back to me, do not narrate how you read it, and do not list what you
+checked and found fine — the findings are the whole deliverable, and everything else is
+context I pay for and never act on. Nothing found is one line saying so.
 ```
 
 ### Do not write the verdict into either review prompt

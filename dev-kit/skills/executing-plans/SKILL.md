@@ -61,7 +61,7 @@ Hand each task [the implementer prompt](references/prompts.md#implementer). Four
 
 **The implementer commits its own work, by path, and reports the SHA.** It knows what it touched; you do not, beyond what `files` declared. `git add -A` is banned in the prompt for a reason that a subagent cannot see for itself: it has no way of knowing a sibling task is writing into the same tree beside it.
 
-**The detail goes to a file, not into your context.** Each task's full report lands at `.dev-kit/artifacts/<spec-slug>/tasks/<id>-report.md` and the message back to you is capped at 15 lines. **A dispatch that returns its whole transcript has bought you nothing** — the context you were protecting is spent anyway, and you may as well have run it inline.
+**Ask for the conclusion, not the transcript** — 15 lines: status, the SHA, the commands with their exit codes, what was observed, concerns. **A dispatch that hands back everything it read has bought you nothing**; the context you were protecting is spent anyway, and you may as well have run it inline. **No per-task report file.** You judge the evidence as it arrives and record the outcome in the plan, so a file would be written and never read again — the round's one durable artifact is the verification report at the end.
 
 ### Judging what comes back
 
@@ -159,7 +159,8 @@ Set `status: done`, then go to [`using-git-worktrees`](../using-git-worktrees/SK
 | "`missing context` means the task failed" | It means the plan had a hole and the implementer stopped instead of guessing, which is the cheapest outcome available. Write the fact into `context` and send it back. |
 | "Third time lucky on this task" | Two rounds is the limit. Mark it `blocked`, carry on with what it does not gate, raise it at the end. |
 | "`git add -A` and commit" | In a parallel batch that sweeps a sibling's half-finished work into this task's commit. The prompt bans it because a subagent cannot see the sibling for itself. |
-| "The subagent came back with everything I need to know, right here" | Then you paid for its whole transcript and dispatching bought you nothing. Full report to a file, 15 lines back. |
+| "The subagent came back with everything it read, right here" | Then you paid for its whole transcript and dispatching bought you nothing. Ask for the conclusion — the commands, the exit codes, the findings — and nothing about how it got there. |
+| "I should file each task's report somewhere for the record" | Nothing reads it afterwards: you judge the evidence as it arrives and the plan records the outcome. The round has one durable artifact, and it is the verification report. |
 | "I will tell the reviewer that bit was deliberate, to save it flagging it" | That is writing the verdict into the prompt. You are spending the reviewer's one advantage — it was not there when the code was written. |
 | "Same model for every task, simpler" | Wrong in both directions at once: the easy tasks overpay and the hard one goes out underpowered. Read the tier off each task line. |
 | "I will write the plan file once at the end of the turn" | Then a session that ends early loses every status it learned. Write it the moment a status changes. |
