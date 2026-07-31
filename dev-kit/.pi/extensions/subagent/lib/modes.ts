@@ -19,6 +19,7 @@ import { validateTaskRequest } from "./validation.ts";
 
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
+const PER_TASK_OUTPUT_CAP = 50 * 1024;
 
 type Mode = SubagentDetails["mode"];
 
@@ -114,7 +115,7 @@ async function runParallel(
 		const status = isFailedResult(result)
 			? `failed${result.stopReason ? ` (${result.stopReason})` : ""}`
 			: "completed";
-		return `### Task ${index + 1} [${result.profile}] ${status}\n\n${getResultOutput(result)}`;
+		return `### Task ${index + 1} [${result.profile}] ${status}\n\n${truncateParentOutput(getResultOutput(result))}`;
 	});
 	return {
 		content: [{ type: "text", text: `Parallel: ${successCount}/${results.length} succeeded\n\n${summaries.join("\n\n---\n\n")}` }],
@@ -195,4 +196,15 @@ function invalid(error: string, mode: Mode = "single"): AgentToolResult<Subagent
 
 function makeDetails(mode: Mode, results: TaskResult[]): SubagentDetails {
 	return { mode, results };
+}
+
+function truncateParentOutput(output: string): string {
+	const byteLength = Buffer.byteLength(output, "utf8");
+	if (byteLength <= PER_TASK_OUTPUT_CAP) return output;
+	let truncated = output.slice(0, PER_TASK_OUTPUT_CAP);
+	while (Buffer.byteLength(truncated, "utf8") > PER_TASK_OUTPUT_CAP) {
+		truncated = truncated.slice(0, -1);
+	}
+	const omitted = byteLength - Buffer.byteLength(truncated, "utf8");
+	return `${truncated}\n\n[Output truncated: ${omitted} bytes omitted. Full output preserved in tool details.]`;
 }

@@ -1,9 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { executeSubagent } from "./lib/modes.ts";
+import { createRenderers } from "./lib/render.ts";
 import { SubagentParams } from "./lib/schema.ts";
 import type { SubagentParams as SubagentArguments } from "./lib/types.ts";
 
 export default function subagentExtension(pi: ExtensionAPI) {
+	const renderers = createRenderers();
 	pi.registerTool({
 		name: "subagent",
 		label: "Subagent",
@@ -15,5 +17,6 @@ export default function subagentExtension(pi: ExtensionAPI) {
 		execute(_toolCallId, params, signal, onUpdate, ctx) {
 			return executeSubagent(params as SubagentArguments, pi, signal, onUpdate, ctx);
 		},
+		...renderers,
 	});
 }
