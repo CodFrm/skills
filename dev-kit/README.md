@@ -8,6 +8,24 @@
 
 > **dev-kit 还没合并进 `main`。** 下面凡是指向 `main` 的地方，合并之前都要换成带 dev-kit 的分支。
 
+### 作为 Pi package
+
+```bash
+pi install /path/to/skills/dev-kit
+```
+
+执行 `/reload` 后，Pi 加载 bootstrap extension 与共享 skills。基础包不包含进程派发工具，计划 ready 闸门只提供 `inline`。
+
+需要 subagent 时再单独安装可选包：
+
+```bash
+pi install /path/to/skills/dev-kit/.pi/extensions/subagent
+```
+
+当前会话的工具集合要到 `/reload` 后才更新；工具列表出现 `subagent` 后，后续 ready 闸门才同时提供 `subagent` 与 `inline`。移除时用 `pi remove <pi list 中显示的本地 source>`，再执行 `/reload`。
+
+该包不创建或读取用户/项目 agent profile，也不保存 `cheap / mid / strong` 模型映射。主会话在每次派发时从当前可用模型中选择真实 `provider/model`。参数、权限 profile 与安全边界见[包内 README](./.pi/extensions/subagent/README.md)。
+
 ### 作为 Claude Code plugin
 
 插件清单在仓库根 `.claude-plugin/marketplace.json`，`source` 为 `./dev-kit`：

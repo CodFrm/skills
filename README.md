@@ -27,6 +27,8 @@
 | [test-driven-development](./dev-kit/skills/test-driven-development/) | 以失败测试驱动新行为和缺陷修复 |
 | [systematic-debugging](./dev-kit/skills/systematic-debugging/) | 先复现并定位根因，再进入修复 |
 
+可选 Pi 派发集成：[dev-kit-pi-subagent](./dev-kit/.pi/extensions/subagent/)；单独安装后为 dev-kit 提供隔离的 single、parallel 与 chain 子任务进程，基础 dev-kit 仍保持 inline。
+
 ### [coding-agents](./coding-agents/) · Coding Agent 编排
 
 | Skill | 用途 |
