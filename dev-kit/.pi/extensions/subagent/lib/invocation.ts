@@ -9,34 +9,28 @@ import type { OnUpdate, ResolvedTaskRequest, SubagentDetails, TaskResult, UsageS
 export async function runSingleTask(
 	request: ResolvedTaskRequest,
 	ctx: ExtensionContext,
-	_signal: AbortSignal | undefined,
+	signal: AbortSignal | undefined,
 	onUpdate: OnUpdate | undefined,
 ): Promise<TaskResult> {
-	const cwd = request.cwd;
+	const result = createResult(request);
+	if (signal?.aborted) {
+		markAborted(result);
+		return result;
+	}
+
 	const args = ["--mode", "json", "-p", "--no-session"];
 	if (request.model) args.push("--model", request.model);
 	if (request.thinking) args.push("--thinking", request.thinking);
 	args.push("--tools", request.tools.join(","));
-	args.push(isTrustedChild(ctx, cwd) ? "--approve" : "--no-approve");
+	args.push(isTrustedChild(ctx, request.cwd) ? "--approve" : "--no-approve");
 
 	const promptDir = fs.mkdtempSync(path.join(os.tmpdir(), "dev-kit-subagent-"));
 	const promptPath = path.join(promptDir, "system-prompt.md");
 	fs.writeFileSync(promptPath, systemPrompt(request.profile), { encoding: "utf8", mode: 0o600 });
 	args.push("--append-system-prompt", promptPath, `Task: ${request.task}`);
 
-	const result: TaskResult = {
-		task: request.task,
-		profile: request.profile,
-		cwd,
-		exitCode: 0,
-		messages: [],
-		stderr: "",
-		usage: emptyUsage(),
-		model: request.model,
-	};
-
 	try {
-		result.exitCode = await spawnAndCollect(args, cwd, result, onUpdate);
+		result.exitCode = await spawnAndCollect(args, request.cwd, result, signal, onUpdate);
 		return result;
 	} finally {
 		fs.rmSync(promptDir, { recursive: true, force: true });
@@ -47,16 +41,47 @@ function spawnAndCollect(
 	args: string[],
 	cwd: string,
 	result: TaskResult,
+	signal: AbortSignal | undefined,
 	onUpdate: OnUpdate | undefined,
 ): Promise<number> {
 	return new Promise(resolve => {
 		const invocation = getPiInvocation(args);
-		const proc = spawn(invocation.command, invocation.args, {
-			cwd,
-			shell: false,
-			stdio: ["ignore", "pipe", "pipe"],
-		});
+		let proc;
+		try {
+			proc = spawn(invocation.command, invocation.args, {
+				cwd,
+				shell: false,
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+		} catch (error) {
+			result.errorMessage = error instanceof Error ? error.message : String(error);
+			resolve(1);
+			return;
+		}
+
 		let buffer = "";
+		let settled = false;
+		let wasAborted = false;
+		let forceTimer: ReturnType<typeof setTimeout> | undefined;
+
+		const finish = (code: number) => {
+			if (settled) return;
+			settled = true;
+			if (forceTimer) clearTimeout(forceTimer);
+			signal?.removeEventListener("abort", abortChild);
+			if (wasAborted) markAborted(result);
+			resolve(code);
+		};
+
+		const abortChild = () => {
+			if (settled || wasAborted) return;
+			wasAborted = true;
+			proc.kill("SIGTERM");
+			forceTimer = setTimeout(() => {
+				if (!settled) proc.kill("SIGKILL");
+			}, 5000);
+			forceTimer.unref?.();
+		};
 
 		const processLine = (line: string) => {
 			if (!line.trim()) return;
@@ -101,12 +126,15 @@ function spawnAndCollect(
 		});
 		proc.on("close", code => {
 			if (buffer.trim()) processLine(buffer);
-			resolve(code ?? 0);
+			finish(code ?? (wasAborted ? 1 : 0));
 		});
 		proc.on("error", error => {
 			result.errorMessage = error.message;
-			resolve(1);
+			finish(1);
 		});
+
+		if (signal?.aborted) abortChild();
+		else signal?.addEventListener("abort", abortChild, { once: true });
 	});
 }
 
@@ -146,7 +174,26 @@ function systemPrompt(profile: ResolvedTaskRequest["profile"]): string {
 	return lines.join("\n");
 }
 
-function getFinalOutput(messages: Message[]): string {
+function createResult(request: ResolvedTaskRequest): TaskResult {
+	return {
+		task: request.task,
+		profile: request.profile,
+		cwd: request.cwd,
+		exitCode: 0,
+		messages: [],
+		stderr: "",
+		usage: emptyUsage(),
+		model: request.model,
+	};
+}
+
+function markAborted(result: TaskResult): void {
+	result.exitCode = result.exitCode || 1;
+	result.stopReason = "aborted";
+	result.errorMessage = "Subagent was aborted";
+}
+
+export function getFinalOutput(messages: Message[]): string {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const message = messages[index];
 		if (message.role !== "assistant") continue;
@@ -157,6 +204,27 @@ function getFinalOutput(messages: Message[]): string {
 	return "";
 }
 
+export function isFailedResult(result: TaskResult): boolean {
+	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+}
+
+export function getResultOutput(result: TaskResult): string {
+	if (isFailedResult(result)) {
+		return result.errorMessage || result.stderr.trim() || getFinalOutput(result.messages) || "(no output)";
+	}
+	return getFinalOutput(result.messages) || "(no output)";
+}
+
+export function formatFailure(result: TaskResult): string {
+	const lines = ["Subagent failed.", `Exit code: ${result.exitCode}`];
+	if (result.stopReason) lines.push(`Stop reason: ${result.stopReason}`);
+	if (result.errorMessage) lines.push(`Error: ${result.errorMessage}`);
+	if (result.stderr.trim()) lines.push(`Stderr: ${result.stderr.trim()}`);
+	const output = getFinalOutput(result.messages);
+	if (output) lines.push(`Last output: ${output}`);
+	return lines.join("\n");
+}
+
 function makeDetails(result: TaskResult): SubagentDetails {
 	return { mode: "single", results: [result] };
 }
@@ -164,5 +232,3 @@ function makeDetails(result: TaskResult): SubagentDetails {
 function emptyUsage(): UsageStats {
 	return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 };
 }
-
-export { getFinalOutput };

@@ -13,50 +13,51 @@ export type ValidationResult =
 	| { ok: true; request: ResolvedTaskRequest }
 	| { ok: false; error: string };
 
-export function validateSingleRequest(
+export function validateTaskRequest(
 	params: TaskRequest,
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
+	prefix = "",
 ): ValidationResult {
 	if (params.profile !== "write" && params.profile !== "read-only") {
-		return invalid("profile", 'must be "write" or "read-only"');
+		return invalid(`${prefix}profile`, 'must be "write" or "read-only"');
 	}
 	if (typeof params.task !== "string" || params.task.trim().length === 0) {
-		return invalid("task", "must not be empty");
+		return invalid(`${prefix}task`, "must not be empty");
 	}
 
 	let cwd: string;
 	try {
 		cwd = fs.realpathSync(path.resolve(ctx.cwd, params.cwd ?? "."));
-		if (!fs.statSync(cwd).isDirectory()) return invalid("cwd", "must resolve to an existing directory");
+		if (!fs.statSync(cwd).isDirectory()) return invalid(`${prefix}cwd`, "must resolve to an existing directory");
 	} catch {
-		return invalid("cwd", "must resolve to an existing directory");
+		return invalid(`${prefix}cwd`, "must resolve to an existing directory");
 	}
 
 	const explicitModel = params.model;
 	if (explicitModel !== undefined && !/^[^/\s]+\/[^/\s]+$/.test(explicitModel)) {
-		return invalid("model", "must be a real provider/model id");
+		return invalid(`${prefix}model`, "must be a real provider/model id");
 	}
 	const model = explicitModel ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
 
 	if (params.thinking !== undefined && !THINKING_LEVELS.has(params.thinking)) {
-		return invalid("thinking", `must be one of ${Array.from(THINKING_LEVELS).join(", ")}`);
+		return invalid(`${prefix}thinking`, `must be one of ${Array.from(THINKING_LEVELS).join(", ")}`);
 	}
 	const thinking = params.thinking ?? ctx.thinkingLevel;
 
 	const tools = params.tools ?? PROFILE_TOOLS[params.profile];
 	if (!Array.isArray(tools) || tools.some(tool => typeof tool !== "string" || tool.length === 0)) {
-		return invalid("tools", "must be an array of non-empty tool names");
+		return invalid(`${prefix}tools`, "must be an array of non-empty tool names");
 	}
-	if (tools.includes("subagent")) return invalid("tools", "must not include subagent");
+	if (tools.includes("subagent")) return invalid(`${prefix}tools`, "must not include subagent");
 
 	if (params.profile === "read-only") {
 		const outsideProfile = tools.find(tool => !PROFILE_TOOLS["read-only"].includes(tool));
-		if (outsideProfile) return invalid("tools", `${outsideProfile} is outside the read-only profile`);
+		if (outsideProfile) return invalid(`${prefix}tools`, `${outsideProfile} is outside the read-only profile`);
 	} else {
 		const available = new Set(pi.getAllTools().map(tool => tool.name));
 		const unknown = tools.find(tool => !available.has(tool));
-		if (unknown) return invalid("tools", `${unknown} is not loaded in the current Pi session`);
+		if (unknown) return invalid(`${prefix}tools`, `${unknown} is not loaded in the current Pi session`);
 	}
 
 	return {

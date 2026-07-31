@@ -12,6 +12,11 @@ export interface TaskRequest {
 	cwd?: string;
 }
 
+export interface SubagentParams extends Partial<TaskRequest> {
+	tasks?: TaskRequest[];
+	chain?: TaskRequest[];
+}
+
 export interface ResolvedTaskRequest extends TaskRequest {
 	cwd: string;
 	tools: string[];
@@ -38,6 +43,7 @@ export interface TaskResult {
 	model?: string;
 	stopReason?: string;
 	errorMessage?: string;
+	step?: number;
 }
 
 export interface SubagentDetails {
