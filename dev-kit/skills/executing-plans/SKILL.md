@@ -8,9 +8,9 @@ description: >-
 
 **You arrive here from [`writing-plans`](../writing-plans/SKILL.md) with a `ready` plan**, or at the start of a session that found one whose `status` is not `done`.
 
-You are the orchestrator. You hold the plan, the spec and the conversation; the work goes out to tasks and comes back as evidence you judge. Three invariants:
+You are the orchestrator. You hold the plan, the spec and the conversation; the work goes out to tasks, and what comes back you record and route. Three invariants:
 
-1. Nothing is judged finished inside the context that produced it — [the batch review](#the-batch-review-and-its-fix-the-second-gate-before-done), [static wrap-up](#wrap-up-two-static-reviews-at-once), then [runtime verification](#runtime-verification-a-fresh-third-subagent).
+1. Nothing is judged finished inside the context that produced it — [the batch review](#the-batch-review-and-its-fix-what-makes-a-task-done), [static wrap-up](#wrap-up-two-static-reviews-at-once), then [runtime verification](#runtime-verification-a-fresh-third-subagent).
 2. **Only you write the plan file.** Tasks report; you record. With parallel tasks that is not style — two agents writing one YAML file corrupt it.
 3. **The loop does not stop between tasks.** A finished task is not a checkpoint.
 
@@ -18,7 +18,7 @@ You are the orchestrator. You hold the plan, the spec and the conversation; the 
 
 Read the entire plan — `goal`, `context`, every task, `review`, `verification` — then the spec it points at. **The spec is what the work is measured against at the end**, and a session that never opened it cannot judge a task against anything but the plan's own words.
 
-Resuming a half-finished plan. Everything at `doing` or `reviewing` is the one batch that was in flight. A task at `doing` was dispatched and never recorded: check the tree for its work first — a commit whose message matches, or the files it declared — then either move it to `reviewing` with that SHA in `commit`, or reset it to `todo`. Once nothing is left at `doing` the batch is whole, and the tasks at `reviewing` have their commits in the tree and no verdict: look for a fix commit on top of them, and with one, recover the review result and continue to the full suite; without one, dispatch [the batch review](#the-batch-review-and-its-fix-the-second-gate-before-done) over the recorded SHAs. **Never re-dispatch an implementer whose commit is in the tree.**
+Resuming a half-finished plan. Everything at `doing` or `reviewing` is the one batch that was in flight. A task at `doing` was dispatched and never recorded: check the tree for its work first — a commit whose message matches, or the files it declared — then either move it to `reviewing` with that SHA in `commit`, or reset it to `todo`. Once nothing is left at `doing` the batch is whole, and the tasks at `reviewing` have their commits in the tree and no verdict: look for a fix commit on top of them, and with one, recover the review result and continue to the full suite; without one, dispatch [the batch review](#the-batch-review-and-its-fix-what-makes-a-task-done) over the recorded SHAs. **Never re-dispatch an implementer whose commit is in the tree.**
 
 Resume runtime verification from its own state, not from the presence of `report.md`: `pending` follows the normal route after static review; `running` means first check whether its dispatch is still active, and otherwise inspect the partial scratch directory before sending a fresh verifier to continue and re-observe incomplete evidence; `reported` goes straight to orchestrator inspection; `accepted` goes to handing back; `blocked` goes to the user with `verification.note`. Never rerun static wrap-up merely because runtime verification was interrupted.
 
@@ -39,9 +39,9 @@ pick every task that is ready → mark them doing → dispatch the batch
   → record its result → full suite → repeat
 ```
 
-Ready means `status: todo` and every id in `deps` is `done`. Take all of them, not the first. **Dispatch the batch in parallel when their `files` are disjoint**; overlapping paths run one after another, because two agents editing one file in one workspace produce a tree neither of them tested. In `inline` mode there is no batch: one at a time in `deps` order, and [no review](#the-batch-review-and-its-fix-the-second-gate-before-done).
+Ready means `status: todo` and every id in `deps` is `done`. Take all of them, not the first. **Dispatch the batch in parallel when their `files` are disjoint**; overlapping paths run one after another, because two agents editing one file in one workspace produce a tree neither of them tested. In `inline` mode there is no batch: one at a time in `deps` order, and [no review](#inline-mode-keeps-the-evidence-gate).
 
-Mark every task in the batch `doing` **before** dispatching, and write the file then — that field is what a resumed session, or you after a compact, reads to find what was in flight. Each task moves to `reviewing` with its short SHA in `commit` the moment you have judged its evidence, and the review goes out when the last one has left `doing`. Write every status the moment you have judged it.
+Mark every task in the batch `doing` **before** dispatching, and write the file then — that field is what a resumed session, or you after a compact, reads to find what was in flight. Each task moves to `reviewing` with its short SHA in `commit` the moment its return is recorded, and the review goes out when the last one has left `doing`. Write every status the moment you have it.
 
 **Inside a task the chain continues**: [`test-driven-development`](../test-driven-development/SKILL.md) is mandatory and named in the dispatch, and where the task is a fault rather than new behaviour, [`systematic-debugging`](../systematic-debugging/SKILL.md) comes first.
 
@@ -51,28 +51,38 @@ The implementer commits its own work, by path, and reports the SHA — you never
 
 Parallel tasks run only their own tests. The full suite is yours, once per batch, after the batch lands — and **a batch has not landed until its review and that review's fix have**, since a fix commit is code nobody has run the suite against.
 
-Ask for the conclusion, not the transcript — 15 lines: status, the SHA, the evidence, concerns. **No per-task report file**: you judge the evidence as it arrives and record the outcome in the plan. The round's one durable artifact is the verification report.
+Ask for the conclusion, not the transcript — 15 lines: status, the SHA, the evidence, concerns. **No per-task report file**: you record the outcome in the plan, and the reviewer reads the commit rather than the report. The round's one durable artifact is the verification report.
 
-### Judging what comes back
+### What comes back, and where it goes
 
-Evidence is **a command, an exit code and an observation**, checked point by point against the task's `goal`. What comes back is a report, not a verdict. This is the first of two gates: evidence that holds sends the task to [the batch review](#the-batch-review-and-its-fix-the-second-gate-before-done); evidence that falls short never gets there.
+**In `subagent` mode you route the return; you do not review it.** Whether the `goal` is observably true is [the batch review's first question](#the-batch-review-and-its-fix-what-makes-a-task-done), and it asks against `git show` while you would be asking against fifteen lines the implementer wrote about its own work. Asking it here buys nothing the review does not buy better.
 
-The four statuses want four different responses — treating them alike is how a task that needed one missing fact gets abandoned:
+So a `complete` return gets one mechanical check and two writes: `git cat-file -e <sha>^{commit}` resolves — a SHA that does not means nothing was committed and the review would open an empty scope — then `status: reviewing` and that SHA in `commit`.
+
+The four statuses still route four different ways; that routing reads a declaration, it does not weigh a commit:
 
 | Status | What you do |
 |---|---|
-| complete | Check the evidence against the `goal` point by point. Only once it holds: `status: reviewing`, its SHA in `commit`, and it waits for the rest of the batch. |
-| complete with concerns | Read the concerns first. Anything about correctness or scope gets resolved **before the review goes out**. A pure observation goes into `note` and waits for wrap-up. |
+| complete | SHA resolves → `status: reviewing`, its SHA in `commit`, and it waits for the rest of the batch. |
+| complete with concerns | The same, and the concerns go **verbatim into the batch review's dispatch**. You do not settle them here: they are about code, and the reviewer is the one reading code. |
 | missing context | Usually a hole in the plan, and cheap. Write the missing fact into `context`, then dispatch again. A fact that *contradicts* an entry already there is a collision, not a hole: that goes to the user. |
 | stuck | Not enough context → fill it in and re-dispatch. Needs more reasoning → re-dispatch a tier up. Too large → split it. The plan itself is wrong → the user's call: park it `blocked`. **Never re-dispatch unchanged.** |
 
-The normal shape is one dispatch per task and one more for the batch they belong to: each implements, one reads them all and fixes. In `inline` mode it is the round of TDD and your judgement, and nothing else.
+The normal shape is one dispatch per task and one more for the batch they belong to: each implements, one reads them all and fixes.
 
-When the evidence falls short of the `goal`, **you send it back once**, naming exactly what is missing. A second shortfall marks it `blocked` with a `note`; carry on with everything its `deps` do not gate. `missing context` and `stuck` do not spend that send-back — they are the implementer declining to guess, which is the outcome you want; what bounds them is that each re-dispatch needs something changed.
+**One send-back, and only the implementer's own words trigger it.** A return that names part of its `goal` as not yet true has declared a shortfall: send it back once, naming that part. A second shortfall marks it `blocked` with a `note`; carry on with everything its `deps` do not gate. `missing context` and `stuck` do not spend that send-back — they are the implementer declining to guess, which is the outcome you want; what bounds them is that each re-dispatch needs something changed.
 
-## The batch review and its fix: the second gate before `done`
+**A shortfall it did not declare is not yours to go looking for.** A commit that claims more than it did is what the review reads commits to find, and a send-back spent on your reading of a summary is not available for the one the implementer asks for itself.
 
-**A task is not `done` when its evidence holds. It is `done` when someone who did not write it has read it.** Your own judgement is over a 15-line report; the code has been read by exactly one context, the one least able to see what is wrong with it. Waiting for wrap-up to be that reader is what this buys out of: a convention broken in task 1 is copied, correctly, by every later implementer.
+### `inline` mode keeps the evidence gate
+
+All of that shrinks the orchestrator because a reviewer reads the commits afterwards. **On the `inline` path nobody does** — [there is no batch review there](#the-batch-review-and-its-fix-what-makes-a-task-done), so wrap-up's static reviews are the first outside reading, a whole run of tasks later.
+
+So there, and only there, you check the evidence before a task leaves `doing`: **a command, an exit code and an observation**, point by point against the task's `goal`, with the same one send-back when it falls short. It is a weak gate — a report about work done in your own context — and it is the only one the task gets.
+
+## The batch review and its fix: what makes a task `done`
+
+**A task is `done` when someone who did not write it has read it** — not when its return says so. Until then the code has been read by exactly one context, the one least able to see what is wrong with it. Waiting for wrap-up to be that reader is what this buys out of: a convention broken in task 1 is copied, correctly, by every later implementer.
 
 In `subagent` mode, one dispatch per batch, sent when nothing is left at `doing` — a task sent back is still `doing`, and the batch waits for it. Its scope is the tasks that reached `reviewing`; one parked `blocked` is not in it. The tier is the highest among those tasks, with `mid` as the floor; wrap-up stays `strong` regardless.
 
@@ -93,13 +103,15 @@ The reviewing subagent fixes what it found itself, in the same dispatch, as a TD
 
 Nothing of the batch is still running by then, so it writes anywhere in the batch's combined `files`: a finding that spans two sibling tasks is fixed once, in one place.
 
-What comes back is the review result: findings and whether each was fixed, the fix commit when one exists, commands with exit codes, and every unresolved finding. Two things it hands back rather than fixing: a finding whose fix is a design decision rather than a correction (yours to decide via [the three gates](../using-dev-kit/references/asking-users.md#three-tiers-findable--cheap-if-wrong--rework-if-wrong)), and anything saying the plan itself is wrong (parks the task `blocked`, goes to the user).
+What comes back is the review result: findings and whether each was fixed, the fix commit when one exists, commands with exit codes, and every unresolved finding. Three things it hands back rather than fixing: **a `goal` that was not implemented at all** — that is the task's own work, not a finding-sized fix, and it parks the task `blocked`; a finding whose fix is a design decision rather than a correction (yours to decide via [the three gates](../using-dev-kit/references/asking-users.md#three-tiers-findable--cheap-if-wrong--rework-if-wrong)); and anything saying the plan itself is wrong (parks the task `blocked`, goes to the user).
+
+A `goal` that arrived with holes in it — a missed edge case, an unhandled error path, a test that only asserts the mock — is an ordinary finding, and it fixes that itself. **Nothing filters an unimplemented task out ahead of this review**, so drawing that line is what keeps one dispatch's fix allowance from being spent implementing a task.
 
 The reviewer owns the detailed judgement. Check only that the return has those fields, every reported commit resolves, and no unresolved blocking finding is hidden in the summary; do not reread the fix diff, reassess fixed findings or match each test back to its finding. Record unresolved blocking findings as `blocked` and smaller ones in `note`, then run the full suite over the landed batch. The branch-wide static reviews at wrap-up remain independent and unchanged.
 
 Once per batch. A red full suite is handled before the next batch; a green one advances immediately.
 
-In `inline` mode there is no batch review — the alternative on that path is you reviewing code you just wrote, which is the absence of a review, not a degraded one. **Say nothing about any of it in the wrap-up prompts**: "the batches were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
+**Say nothing about any of it in the wrap-up prompts**: "the batches were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
 ## When to stop, and when not to
 
@@ -111,8 +123,8 @@ Four limits, and no two are the same limit:
 
 | Limit | What it bounds | What happens at it |
 |---|---|---|
-| One send-back | one task whose evidence fell short | that task goes `blocked`; the loop carries on |
-| [One review-and-fix dispatch](#the-batch-review-and-its-fix-the-second-gate-before-done) | one batch's findings | blocking left open → that task `blocked`; the rest → `note` |
+| One send-back | one task that declared part of its `goal` unfinished | that task goes `blocked`; the loop carries on |
+| [One review-and-fix dispatch](#the-batch-review-and-its-fix-what-makes-a-task-done) | one batch's findings | blocking left open → that task `blocked`; the rest → `note` |
 | Two reasons above | the loop | you stop and ask; the round is still live |
 | [Two fix rounds](#the-two-fix-rounds) | wrap-up's findings | blocking after round 2 → `stopped`; the rest → `note` and delivery |
 
@@ -190,8 +202,10 @@ Nothing open is also worth the line. `done` means that round finished, and **the
 
 | Thought | Reality |
 |---|---|
-| "The evidence holds, so the task is `done`" | Evidence holding earns it a review. One context has read the code, and it wrote it. |
-| "Task 1's evidence passed and task 3 is slow — I will review task 1 now" | Then it reads one commit, and the axis you held the batch for is the one it cannot check. |
+| "The return looks right, so the task is `done`" | A return earns it a review. One context has read the code, and it wrote it. |
+| "These commands do not look like they cover the goal — I will send it back" | In `subagent` mode that reading is the review's, against the commit. Yours would be against a summary, and it spends the one send-back the implementer may still ask for. |
+| "The reviewer says task 2's goal was never implemented — it should just implement it" | That is a task's worth of work inside a dispatch sized for findings. It hands it back and the task parks `blocked`. |
+| "Task 1's return is recorded and task 3 is slow — I will review task 1 now" | Then it reads one commit, and the axis you held the batch for is the one it cannot check. |
 | "The reviewer said it fixed some things, so that is enough" | The return still needs its fix commit, commands and unresolved findings; the orchestrator checks completeness, not the review again. |
 | "The reviewer found it, so send the fix to the implementer" | The implementer's blind spot is exactly what the review found. |
 | "Every batch was reviewed, so wrap-up can be lighter — I will say so in the prompt" | A one-batch reviewer cannot see drift from one batch to the next, and saying it is the verdict written into the review. |

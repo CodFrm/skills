@@ -16,7 +16,7 @@ Five templates, in three files by the stage that sends them:
 
 **What comes back is the conclusion, not the working transcript.** Left unsaid, a subagent returns everything it read and ran, and the isolation you dispatched for is gone. Every template bounds the return **by form**: an implementer's evidence is a few commands with their exit codes, a reviewer's is one line per finding, and the runtime verifier returns the report path, verdicts and evidence index.
 
-**Implementers and reviewers create no report files.** You judge an implementer's evidence as it arrives and record the outcome in the plan; the reviewers' findings go into wrap-up's bounded fixer flow. The runtime verifier alone writes the round's durable report under `e2e/scratch/<spec-slug>/`.
+**Implementers and reviewers create no report files.** An implementer's return is recorded in the plan and its commit goes to the batch review; the reviewers' findings go into wrap-up's bounded fixer flow. The runtime verifier alone writes the round's durable report under `e2e/scratch/<spec-slug>/`.
 
 **A subagent reports evidence and never rules its own work complete.** A prompt missing that line gets back "done ✅" instead of the command that proves it.
 

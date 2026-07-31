@@ -73,7 +73,7 @@ If you are unsure which, say so.
 
 ## Batch review and fix
 
-One per batch in `subagent` mode, dispatched once no task in it is left `doing`, at the highest tier among its tasks with `mid` as the floor. **It reviews that batch's commits and fixes what it finds**, both in this dispatch — see [the batch review and its fix](../SKILL.md#the-batch-review-and-its-fix-the-second-gate-before-done). **`inline` mode does not use this template at all.**
+One per batch in `subagent` mode, dispatched once no task in it is left `doing`, at the highest tier among its tasks with `mid` as the floor. **It reviews that batch's commits and fixes what it finds**, both in this dispatch — see [the batch review and its fix](../SKILL.md#the-batch-review-and-its-fix-what-makes-a-task-done). **`inline` mode does not use this template at all**, and [keeps the orchestrator's evidence gate instead](../SKILL.md#inline-mode-keeps-the-evidence-gate).
 
 ```
 Review one batch of commits and fix what you find — tasks <ids> of the plan at
@@ -87,6 +87,13 @@ These commits are the whole scope, one per task:
 Read them with `git show <sha>`. Do not read the working tree, and do not review any commit
 outside that list; every earlier batch was reviewed when it landed.
 
+What each implementer said about its own work, verbatim and unjudged — nobody has checked
+any of it against the code, which is your job here. Treat each as a lead to look at, not as
+a finding and not as a clean bill:
+
+  <id> · <its concerns, or "none">
+  <id> · <its concerns, or "none">
+
 The spec is at <spec path>. Read two things in it and nothing else: the requirements these
 tasks serve — <which ones> — and its testing decisions, which is the boundary the tests were
 supposed to be written at.
@@ -94,7 +101,9 @@ supposed to be written at.
 Four questions, in this order:
 (a) Each goal, one task at a time. Is that task's sentence observably true in its own
     commit, and does what the spec asked of it actually arrive? Name the test or the code
-    path that makes it true. "Looks implemented" is not an answer.
+    path that makes it true. "Looks implemented" is not an answer. **Nothing checked this
+    before you** — the report each implementer wrote about itself was recorded, not
+    verified, so a goal that never arrived reaches you unflagged.
 (b) The project's conventions. Does this read like the project or like one agent's dialect?
     Read AGENTS.md / CLAUDE.md and docs/testing.md if they exist, and the files immediately
     around the changes. **Be specific about the convention and where it is established** —
@@ -129,8 +138,11 @@ mid-read shapes the findings to it.
   is mine.
 - One commit for the lot, on top of the last commit in the list, message per the project's
   convention. **Stage and commit by path** — never `git add -A`.
-- Two you hand back instead of fixing: a finding whose fix is a design decision rather than
-  a correction, and anything that says the plan itself is wrong.
+- Three you hand back instead of fixing: a goal that was not implemented at all — that is
+  the task's own work, not a finding-sized fix; a finding whose fix is a design decision
+  rather than a correction; and anything that says the plan itself is wrong. A goal that did
+  arrive but with holes in it — a missed edge case, an unhandled error path, a test that only
+  asserts the mock — is an ordinary finding and you fix it.
 - Do not touch the plan file, and do not set any task's status.
 
 Report in at most 15 lines, no report file: the number of findings fixed and a one-line summary

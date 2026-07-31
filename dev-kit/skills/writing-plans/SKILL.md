@@ -58,7 +58,7 @@ tasks:
     model: null                 # cheap | mid | strong — a tier, not an id. See below
     interfaces: null            # names and types this task produces that a later one consumes
     status: todo                # todo → doing → reviewing → done | blocked
-    commit: null                # short SHA, written when its evidence passes
+    commit: null                # short SHA, written when its return is recorded
     note: null                  # blocked, done came out different, or a finding let stand
 
   - id: 2
@@ -81,7 +81,7 @@ verification:            # runtime-verifier state; executing-plans writes every 
 
 **`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at once; overlapping paths run one after the other instead. Guess it wide rather than narrow.
 
-**`reviewing` is a state, not a formality.** A task whose evidence passed and whose [batch review and fix](../executing-plans/SKILL.md#the-batch-review-and-its-fix-the-second-gate-before-done) have not finished sits there with its SHA in `commit`, so a resumed session re-dispatches that review over the right commits instead of sending an implementer at code that is already written. **`commit` is what makes the batch survivable**: the review goes out only once its whole batch has passed, and a compaction in between loses SHAs that live nowhere else. A plan run `inline` has no batch review, so its tasks go from `doing` straight to `done`.
+**`reviewing` is a state, not a formality.** A task whose commit is recorded and whose [batch review and fix](../executing-plans/SKILL.md#the-batch-review-and-its-fix-what-makes-a-task-done) have not finished sits there with its SHA in `commit`, so a resumed session re-dispatches that review over the right commits instead of sending an implementer at code that is already written. **`commit` is what makes the batch survivable**: the review goes out only once its whole batch has left `doing`, and a compaction in between loses SHAs that live nowhere else. A plan run `inline` has no batch review, so its tasks go from `doing` straight to `done`.
 
 **`verification` survives an interrupted final run.** `running` means a verifier was dispatched but its report has not been accepted; `reported` means its output returned and still needs the orchestrator's inspection. Only that inspection writes `accepted`. A resumed session never infers completion from a report file alone.
 
