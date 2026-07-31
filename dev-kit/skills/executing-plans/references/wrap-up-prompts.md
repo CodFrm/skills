@@ -4,7 +4,7 @@ The branch's only static reading as a branch: the two go out in parallel, at `st
 
 ## Static spec verification
 
-Wrap-up, dispatched at `strong` alongside the code review. This is static verification against the spec and diff; a fresh subagent performs runtime verification only after this review loop passes. **Say nothing to either reviewer about the batch reviews that came before.**
+Wrap-up, dispatched at `strong` alongside the code review. This is static verification against the spec and diff; a fresh subagent performs runtime verification only after static wrap-up reaches `passed`. **Say nothing to either reviewer about the batch reviews that came before.**
 
 ```
 Statically verify this branch against its spec. Read the spec in full first: <spec path> — the
@@ -24,7 +24,7 @@ file:line. A finding with no quote behind it is an opinion about the design.
 
 You are not reviewing code quality — that is running separately, right now. Only: does this
 diff implement what was agreed? Do not claim runtime behaviour was observed; a fresh runtime
-verifier runs after both static reviews pass.
+verifier runs after the bounded static review-and-fix flow reaches `passed`.
 
 Rules:
 - Read only. Do not touch the working tree, the index, HEAD or any branch, and repair

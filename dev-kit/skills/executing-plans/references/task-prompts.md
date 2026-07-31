@@ -133,11 +133,10 @@ mid-read shapes the findings to it.
   a correction, and anything that says the plan itself is wrong.
 - Do not touch the plan file, and do not set any task's status.
 
-Report in at most 15 lines plus 3 per task, no report file: every finding, most severe
-first, with the task id, the test that now covers it or the reason it is still open; the new
-commit's short SHA; the commands with their exit codes. Nothing found is one line saying so.
-Do not summarise the commits back to me, do not narrate how you read them, and do not list
-what you checked and found fine.
+Report in at most 15 lines, no report file: the number of findings fixed and a one-line summary
+of each; every unresolved finding with severity and task id; the new commit's short SHA; the
+commands with their exit codes. Nothing found is one line saying so. Do not summarise the
+commits back to me, narrate how you read them, or list what you checked and found fine.
 
 Status: complete / complete with concerns / stuck / missing context.
 ```

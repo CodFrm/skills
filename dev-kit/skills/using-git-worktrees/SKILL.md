@@ -1,12 +1,12 @@
 ---
 name: using-git-worktrees
 description: >-
-  Use after a design is agreed and before its spec is written, before a spike or refactor that may be thrown away, or when the workspace holds unrelated uncommitted changes — isolates the round in its own git worktree and branch. Use it again at the end of the round, to deliver that branch.
+  Use after the user says a spec draft has no remaining problem and it needs its round branch, before a spike or refactor that may be thrown away, or when the workspace holds unrelated uncommitted changes — isolates the round in its own git worktree and branch. Use it again at the end of the round, to deliver that branch.
 ---
 
 # Isolating a workspace with git worktree
 
-**This skill runs twice in a round** — once after the design is agreed but before the spec is written, to isolate; once at the end, to deliver. You arrive the first time from [`brainstorming`](../brainstorming/SKILL.md#order), and the second time from [wrap-up](../executing-plans/SKILL.md#handing-it-back).
+**This skill runs twice in a round** — once after the user says the spec draft has no remaining problem, to isolate, commit it and prepare the baseline; once at the end, to deliver. You arrive the first time from [`brainstorming`](../brainstorming/SKILL.md#order), and the second time from [wrap-up](../executing-plans/SKILL.md#handing-it-back).
 
 A worktree shuts this round into its own directory and its own branch, so stopping midway does not mean resetting the main workspace. **What it isolates is this round from the other things you have in hand, not two parallel tasks from each other** — parallel work shares one worktree.
 
@@ -14,7 +14,7 @@ A worktree shuts this round into its own directory and its own branch, so stoppi
 
 | Use | Do not use |
 |---|---|
-| A design is agreed and its spec plus implementation should travel as one branch | One-off small changes, read-only exploration |
+| A spec draft has no remaining problem and its formal spec plus implementation should travel as one branch | One-off small changes, read-only exploration |
 | Trying a path that may be thrown away entirely (a big refactor, swapping a library, a spike) | You are **already** in an isolated workspace — see step 0a; do not nest one inside another |
 | The current workspace holds uncommitted changes unrelated to this round | This round needs main-workspace changes that are **not committed and not going to be** |
 | | The user declined one, or their instructions say not to |
@@ -37,7 +37,7 @@ GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
 git rev-parse --show-superproject-working-tree   # non-empty = this is a submodule, not a worktree
 ```
 
-`GIT_DIR` differing from `GIT_COMMON` **and** the third command printing nothing means you are already in a linked worktree. Report where and on what branch, then go to [the setup section](#set-up-and-check-the-baseline-before-the-first-change) — do not create another, and **check the `.dev-kit` link and the baseline yourself**: a workspace created for a different round did neither on this round's behalf. The submodule guard matters because a submodule produces the same inequality for a different reason, and treating one as a worktree means cutting a branch in the wrong repository.
+`GIT_DIR` differing from `GIT_COMMON` **and** the third command printing nothing means you are already in a linked worktree. Report where and on what branch, then go to [the setup section](#set-up-and-check-the-baseline-before-the-first-change) — do not create another, and **follow its link, spec-commit and baseline order yourself**: a workspace created for a different round did none of them on this round's behalf. The submodule guard matters because a submodule produces the same inequality for a different reason, and treating one as a worktree means cutting a branch in the wrong repository.
 
 Equal paths, or a non-empty superproject, means an ordinary checkout → 0b.
 
@@ -52,11 +52,11 @@ If your instructions already state a preference, honour it without asking. Other
 - Yes → step 1.
 - No → work in place, but **still not on main / master**: create and switch to a branch dedicated to this round before returning to `brainstorming`, then continue through setup in that checkout.
 
-## Before creating: keep the round out of the baseline
+## Before creating: keep the commit out of the baseline
 
-The design agreement and slug exist in the conversation; the formal spec does not exist yet. **Do not write or commit `docs/specs/<spec-slug>.md` in the baseline workspace as a bridge into the worktree.** Create the round branch first, then return to `brainstorming` and write the spec there.
+The final `docs/specs/<spec-slug>.md` in the original checkout is an uncommitted draft. **Do not commit it on the baseline as a bridge into the worktree.** Record its absolute path before creating the round branch; `brainstorming` moves that file into the new workspace for the first commit.
 
-Anything already changed during read-only exploration is a process violation, not input to sweep into the new branch. List it, identify whether it belongs to this round, and either revert it or ask before carrying it across. Never hide unrelated baseline changes inside the spec commit.
+Anything except that named draft already changed in the original checkout is not input to sweep into the new branch. Never hide unrelated baseline changes inside the spec commit.
 
 **`.dev-kit/` is gitignored**, so [the link](#link-dev-kit-into-the-workspace) is how mockups and later plans remain visible inside the workspace.
 
@@ -83,11 +83,11 @@ If `git worktree add` fails on a sandbox permission error, do not retry with for
 
 ## Set up and check the baseline before the first change
 
-**Every path arrives here** — the native tool's workspace, `git worktree add`'s, one step 0a found you already standing in, and the dedicated in-place branch chosen at step 0b. Every command below runs from the checkout that will hold the spec.
+**Every path arrives here** — the native tool's workspace, `git worktree add`'s, one step 0a found you already standing in, and the dedicated in-place branch chosen at step 0b. Every command below runs from the checkout that will hold the committed spec.
 
 ### Link `.dev-kit` into the workspace
 
-**Required from the first entry.** `.dev-kit/` is gitignored, so none of the design artifacts travels automatically; later, `.dev-kit/plans/<slug>.yaml` is what the implementation works from and the one file the orchestrator writes status into. Without the link, mockups disappear at the spec-writing gate and the obvious workaround leaves duplicate artifact or plan trees that never line up again.
+**Required from the first entry.** `.dev-kit/` is gitignored, so none of the design artifacts travels automatically; later, `.dev-kit/plans/<slug>.yaml` is what the implementation works from and the one file the orchestrator writes status into. Without the link, mockups disappear from the round workspace and the obvious workaround leaves duplicate artifact or plan trees that never line up again.
 
 In a linked worktree, create the link:
 
@@ -102,7 +102,9 @@ For a linked worktree, check the link resolves with `readlink .dev-kit`; on ever
 
 One trap: **`.dev-kit/` with a trailing slash in `.gitignore` does not cover this symlink** — a trailing slash matches only directories, so `git status` grows a permanent `?? .dev-kit` and `git add -A` commits it. Write `.dev-kit`.
 
-### Install, then run the baseline
+### Commit the spec, then install and run the baseline
+
+Return to [`brainstorming`](../brainstorming/SKILL.md#finish-the-draft-then-commit-it-on-the-round-branch) to move the final draft into this workspace and commit it. The user's review already finished before this workspace was created; continue into setup without asking them to approve the same spec again.
 
 ```bash
 # whichever the project actually uses
@@ -116,7 +118,7 @@ Then run the test suite once, before touching anything:
 - **Green** → report it and start. Every failure from here belongs to this round.
 - **Red** → report which tests fail and **ask whether to proceed or investigate first.** A dirty baseline makes every later failure ambiguous, and `test-driven-development` cannot tell a regression from a baseline failure without one.
 
-**Setup done — return to [`brainstorming`](../brainstorming/SKILL.md#writing-the-spec).** Write, approve and commit the spec in this workspace before choosing the plan or short route. You come back to this skill at [delivery](#delivery-and-cleanup).
+If the baseline exposes a fact that changes the problem, scope or testing decisions, return to `brainstorming`, revise the formal spec, get approval and commit that revision by path. Otherwise setup is done; continue from [`brainstorming`'s route selection](../brainstorming/SKILL.md#what-happens-after-the-spec). You come back to this skill at [delivery](#delivery-and-cleanup).
 
 ## Delivery and cleanup
 
@@ -191,6 +193,6 @@ The worktree stays put through both routes — you are already isolated, so step
 |---|---|
 | "Obviously not in a worktree already — no need to check" | A harness-created workspace and a submodule both look like an ordinary checkout by eye. Run step 0a. |
 | "`git worktree add` is quicker than hunting for a native tool" | It creates a workspace the harness cannot see or clean up, and nothing tells you at the time. |
-| "Commit the spec here first so the new worktree receives it" | That puts the first commit of the round on the baseline. Create the worktree branch first and write the spec inside it. |
+| "Commit the draft here first so the new worktree receives it" | That puts the round's first commit on the baseline. Move the final draft and commit it in the round workspace. |
 | "The tests went green just now, merge it" | That green proves the tree it ran on. Run it again on the tree being delivered, and on the merge result. |
 | "The round is finished, so this review comment is just a quick edit" | It feels quick because nothing is holding the branch. Route it by size; the bar is unchanged. |

@@ -18,4 +18,4 @@ The main session is the **orchestrator**: it holds the goal, the constraints, th
 
 ## What must be dispatched
 
-**The two static wrap-up reviews and the fresh runtime verifier** — not for context but for isolation. A round running `inline` runs them in that session instead; either way the reviews must pass before runtime verification starts.
+**The static wrap-up reviewers and the fresh runtime verifier** — not for context but for isolation. A round running `inline` runs them in that session instead; either way static wrap-up must reach `passed` through its bounded review-and-fix flow before runtime verification starts.

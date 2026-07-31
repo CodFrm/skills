@@ -70,7 +70,7 @@ tasks:
 
 review:                  # wrap-up state, so a resumed session knows where it stands
   status: pending        # pending → passed | stopped
-  fix: null              # the fix commit's SHA, written before it goes back out to be checked
+  fixes: []              # up to two fix SHAs, appended before each fix's full-suite run
 
 verification:            # runtime-verifier state; executing-plans writes every field
   status: pending        # pending → running → reported → accepted | blocked
@@ -118,6 +118,8 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 **A `draft` plan is not something to work from.** One message puts two things to the user — how the work is cut, and how it gets run — and nothing starts until both come back.
 
+Before sending the first breakdown, run every pre-gate item in the checklist below; fix every failure before the user sees it. If the user changes the breakdown, update the plan, rerun the same self-check, and only then present the whole breakdown and mode question again. A revision never bypasses the gate because an earlier version passed it.
+
 Resolve the current harness through [`using-dev-kit`'s platform mapping](../using-dev-kit/SKILL.md#platform-tools) before offering `subagent`; where it has no native dispatch tool, offer only `inline`.
 
 ```
@@ -141,7 +143,7 @@ B. How should I run it?
       ever reads this code
 ```
 
-Write both answers in together: `status: ready` and `mode`. **Neither is yours to guess** — the only `mode` you set without asking is the `inline` the harness mapping forces. A breakdown sent back to be re-cut gets the whole message again, because which tasks run at once is what option 1 was recommended on.
+Write both answers in together: `status: ready` and `mode`, then check the final checklist item. **Neither is yours to guess** — the only `mode` you set without asking is the `inline` the harness mapping forces. A breakdown sent back to be re-cut gets the whole message again, because which tasks run at once is what option 1 was recommended on.
 
 **Once `ready`, what is frozen is the shape of the work — not the file:**
 
@@ -166,7 +168,7 @@ Write both answers in together: `status: ready` and `mode`. **Neither is yours t
 - [ ] `files` is filled in for every task, wide rather than narrow, and disjoint where tasks run at once
 - [ ] Every signature crossing a task boundary is on the consuming task's `interfaces`
 - [ ] `model` is a tier word or `null` — never a model id
-- [ ] The breakdown and the mode question went past the user in one message; `status` is `ready` and `mode` is set
+- [ ] After the gate: the breakdown and mode question went past the user in one message; `status` is `ready` and `mode` is set
 
 ## Red Flags
 

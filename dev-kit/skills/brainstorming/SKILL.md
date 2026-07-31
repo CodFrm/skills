@@ -6,7 +6,7 @@ description: >-
 
 # Requirements exploration and specification (brainstorming)
 
-**This is where a round starts.** Anything that changes behaviour enters the chain here, reaches an agreed design and a slug, then moves into an isolated branch before the written spec is created and committed. [The end of this skill](#what-happens-after-the-spec) names the next stage after approval.
+**This is where a round starts.** Anything that changes behaviour enters the chain here, reaches an agreed design and a slug, then stays on an uncommitted spec draft until the user says it has no remaining problem. Only that final draft moves into an isolated branch to be committed. [The end of this skill](#what-happens-after-the-spec) names the next stage after approval.
 
 **A pure bug fix still gets a spec**, small: the symptom, the promised behaviour, non-goals, and what would count as a regression.
 
@@ -14,7 +14,7 @@ description: >-
 
 ## Hard gate
 
-**Do not write production code, test code, migrations or scaffolding before the user has agreed the design.** The only writing allowed during exploration is `.dev-kit/artifacts/<spec-slug>/mockups/`, with the user's consent.
+**Do not write production code, test code, migrations or scaffolding before the user has agreed the design.** The only writing allowed during exploration is `.dev-kit/artifacts/<spec-slug>/mockups/` and, once the design is agreed, the uncommitted `docs/specs/<spec-slug>.md` draft.
 
 This skill's end point is an approved spec committed on the round's own branch — not an implementation.
 
@@ -29,15 +29,14 @@ This skill's end point is an approved spec committed on the round's own branch �
 
 ## Order
 
-1. **Read-only exploration** — the project docs, the relevant code, existing tests, recent related commits. Run the suite once: a spec cannot state what counts as a regression against a baseline nobody looked at. A red baseline goes into the spec's problems as an observed fact, or is named pre-existing and out of scope. Distinguish verified facts, user statements and speculation. **Fix the slug now** — `YYYY-MM-DD-<lowercase-short-name>`, taking today — because the mockup and evidence directories follow it.
+1. **Read-only exploration** — the project docs, the relevant code, existing tests, recent related commits. Identify the full-suite command but leave the baseline run to the round workspace: the current checkout may contain unrelated changes, and its result would not describe the tree that gets implemented. Distinguish verified facts, user statements and speculation. **Fix the slug now** — `YYYY-MM-DD-<lowercase-short-name>`, taking today — because the mockup and evidence directories follow it.
 2. **Decide whether the requirement needs splitting.** Several independently shippable subsystems means giving the split and the dependency order first, then carrying on with the first spec only.
 3. **Ask one question at a time**, only about things that change scope, interaction or how it is accepted — purpose, primary users, success criteria, failure behaviour, compatibility boundaries. **Do not ask what the repository can answer.**
 4. **Give 2–3 options**, recommendation first, each stating user impact, implementation and maintenance cost, risks, and what it gives up. Delete extension points no current requirement asks for.
-5. **Present the design** — user flow, boundaries, state and data flow, errors and recovery, test seams — sectioned by complexity, with agreement on each section before continuing.
-6. **Create the round's workspace and branch** through [`using-git-worktrees`](../using-git-worktrees/SKILL.md), then continue this skill from inside it. The slug is already fixed, so it names the worktree and branch before the spec commit exists.
-7. **Write the spec** into `docs/specs/<spec-slug>.md` in that workspace, immediately after isolation: until then the conclusions live only in the conversation, and a compaction or session break loses dozens of exchanges.
-8. **Self-check, then send the path** and wait for explicit approval.
-9. **Commit the approved spec** on the worktree's branch, by path.
+5. **Present the design** — user flow, boundaries, state and data flow, errors and recovery, test seams — sectioned by complexity, with agreement on each section before continuing. Before presenting a UI or interaction section, apply the [mockup judgement](#ui-and-html-mockups); where it calls for one, announce what the mockup will settle, build it, and get agreement on those decisions before continuing with the design.
+6. **Write the spec draft** into `docs/specs/<spec-slug>.md` in the current checkout, uncommitted. Run the full self-check before presenting the first draft and after every user-requested revision; fix what it finds, then send the path and ask what remains wrong. Keep revising, self-checking and presenting that same file until the user explicitly says there is no problem.
+7. **Create the round's workspace and branch** through [`using-git-worktrees`](../using-git-worktrees/SKILL.md). The slug is already fixed, so it names both. Move the final file there with `mv`, commit it by path, install dependencies and run the baseline; do not rewrite or copy it into a second version.
+8. **A baseline result that changes the spec returns here** for revision, the same full self-check, user approval and a spec-only commit before planning or implementation begins. Otherwise choose the plan or short route immediately; do not ask the user to approve the unchanged spec again.
 
 A still-open question cannot be carried into the spec if it would change what the thing has to do. Settle it, or state which part it blocks — no TBD.
 
@@ -73,7 +72,7 @@ Three judgements; the mechanism is in [mockups.md](references/mockups.md).
 
 ## Writing the spec
 
-`docs/specs/<spec-slug>.md` is the single basis for what this change should do. When the implementation, the tests or a report later conflict with it, **revise the spec and get agreement again.**
+`docs/specs/<spec-slug>.md` is the single basis for what this change should do. Before its first commit it is the user's readable draft; after transfer it is the round branch's formal spec. When the implementation, the tests or a report later conflict with it, **revise the formal spec and get agreement again.**
 
 It settles what must be true and what is out of bounds; it carries no checklist, and it does not say how. The route is the plan's ([`writing-plans`](../writing-plans/SKILL.md)); the commands and verdicts belong to the round that implements it, whose [static spec verifier](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once) checks the diff before [runtime verification](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent). **The plan is gitignored and states no requirements, so this file is the only committed, durable statement of what the change owes.**
 
@@ -142,18 +141,26 @@ Fix things directly. When an item does not hold, cutting is usually the fix, not
 - [ ] The spec is small enough to implement as one piece of work; otherwise split it
 - [ ] Every link exists, and no artifact contains real credentials or personal data
 
-## The user gate, then commit on the round branch
+## Finish the draft, then commit it on the round branch
 
-Send the file path and a short summary. Only after explicit approval do you commit; after changing requirements, come back through the self-check.
+In the original checkout, send the uncommitted file path and a short summary. Fix every problem the user raises, rerun the self-check, and present the same path again. Only an explicit answer that nothing remains wrong authorizes creating the round workspace. Record the file's absolute path, create the destination directory, prove the destination file does not exist, then move the final file without reopening or regenerating it:
+
+```bash
+mkdir -p docs/specs
+test ! -e "docs/specs/<spec-slug>.md"
+mv "<original-checkout>/docs/specs/<spec-slug>.md" "docs/specs/<spec-slug>.md"
+```
+
+If the destination already exists, stop instead of overwriting it. When the user chose a dedicated branch in the same checkout, the final draft is already in place: commit it there without moving it.
 
 ```bash
 git add docs/specs/<spec-slug>.md
 git commit -m "docs: spec for <short name>"   # follow the project's existing commit convention
 ```
 
-**Why after isolation.** The spec is the first durable commit of the round, so it belongs on the branch that will carry the implementation and PR. Committing it to the baseline first makes an abandoned implementation leave its requirement commit behind there, and makes the branch range omit part of the round.
+The draft is finished before isolation, but its commit is not: the spec belongs on the branch that will carry the implementation and PR. Committing it to the baseline would leave an abandoned requirement there and make the branch range omit part of the round.
 
-**Add the spec by path, not the whole workspace** — the workspace may already hold local setup artifacts, and `git add -A` sweeps them into a commit labelled "spec".
+**Add the spec by path, not the whole workspace** — `git add -A` can sweep the `.dev-kit` link or another checkout's changes into a commit labelled "spec".
 
 The current branch is now the round branch. The spec and every later revision stay with the implementation; merging or opening the PR carries the whole decision record together, while throwing the branch away throws away the unshipped proposal too.
 
@@ -166,7 +173,7 @@ The spec is committed and the workspace is already isolated. **Now count the ste
 | More than about three steps, or it will span sessions | [`writing-plans`](../writing-plans/SKILL.md) |
 | Three steps or fewer, holding inside one session | **No plan.** Straight to `test-driven-development`; the work runs as a single slice in the existing round workspace |
 
-**Neither route reaches code outside the workspace established before the spec**. Even when the user declined a linked worktree, `using-git-worktrees` created or selected a dedicated branch before this file was written.
+**Neither route reaches code outside the workspace holding the committed spec.** The final draft may have been written in the original checkout, but implementation begins only after `using-git-worktrees` has moved it to a dedicated branch, completed setup and run the baseline.
 
 **On the short route the final dispatches have no plan to hang off**, so fill them from the spec and branch range: the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent).
 
@@ -180,4 +187,4 @@ The spec is committed and the workspace is already isolated. **Now count the ste
 | "Just agreed it, I will turn it into a spec later" | A compaction and a session break sit in between. Write it now. |
 | "I will number the requirements, or add an acceptance table" | The same sentence twice, with nothing keeping the copies equal. Numbers go on problems and decisions. |
 | "Dispatch a subagent to write the spec and show me" | A spec's value is that it was agreed, and a subagent cannot reach the user. |
-| "Commit the spec on the baseline so the worktree can see it" | Create the round branch first, then write and commit the spec there; the spec is part of the round, not a prerequisite commit on its baseline. |
+| "Commit the draft here so the worktree can see it" | Move the final draft into the round workspace and commit there; the baseline checkout holds only the temporary uncommitted draft. |

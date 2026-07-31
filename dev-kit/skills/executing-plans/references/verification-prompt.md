@@ -1,6 +1,6 @@
 # Runtime verification prompt
 
-Use only after both static wrap-up reviews and their fix round pass. Dispatch it at `strong` to a fresh subagent that implemented or reviewed none of the branch. **[The rules every dispatch shares](prompts.md#what-every-dispatch-shares) apply**, and every `<>` slot must be filled.
+Use only after static wrap-up reaches `passed` through its two-review, two-fixer limit. Dispatch it at `strong` to a fresh subagent that implemented or reviewed none of the branch. **[The rules every dispatch shares](prompts.md#what-every-dispatch-shares) apply**, and every `<>` slot must be filled.
 
 ```
 Verify the finished branch in a real runtime and produce its durable local verification report.
