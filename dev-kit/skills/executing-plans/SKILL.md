@@ -22,27 +22,11 @@ Resuming a half-finished plan. A task at `doing` was dispatched and never record
 
 Resume runtime verification from its own state, not from the presence of `report.md`: `pending` follows the normal route after static review; `running` means first check whether its dispatch is still active, and otherwise inspect the partial scratch directory before sending a fresh verifier to continue and re-observe incomplete evidence; `reported` goes straight to orchestrator inspection; `accepted` goes to handing back; `blocked` goes to the user with `verification.note`. Never rerun static wrap-up merely because runtime verification was interrupted.
 
-## The one gate
+## Starting the run
 
-Resolve the current harness through [`using-dev-kit`'s platform mapping](../using-dev-kit/SKILL.md#platform-tools) before offering `subagent`; where it has no native dispatch tool, offer only `inline`.
+**`mode` arrives answered** — [`writing-plans`' ready gate](../writing-plans/SKILL.md#the-gate-then-freeze) puts it to the user alongside the breakdown, in one message. Set `status: running` and go. **Nothing in this skill stops for the user by design.**
 
-Ask once, before the first task, and only this:
-
-```
-Plan: 2026-07-30-oauth-login — 7 tasks, and 2/3/4 can run at the same time.
-
-How should I run them?
-1. Dispatch each task to a subagent  ← recommended: every task gets a clean
-   context, and the three independent ones run in parallel
-2. Run them inline in this session — no per-task review, and wrap-up's two
-   reviews and the runtime verification run here too, so no context but mine
-   ever reads this code
-
-Workspace: .dev-kit/worktrees/oauth-login already holds this round; the spec
-is committed on its branch.
-```
-
-One message, one question. Report the existing workspace rather than proposing a new one, write the answer into `mode`, set `status: running`, and go. **Nothing else in this skill stops for the user by design.**
+A `ready` plan whose `mode` is still `null` never went through that gate — hand-written, older, or a session that broke before the answer came back. Put that half of the gate now, in its wording, before the first task. **The breakdown is not re-asked**: `ready` is what says it was already agreed.
 
 Verify the workspace recorded in the plan is the checkout you are standing in, the spec is tracked on its branch, `.dev-kit` resolves as a link or the in-place directory, and the baseline suite was run during setup. A missing or mismatched workspace goes back to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change); do not create a second worktree around the first.
 
@@ -115,7 +99,7 @@ Judge it at the same bar as the implementer's report:
 
 Once per task. Anything blocking still open marks it `blocked`; anything smaller goes into `note` and travels to wrap-up.
 
-In `inline` mode there is no task review — the alternative on that path is you reviewing code you just wrote, which is the absence of a review, not a degraded one. Say once, in the gate, what inline costs. **Say nothing about any of it in the wrap-up prompts**: "the tasks were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
+In `inline` mode there is no task review — the alternative on that path is you reviewing code you just wrote, which is the absence of a review, not a degraded one. **Say nothing about any of it in the wrap-up prompts**: "the tasks were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
 ## When to stop, and when not to
 

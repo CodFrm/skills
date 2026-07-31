@@ -37,7 +37,7 @@ Read before you write: the spec in full, the modules it touches, their existing 
 ```yaml
 spec: docs/specs/2026-07-30-oauth-login.md   # required — a change this size owes a spec
 status: draft            # draft → ready → running → done | stopped
-mode: null               # subagent | inline — executing-plans writes this, not you
+mode: null               # subagent | inline — the ready gate writes it from the user's answer
 worktree: .dev-kit/worktrees/oauth-login  # path, or "none: <reason>" — record the workspace already created
 
 goal: >-
@@ -115,7 +115,31 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 ## The gate, then freeze
 
-**A `draft` plan is not something to work from.** Put the breakdown to the user — the slices, the order, what runs in parallel — and let them veto. They are ruling on how the work is cut, not re-approving what it does. Set `status: ready` only after that.
+**A `draft` plan is not something to work from.** One message puts two things to the user — how the work is cut, and how it gets run — and nothing starts until both come back. They are ruling on how the work is cut, not re-approving what it does.
+
+Resolve the current harness through [`using-dev-kit`'s platform mapping](../using-dev-kit/SKILL.md#platform-tools) before offering `subagent`; where it has no native dispatch tool, offer only `inline`.
+
+```
+Plan: 2026-07-30-oauth-login — 7 tasks; 2/3/4 can run at the same time.
+Workspace: .dev-kit/worktrees/oauth-login already holds this round; the spec
+is committed on its branch.
+
+  1 · <goal>   deps: []
+  2 · <goal>   deps: [1]
+  ...
+
+Two things, then I start:
+
+A. The breakdown above — veto anything cut wrong.
+B. How should I run it?
+   1. Dispatch each task to a subagent  ← recommended: every task gets a clean
+      context, and the three independent ones run in parallel
+   2. Run them inline in this session — no per-task review, and wrap-up's two
+      reviews and the runtime verification run here too, so no context but mine
+      ever reads this code
+```
+
+Write both answers in together: `status: ready` and `mode`. **Neither is yours to guess** — the only `mode` you set without asking is the `inline` the harness mapping forces. A breakdown sent back to be re-cut gets the whole message again, because which tasks run at once is what option 1 was recommended on.
 
 **Once `ready`, what is frozen is the shape of the work — not the file:**
 
@@ -140,7 +164,7 @@ Read the tier off the task's own text — how much of the *how* is already writt
 - [ ] `files` is filled in for every task, wide rather than narrow, and disjoint where tasks run at once
 - [ ] Every signature crossing a task boundary is on the consuming task's `interfaces`
 - [ ] `model` is a tier word or `null` — never a model id
-- [ ] The breakdown went past the user and `status` is `ready`
+- [ ] The breakdown and the mode question went past the user in one message; `status` is `ready` and `mode` is set
 
 ## Red Flags
 
