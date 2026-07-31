@@ -24,6 +24,8 @@ Resume runtime verification from its own state, not from the presence of `report
 
 ## The one gate
 
+Resolve the current harness through [`using-dev-kit`'s platform mapping](../using-dev-kit/SKILL.md#platform-tools) before offering `subagent`; where it has no native dispatch tool, offer only `inline`.
+
 Ask once, before the first task, and only this:
 
 ```

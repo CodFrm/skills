@@ -5,7 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CODEX_PLUGIN_ROOT="${PLUGIN_ROOT:-}"
+DEVKIT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # JSON-escape using bash parameter substitution, one pass per character class — far faster
 # than looping character by character.
@@ -27,7 +28,7 @@ escape_for_json() {
 emit_additional_context() {
     local event="$1" text
     text="$(escape_for_json "$2")"
-    if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+    if [ -z "$CODEX_PLUGIN_ROOT" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
         printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "%s",\n    "additionalContext": "%s"\n  }\n}\n' "$event" "$text"
     else
         printf '{\n  "additionalContext": "%s"\n}\n' "$text"
@@ -36,7 +37,7 @@ emit_additional_context() {
 
 # If it cannot be read, exit silently and inject nothing: an "Error reading …" line would be
 # wrapped in <EXTREMELY_IMPORTANT> and read by the agent as its bootstrap.
-bootstrap_content="$(cat "${PLUGIN_ROOT}/skills/using-dev-kit/SKILL.md" 2>/dev/null)" || exit 0
+bootstrap_content="$(cat "${DEVKIT_ROOT}/skills/using-dev-kit/SKILL.md" 2>/dev/null)" || exit 0
 [ -n "$bootstrap_content" ] || exit 0
 
 session_context="$(printf '<EXTREMELY_IMPORTANT>\nYou have loaded dev-kit.\n\n**Below is the full content of the dev-kit:using-dev-kit bootstrap — it is your entry point for using these skills. Invoke the other skills with the '"'"'Skill'"'"' tool:**\n\n%s\n</EXTREMELY_IMPORTANT>' "$bootstrap_content")"

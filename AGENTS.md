@@ -1,6 +1,33 @@
 # AGENTS.md
 
-本仓库是 skill 合集。写 `SKILL.md` 及其引用文件时，每句话过三关。
+本仓库是 skill 合集。`SKILL.md` 的 frontmatter 只有 `name` 和 `description`；顶层目录要么本身是一个 skill，要么是一个合集。根 `README.md` 是总目录，新增 skill 它和合集 README 两处都要进。
+
+## 改之前读哪份
+
+| 要动 | 读 | 它管什么 |
+|---|---|---|
+| 任何 `SKILL.md`，以及它引用的文件 | 本文件的三关 | 每句话留不留 |
+| `dev-kit` 的 hook、插件清单、CLI | [dev-kit/README.md](./dev-kit/README.md) | 两种装法为什么不能并存、改完什么时候生效、怎么跑测试 |
+| `dev-kit/bin` 或 `dev-kit/lib` | [lib/project.js](./dev-kit/lib/project.js) 顶部注释 | 路径边界为什么只有一处、谁必须过它 |
+| `hooks/run-hook.cmd`，或任何会碰到行尾的改动 | [.gitattributes](./.gitattributes) 里的注释 | LF 为什么是承重的、那份文件里为什么不能有 label 或 `goto` |
+
+## 结构
+
+```text
+<skill>/SKILL.md                 skill 正文；同级可有 references/ templates/ scripts/ examples/
+<合集>/                          若干 skill 目录，加一份 README 索引
+dev-kit/                         唯一带可执行代码的合集；根 .claude-plugin/ 与 .agents/plugins/ 两份 marketplace 都指向它
+├── skills/                      同上
+├── .claude-plugin/plugin.json   Claude Code 插件清单
+├── .codex-plugin/plugin.json    Codex 插件清单
+├── hooks/                       SessionStart 把 using-dev-kit 的正文注入会话
+├── bin/devkit + lib/            可选 CLI，零依赖
+└── tests/                       node --test，覆盖 hooks、lib 和上面这些清单
+```
+
+`version`、description 和作者身份在 marketplace 和两份 `plugin.json` 里各有一份，由 `dev-kit/tests/manifests.test.js` 断言相等。
+
+写 `SKILL.md` 及其引用文件时，每句话过三关。
 
 ## 一、这句话有没有动作
 

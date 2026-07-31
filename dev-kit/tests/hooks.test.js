@@ -27,11 +27,16 @@ test.after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 // CLAUDE_PLUGIN_ROOT only selects the output shape — the script finds the bootstrap relative to its
 // own directory — and is set to the real root to match how Claude Code invokes the hook. COPILOT_CLI
 // is cleared throughout: set, it flips the Claude Code branch back to the flat shape.
-function run(script = SESSION_START, { pluginRoot } = {}) {
+function run(script = SESSION_START, { pluginRoot, codexPluginRoot } = {}) {
   const env = { ...process.env }
   delete env.COPILOT_CLI
   delete env.CLAUDE_PLUGIN_ROOT
+  delete env.PLUGIN_ROOT
   if (pluginRoot) env.CLAUDE_PLUGIN_ROOT = pluginRoot
+  if (codexPluginRoot) {
+    env.PLUGIN_ROOT = codexPluginRoot
+    env.CLAUDE_PLUGIN_ROOT = codexPluginRoot
+  }
   const r = spawnSync('bash', [script], { env, encoding: 'utf8' })
   return { code: r.status, out: r.stdout, err: r.stderr }
 }
@@ -85,6 +90,12 @@ test('Claude Code gets the nested hookSpecificOutput shape', () => {
   assert.equal(j.additionalContext, undefined, 'only the field this platform reads is emitted')
 })
 
+test('Codex gets top-level additionalContext even with its Claude compatibility variable', () => {
+  const j = JSON.parse(run(SESSION_START, { codexPluginRoot: PLUGIN_ROOT }).out)
+  assert.equal(typeof j.additionalContext, 'string')
+  assert.equal(j.hookSpecificOutput, undefined)
+})
+
 test('everything else gets the flat additionalContext shape', () => {
   const j = JSON.parse(run(SESSION_START).out)
   assert.equal(typeof j.additionalContext, 'string')
@@ -131,14 +142,16 @@ test('run-hook.cmd refuses an empty script name instead of exec-ing its own dire
   assert.match(r.stderr, /missing script name/)
 })
 
-test('hooks.json registers exactly one event, SessionStart, pointing at a script that exists', () => {
+test('hooks.json registers one cross-harness SessionStart hook', () => {
   const cfg = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'))
   assert.deepEqual(Object.keys(cfg.hooks), ['SessionStart'])
   assert.equal(cfg.hooks.SessionStart.length, 1)
-  assert.equal(cfg.hooks.SessionStart[0].matcher, 'startup|clear|compact')
+  assert.equal(cfg.hooks.SessionStart[0].matcher, 'startup|resume|clear|compact')
 
   const commands = cfg.hooks.SessionStart[0].hooks
   assert.equal(commands.length, 1)
+  assert.match(commands[0].command, /PLUGIN_ROOT/)
+  assert.match(commands[0].command, /CLAUDE_PLUGIN_ROOT/)
   assert.match(commands[0].command, /run-hook\.cmd" session-start$/)
   assert.ok(fs.existsSync(SESSION_START), 'hooks.json must not name a script that is not there')
 })

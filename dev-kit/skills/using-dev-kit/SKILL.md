@@ -30,6 +30,10 @@ If you were dispatched as a subagent to execute a specific task, ignore this ski
 
 **A branch never comes off, on any path.**
 
+## Platform tools
+
+Before dispatching or translating a named tool, identify the current harness from the tools it actually exposes and read exactly one mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). Where the mapping says no native subagent exists, choose `inline`; an external process is not a native subagent.
+
 ## What every round owes, whatever its size
 
 **Three things never come off, at any size: `test-driven-development` in full, the evidence bar — a command, an exit code and an observation — and the two closing passes: [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then a [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent) after them.** Running a round `inline` changes who does those two, not whether they happen ([dispatching.md](references/dispatching.md) carries the rest).
