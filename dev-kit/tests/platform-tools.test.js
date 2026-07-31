@@ -44,3 +44,14 @@ test('Pi mapping translates the logical namespace and stays within the base tool
   assert.doesNotMatch(mapping, /verified against `@earendil-works\/pi-coding-agent` 0\.\d+/)
   assert.doesNotMatch(mapping, /`spawn_agent`|`Task` tool/)
 })
+
+test('Pi mapping offers the optional subagent only when that exact tool is loaded', () => {
+  const mapping = read('references/pi-tools.md')
+  assert.match(mapping, /actual tool list.*`subagent`/is)
+  assert.match(mapping, /absent.*only.*`inline`/is)
+  assert.match(mapping, /present.*offer.*`subagent`.*`inline`/is)
+  assert.match(mapping, /`profile`.*`write`.*`read-only`/is)
+  assert.match(mapping, /real `provider\/model`/)
+  assert.match(mapping, /single.*parallel.*chain/is)
+  assert.match(mapping, /must not include `subagent`/i)
+})
