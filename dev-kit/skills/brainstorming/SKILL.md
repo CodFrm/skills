@@ -170,7 +170,7 @@ The spec is committed and the workspace is already isolated. **Now count the ste
 
 Whichever route, [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size) is unchanged.
 
-**On the short route the final dispatches have no plan to hang off**, so fill them from the spec and branch range: the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent). With nobody to dispatch to, hand the user the diff and prompts; do not rule it finished.
+**On the short route the final dispatches have no plan to hang off**, so fill them from the spec and branch range: the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent).
 
 **Coming back here later is normal, not a failure.** A requirement that turns out wrong during implementation, or a reviewer asking for behaviour nobody agreed, re-enters at the top of this skill and leaves through this same gate — the spec is revised and re-approved, never patched to match what the code did.
 

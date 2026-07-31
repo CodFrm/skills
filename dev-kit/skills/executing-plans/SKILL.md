@@ -32,8 +32,9 @@ Plan: 2026-07-30-oauth-login — 7 tasks, and 2/3/4 can run at the same time.
 How should I run them?
 1. Dispatch each task to a subagent  ← recommended: every task gets a clean
    context, and the three independent ones run in parallel
-2. Run them inline in this session — no per-task review on this path, so the
-   first reading by anyone who did not write it is at wrap-up
+2. Run them inline in this session — no per-task review, and wrap-up's two
+   reviews and the runtime verification run here too, so no context but mine
+   ever reads this code
 
 Workspace: .dev-kit/worktrees/oauth-login already holds this round; the spec
 is committed on its branch.
@@ -112,7 +113,7 @@ Judge it at the same bar as the implementer's report:
 
 Once per task. Anything blocking still open marks it `blocked`; anything smaller goes into `note` and travels to wrap-up.
 
-In `inline` mode there is no task review — the alternative on that path is you reviewing code you just wrote, which is the absence of a review, not a degraded one. Wrap-up is then the first outside reading, which is why that pair is dispatched on every path. Say once, in the gate, what inline costs. **Say nothing about any of it in the wrap-up prompts**: "the tasks were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
+In `inline` mode there is no task review — the alternative on that path is you reviewing code you just wrote, which is the absence of a review, not a degraded one. Say once, in the gate, what inline costs. **Say nothing about any of it in the wrap-up prompts**: "the tasks were each reviewed already" is [the verdict written into the prompt](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
 ## When to stop, and when not to
 
@@ -144,7 +145,7 @@ Then dispatch two subagents in parallel — static, read-only, disjoint outputs:
 
 Prompts for both are in [wrap-up-prompts.md](references/wrap-up-prompts.md). Both go out at `strong` — this is the only reading the branch gets as a branch, so a tier chosen for cost is choosing to find fewer defects. **The task reviews do not shrink it**: the same concern solved two ways in two tasks, an interface that does not line up at both ends, what the branch adds up to whole — all invisible to a reviewer holding one commit.
 
-Dispatch them even in `inline` mode. With nobody to dispatch to, hand the user the diff and the two prompts and say the round cannot reach runtime verification until they come back.
+In `inline` mode you run both yourself, one after the other, against those same prompts.
 
 Keep them unmerged — one reviewer holding both questions lets the louder answer stand in for the quieter one. **Do not write the verdict into either prompt**; [prompts.md spells out the four phrases to stop on](references/prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
@@ -158,13 +159,13 @@ Findings come back, you fix them as TDD rounds — the finding becomes a failing
 
 Findings deliberately let stand are fine, recorded in the task's `note` and repeated at delivery. A finding closed because you disagreed with it in your own context is not.
 
-When both static reviews pass, set `review.status: passed`. Only then prepare runtime verification: write `verification.status: running`, its report path and the exact current HEAD into the plan **before** dispatching.
+When both static reviews pass, set `review.status: passed`. Only then prepare runtime verification: write `verification.status: running`, its report path and the exact current HEAD into the plan **before** it starts.
 
 ## Runtime verification: a fresh third subagent
 
 Static reviews passing means the spec and code survive reading. Runtime verification observes whether the built result **actually does the thing**.
 
-Dispatch one fresh, dedicated subagent at `strong` with [verification-prompt.md](references/verification-prompt.md). Do not reuse an implementer, task reviewer or static wrap-up reviewer: this verifier must arrive after the fix loop with no stake in its conclusions. It may run commands, start the application, drive UI or e2e, and write scratch scripts, evidence and the report under `e2e/scratch/<spec-slug>/`; documented ignored build/runtime artifacts are allowed only as disposable effects of those commands. With nobody to dispatch to, hand the user that prompt and say the round is not finished until its report comes back; do not verify inline.
+Dispatch one fresh, dedicated subagent at `strong` with [verification-prompt.md](references/verification-prompt.md). Do not reuse an implementer, task reviewer or static wrap-up reviewer: this verifier must arrive after the fix loop with no stake in its conclusions. It may run commands, start the application, drive UI or e2e, and write scratch scripts, evidence and the report under `e2e/scratch/<spec-slug>/`; documented ignored build/runtime artifacts are allowed only as disposable effects of those commands. In `inline` mode you run it yourself against that same prompt, boundaries and verdict labels included.
 
 **The report finds; it does not fix.** Anything changed underneath it is code nobody has reviewed, landing in the one document that claims everything was checked — and a step that repairs as it goes has verified its own repair. A requirement that does not hold is written down as not holding, and said out loud, going to the user [at handing back](#handing-it-back) with what you would do and what it costs. Nothing gets softened: a check weakened until it passes, a "does not hold" moved to "holds", a flow that failed recorded as "not observed" — each turns a finding into a silence, and silence reads as fine.
 

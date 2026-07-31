@@ -32,7 +32,7 @@ If you were dispatched as a subagent to execute a specific task, ignore this ski
 
 ## What every round owes, whatever its size
 
-**Three things never come off, at any size: `test-driven-development` in full, the evidence bar — a command, an exit code and an observation — and final isolation: [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then a [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent).** Those final dispatches are mandatory even in `inline` mode ([dispatching.md](references/dispatching.md) carries the rest).
+**Three things never come off, at any size: `test-driven-development` in full, the evidence bar — a command, an exit code and an observation — and the two closing passes: [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then a [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent) after them.** Running a round `inline` changes who does those two, not whether they happen ([dispatching.md](references/dispatching.md) carries the rest).
 
 **You rule it finished, not any reviewer or verifier.**
 
