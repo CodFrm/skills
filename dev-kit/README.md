@@ -1,6 +1,6 @@
 # dev-kit
 
-规格驱动开发的技能集。一轮开发的链路：需求 →「spec 获批并提交」→ 执行计划 → 隔离工作区 → 逐任务 TDD 推进并互审 → 两项静态收尾审查 → 独立 runtime 验证报告 → 交付。
+规格驱动开发的技能集。一轮开发的链路：需求与设计达成一致 → 隔离工作区 →「spec 获批并提交到该分支」→ 执行计划 → 逐任务 TDD 推进并互审 → 两项静态收尾审查 → 独立 runtime 验证报告 → 交付。
 
 **spec 决定做什么，plan 决定怎么做**，两者都不因为「代码写出来不一样」而回头改。判「完成」只认命令、退出码和观察到的现象，且不在生产它的上下文里判定。链路之外另有 `init`，负责立起项目自身的约束：AGENTS.md、分层文档、接进 CI 的 lint 护栏，以及单测与 e2e 两条验证轨道。
 
@@ -47,16 +47,16 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 | [init](./skills/init/) | 项目要立规矩，或老项目文档过期、没有护栏、同一类问题反复出现 |
 | [brainstorming](./skills/brainstorming/) | 要加功能、改行为、设计 UI——在任何实现动作之前，需求已清楚但没写下来时同样适用 |
 | [writing-plans](./skills/writing-plans/) | spec 获批之后，改动拆下来超过约三步，或要跨会话 |
-| [using-git-worktrees](./skills/using-git-worktrees/) | 开始实现之前、以及分支收尾交付时 |
+| [using-git-worktrees](./skills/using-git-worktrees/) | 设计达成一致、写 spec 之前，以及分支收尾交付时 |
 | [executing-plans](./skills/executing-plans/) | 已有定稿的 `.dev-kit/plans/*.yaml` 要推进或收尾 |
 | [test-driven-development](./skills/test-driven-development/) | 实现新行为、修可复现的 bug、改公开契约——在写生产代码之前 |
 | [systematic-debugging](./skills/systematic-debugging/) | bug、测试失败、构建报错、性能回退、偶发故障、行为与 spec 不符——在提出修复方案之前 |
 
 ## 链路
 
-1. `brainstorming`——需求写成 `docs/specs/<slug>.md`，过用户后提交
-2. `writing-plans`——转成 `.dev-kit/plans/<同一个 slug>.yaml`（gitignored）：只写怎么做，任务切成垂直切片，`deps` 排序、`files` 决定谁能并行
-3. `using-git-worktrees`——把这一轮关进独立的工作区和分支
+1. `brainstorming`——探索需求并把设计谈定，确定贯穿全轮的 slug
+2. `using-git-worktrees`——先把这一轮关进独立的工作区和分支；随后回到 `brainstorming`，在该分支写 `docs/specs/<slug>.md`，过用户后提交
+3. `writing-plans`——转成 `.dev-kit/plans/<同一个 slug>.yaml`（gitignored）：只写怎么做，任务切成垂直切片，`deps` 排序、`files` 决定谁能并行
 4. `executing-plans`——**只问一个问题**（subagent 还是 inline），然后不停：每批 ready 的任务派发出去，`files` 不重叠就并行，每个任务强制一轮 TDD（遇故障转 `systematic-debugging`）
    - **证据站得住不等于 done**（派发模式）：那个 commit（`git show <sha>`，不是工作区）交给另一个没写它的 subagent，审任务目标、项目规范、代码本身三条轴，**审完自己修**——每条 finding 一轮 TDD 落在自己的 commit 里，并配上覆盖它的测试报回来
    - 两种它不修、直接交回：修法属于设计决策的，以及说 plan 本身错了的。**一审一修**：还剩 blocking 的任务转 `blocked`，其余记进 `note` 带到收尾

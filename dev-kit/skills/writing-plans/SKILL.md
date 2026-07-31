@@ -6,7 +6,7 @@ description: >-
 
 # Writing a plan
 
-**You arrive here from [`brainstorming`](../brainstorming/SKILL.md) with an approved, committed spec** and a change that broke into more than about three steps. With no spec, go back there first.
+**You arrive here from [`brainstorming`](../brainstorming/SKILL.md) inside the round's workspace, with an approved spec committed on its branch** and a change that broke into more than about three steps. With no spec, go back there first.
 
 **The spec settles what to build. The plan settles how — and nothing else.** A requirement written into a plan is a requirement in two documents with nothing keeping them equal, and the plan is the copy nobody commits. So the plan carries **route, order and state**. When someone asks "what must this do", the answer is the spec, every time.
 
@@ -38,7 +38,7 @@ Read before you write: the spec in full, the modules it touches, their existing 
 spec: docs/specs/2026-07-30-oauth-login.md   # required — a change this size owes a spec
 status: draft            # draft → ready → running → done | stopped
 mode: null               # subagent | inline — executing-plans writes this, not you
-worktree: null           # path, or "none: <reason>" — executing-plans writes this
+worktree: .dev-kit/worktrees/oauth-login  # path, or "none: <reason>" — record the workspace already created
 
 goal: >-
   One sentence: what is observably true once every task is done. Not a summary of
@@ -132,7 +132,7 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 ## Checklist
 
-- [ ] `spec:` points at an approved, committed spec, and the plan's slug is that spec's slug
+- [ ] `spec:` points at an approved spec committed on this branch, the plan's slug is that spec's slug, and `worktree` records the workspace already holding both
 - [ ] Every entry in `context` was verified just now and carries a `file:line` or a command
 - [ ] No requirement is stated here that is not already in the spec
 - [ ] Every task's `goal` is one observable sentence, and no task is a layer

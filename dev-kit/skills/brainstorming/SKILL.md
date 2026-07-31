@@ -6,7 +6,7 @@ description: >-
 
 # Requirements exploration and specification (brainstorming)
 
-**This is where a round starts.** Anything that changes behaviour enters the chain here and leaves with an approved, committed spec plus a slug every later stage reuses. [The end of this skill](#what-happens-after-the-spec) names the next stage.
+**This is where a round starts.** Anything that changes behaviour enters the chain here, reaches an agreed design and a slug, then moves into an isolated branch before the written spec is created and committed. [The end of this skill](#what-happens-after-the-spec) names the next stage after approval.
 
 **A pure bug fix still gets a spec**, small: the symptom, the promised behaviour, non-goals, and what would count as a regression. Pure documentation and mechanical formatting can skip it — say so, and say why.
 
@@ -16,7 +16,7 @@ description: >-
 
 **Do not write production code, test code, migrations or scaffolding before the user has agreed the design.** The only writing allowed during exploration is `.dev-kit/artifacts/<spec-slug>/mockups/`, with the user's consent.
 
-This skill's end point is an approved spec, committed — not an implementation.
+This skill's end point is an approved spec committed on the round's own branch — not an implementation.
 
 ## Two gates, and they are not the same shape
 
@@ -34,9 +34,10 @@ This skill's end point is an approved spec, committed — not an implementation.
 3. **Ask one question at a time**, only about things that change scope, interaction or how it is accepted — purpose, primary users, success criteria, failure behaviour, compatibility boundaries. **Do not ask what the repository can answer.**
 4. **Give 2–3 options**, recommendation first, each stating user impact, implementation and maintenance cost, risks, and what it gives up. Delete extension points no current requirement asks for.
 5. **Present the design** — user flow, boundaries, state and data flow, errors and recovery, test seams — sectioned by complexity, with agreement on each section before continuing.
-6. **Write the spec** into `docs/specs/<spec-slug>.md`, immediately once the design is agreed: until then the conclusions live only in the conversation, and a compaction or session break loses dozens of exchanges.
-7. **Self-check, then send the path** and wait for explicit approval.
-8. **Commit the approved spec** on the current branch, by path.
+6. **Create the round's workspace and branch** through [`using-git-worktrees`](../using-git-worktrees/SKILL.md), then continue this skill from inside it. The slug is already fixed, so it names the worktree and branch before the spec commit exists.
+7. **Write the spec** into `docs/specs/<spec-slug>.md` in that workspace, immediately after isolation: until then the conclusions live only in the conversation, and a compaction or session break loses dozens of exchanges.
+8. **Self-check, then send the path** and wait for explicit approval.
+9. **Commit the approved spec** on the worktree's branch, by path.
 
 A still-open question cannot be carried into the spec if it would change what the thing has to do. Settle it, or state which part it blocks — no TBD.
 
@@ -141,7 +142,7 @@ Fix things directly. When an item does not hold, cutting is usually the fix, not
 - [ ] The spec is small enough to implement as one piece of work; otherwise split it
 - [ ] Every link exists, and no artifact contains real credentials or personal data
 
-## The user gate, then commit
+## The user gate, then commit on the round branch
 
 Send the file path and a short summary. Only after explicit approval do you commit; after changing requirements, come back through the self-check.
 
@@ -150,22 +151,22 @@ git add docs/specs/<spec-slug>.md
 git commit -m "docs: spec for <short name>"   # follow the project's existing commit convention
 ```
 
-**Why here and not later.** An uncommitted spec is a working-tree file in one workspace: a worktree cut from `HEAD` does not contain it, another machine does not have it, and a subagent told to work from it finds a missing file.
+**Why after isolation.** The spec is the first durable commit of the round, so it belongs on the branch that will carry the implementation and PR. Committing it to the baseline first makes an abandoned implementation leave its requirement commit behind there, and makes the branch range omit part of the round.
 
-**Add the spec by path, not the whole workspace** — the workspace usually holds other work, and `git add -A` sweeps it into a commit labelled "spec".
+**Add the spec by path, not the whole workspace** — the workspace may already hold local setup artifacts, and `git add -A` sweeps them into a commit labelled "spec".
 
-The current branch is the baseline, and that is where the spec belongs. It stays true whether the implementation lands or gets thrown away, and a branch cut from this commit carries it along as an ancestor into the PR. A revision later gets committed the same way, wherever you are working.
+The current branch is now the round branch. The spec and every later revision stay with the implementation; merging or opening the PR carries the whole decision record together, while throwing the branch away throws away the unshipped proposal too.
 
 ## What happens after the spec
 
-The spec is committed. **Now count the steps the change breaks into, and take one of two routes** — say which, and on what count, before the first edit:
+The spec is committed and the workspace is already isolated. **Now count the steps the change breaks into, and take one of two routes** — say which, and on what count, before the first edit:
 
 | The change | Next |
 |---|---|
 | More than about three steps, or it will span sessions | [`writing-plans`](../writing-plans/SKILL.md) |
-| Three steps or fewer, holding inside one session | **No plan.** Straight to [`using-git-worktrees`](../using-git-worktrees/SKILL.md), then the work runs as a single slice through `test-driven-development` |
+| Three steps or fewer, holding inside one session | **No plan.** Straight to `test-driven-development`; the work runs as a single slice in the existing round workspace |
 
-**Neither route reaches code without going through `using-git-worktrees` first**, even when the answer is "no worktree": a branch is not optional, and that skill owns the branch decision as well as the isolation one.
+**Neither route reaches code outside the workspace established before the spec**. Even when the user declined a linked worktree, `using-git-worktrees` created or selected a dedicated branch before this file was written.
 
 Whichever route, [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size) is unchanged.
 
@@ -181,4 +182,4 @@ Whichever route, [what every round owes](../using-dev-kit/SKILL.md#what-every-ro
 | "Just agreed it, I will turn it into a spec later" | A compaction and a session break sit in between. Write it now. |
 | "I will number the requirements, or add an acceptance table" | The same sentence twice, with nothing keeping the copies equal. Numbers go on problems and decisions. |
 | "Dispatch a subagent to write the spec and show me" | A spec's value is that it was agreed, and a subagent cannot reach the user. |
-| "Leave it uncommitted, whoever implements it will pick it up" | A worktree checks out `HEAD`; on another machine the file does not exist. |
+| "Commit the spec on the baseline so the worktree can see it" | Create the round branch first, then write and commit the spec there; the spec is part of the round, not a prerequisite commit on its baseline. |

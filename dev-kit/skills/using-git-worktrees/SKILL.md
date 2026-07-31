@@ -1,12 +1,12 @@
 ---
 name: using-git-worktrees
 description: >-
-  Use before implementing an approved spec, a spike or a refactor that may be thrown away, or when the workspace holds unrelated uncommitted changes — isolates the round in its own git worktree and branch. Use it again at the end of the round, to deliver that branch.
+  Use after a design is agreed and before its spec is written, before a spike or refactor that may be thrown away, or when the workspace holds unrelated uncommitted changes — isolates the round in its own git worktree and branch. Use it again at the end of the round, to deliver that branch.
 ---
 
 # Isolating a workspace with git worktree
 
-**This skill runs twice in a round** — once before any code is written, to isolate; once at the end, to deliver. You arrive the first time from [`brainstorming`](../brainstorming/SKILL.md#what-happens-after-the-spec) on the short route or from [`executing-plans`](../executing-plans/SKILL.md#the-one-gate) under a plan, and the second time from [wrap-up](../executing-plans/SKILL.md#handing-it-back).
+**This skill runs twice in a round** — once after the design is agreed but before the spec is written, to isolate; once at the end, to deliver. You arrive the first time from [`brainstorming`](../brainstorming/SKILL.md#order), and the second time from [wrap-up](../executing-plans/SKILL.md#handing-it-back).
 
 A worktree shuts this round into its own directory and its own branch, so stopping midway does not mean resetting the main workspace. **What it isolates is this round from the other things you have in hand, not two parallel tasks from each other** — parallel work shares one worktree.
 
@@ -14,7 +14,7 @@ A worktree shuts this round into its own directory and its own branch, so stoppi
 
 | Use | Do not use |
 |---|---|
-| Implementing an approved spec (several commits), all the more so when it breaks into slices | One-off small changes, read-only exploration |
+| A design is agreed and its spec plus implementation should travel as one branch | One-off small changes, read-only exploration |
 | Trying a path that may be thrown away entirely (a big refactor, swapping a library, a spike) | You are **already** in an isolated workspace — see step 0a; do not nest one inside another |
 | The current workspace holds uncommitted changes unrelated to this round | This round needs main-workspace changes that are **not committed and not going to be** |
 | | The user declined one, or their instructions say not to |
@@ -50,21 +50,15 @@ If your instructions already state a preference, honour it without asking. Other
 > "Shall I set up an isolated worktree for this? It keeps your current branch and working tree untouched. It does mean reinstalling dependencies in the new directory."
 
 - Yes → step 1.
-- No → work in place, but **still not on main / master**: a branch dedicated to this round.
+- No → work in place, but **still not on main / master**: create and switch to a branch dedicated to this round before returning to `brainstorming`, then continue through setup in that checkout.
 
-## Before creating: the spec has to be committed on the current branch
+## Before creating: keep the round out of the baseline
 
-**A worktree checks out `HEAD`.** Anything this round depends on that sits uncommitted in the main workspace is not there — starting with `docs/specs/<spec-slug>.md`, approved minutes ago.
+The design agreement and slug exist in the conversation; the formal spec does not exist yet. **Do not write or commit `docs/specs/<spec-slug>.md` in the baseline workspace as a bridge into the worktree.** Create the round branch first, then return to `brainstorming` and write the spec there.
 
-```bash
-git status --short docs/specs/        # empty = committed; anything printed = commit it first
-```
+Anything already changed during read-only exploration is a process violation, not input to sweep into the new branch. List it, identify whether it belongs to this round, and either revert it or ask before carrying it across. Never hide unrelated baseline changes inside the spec commit.
 
-If it prints a line, commit it on the branch you are on now, before creating anything — `brainstorming` owns this step ([by path, not `git add -A`](../brainstorming/SKILL.md#the-user-gate-then-commit)). Cut it the other way round and nothing errors: what is missing only shows up one layer down, in the workspace the implementation happens in. If you have already created the worktree, do not copy the file across by hand — commit it on the original branch, then merge that branch in.
-
-The same test applies to anything else this round needs: a `.env.example` addition, a fixture, a config change made while exploring.
-
-**`.dev-kit/` is the exception.** It is gitignored, so committing is not its route in — [the link](#link-dev-kit-into-the-workspace) is.
+**`.dev-kit/` is gitignored**, so [the link](#link-dev-kit-into-the-workspace) is how mockups and later plans remain visible inside the workspace.
 
 ## Step 1: create the workspace
 
@@ -89,20 +83,22 @@ If `git worktree add` fails on a sandbox permission error, do not retry with for
 
 ## Set up and check the baseline before the first change
 
-**Every path arrives here** — the native tool's workspace, `git worktree add`'s, and one step 0a found you already standing in. Every command below runs from inside the workspace.
+**Every path arrives here** — the native tool's workspace, `git worktree add`'s, one step 0a found you already standing in, and the dedicated in-place branch chosen at step 0b. Every command below runs from the checkout that will hold the spec.
 
 ### Link `.dev-kit` into the workspace
 
-**Required whenever this round has a plan.** `.dev-kit/` is gitignored, so none of it travels — and `.dev-kit/plans/<slug>.yaml` is what the implementation works from and the one file the orchestrator writes status into. Without the link the workspace cannot see the plan, and the obvious workaround leaves two plan files that never line up again. The same link buys `.dev-kit/artifacts/`. With no plan and nothing in `artifacts/` it is optional — make it anyway if evidence may be written.
+**Required from the first entry.** `.dev-kit/` is gitignored, so none of the design artifacts travels automatically; later, `.dev-kit/plans/<slug>.yaml` is what the implementation works from and the one file the orchestrator writes status into. Without the link, mockups disappear at the spec-writing gate and the obvious workaround leaves duplicate artifact or plan trees that never line up again.
+
+In a linked worktree, create the link:
 
 ```bash
 # from the workspace root
 ln -s "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.dev-kit" .dev-kit
 ```
 
-**Compute the target; do not count `../` from memory.** `--git-common-dir` resolves to the *main* repository's `.git` from inside any linked workspace, so its parent is the repo root wherever the workspace was put — and a native tool may have placed it somewhere you did not choose, where a memorised relative path lands on a real directory one level short.
+**Compute the target; do not count `../` from memory.** `--git-common-dir` resolves to the *main* repository's `.git` from inside any linked workspace, so its parent is the repo root wherever the workspace was put — and a native tool may have placed it somewhere you did not choose, where a memorised relative path lands on a real directory one level short. In an in-place branch, `.dev-kit` is already the real directory: verify it and do not replace it with a link.
 
-Check the link resolves — `readlink .dev-kit` and `ls .dev-kit/plans/`. On Windows `ln -s` needs Developer Mode or an elevated shell; otherwise use `mklink /D`. `--path-format` needs git 2.31+; on an older git, count the relative form.
+For a linked worktree, check the link resolves with `readlink .dev-kit`; on every path, check `ls .dev-kit/artifacts/` and create `plans/` when planning starts. On Windows `ln -s` needs Developer Mode or an elevated shell; otherwise use `mklink /D`. `--path-format` needs git 2.31+; on an older git, count the relative form.
 
 One trap: **`.dev-kit/` with a trailing slash in `.gitignore` does not cover this symlink** — a trailing slash matches only directories, so `git status` grows a permanent `?? .dev-kit` and `git add -A` commits it. Write `.dev-kit`.
 
@@ -120,7 +116,7 @@ Then run the test suite once, before touching anything:
 - **Green** → report it and start. Every failure from here belongs to this round.
 - **Red** → report which tests fail and **ask whether to proceed or investigate first.** A dirty baseline makes every later failure ambiguous, and `test-driven-development` cannot tell a regression from a baseline failure without one.
 
-**Setup done — the work itself belongs to another skill.** Under a plan, back to [`executing-plans`](../executing-plans/SKILL.md#the-loop)'s loop. On the short route with no plan, straight into [`test-driven-development`](../test-driven-development/SKILL.md) as a single slice — and on a fault, [`systematic-debugging`](../systematic-debugging/SKILL.md) first. You come back to this skill at [delivery](#delivery-and-cleanup).
+**Setup done — return to [`brainstorming`](../brainstorming/SKILL.md#writing-the-spec).** Write, approve and commit the spec in this workspace before choosing the plan or short route. You come back to this skill at [delivery](#delivery-and-cleanup).
 
 ## Delivery and cleanup
 
@@ -195,6 +191,6 @@ The worktree stays put through both routes — you are already isolated, so step
 |---|---|
 | "Obviously not in a worktree already — no need to check" | A harness-created workspace and a submodule both look like an ordinary checkout by eye. Run step 0a. |
 | "`git worktree add` is quicker than hunting for a native tool" | It creates a workspace the harness cannot see or clean up, and nothing tells you at the time. |
-| "The spec is in `docs/specs/`, so the worktree will have it" | Only if it was committed. A worktree checks out `HEAD`. |
+| "Commit the spec here first so the new worktree receives it" | That puts the first commit of the round on the baseline. Create the worktree branch first and write the spec inside it. |
 | "The tests went green just now, merge it" | That green proves the tree it ran on. Run it again on the tree being delivered, and on the merge result. |
 | "The round is finished, so this review comment is just a quick edit" | It feels quick because nothing is holding the branch. Route it by size; the bar is unchanged. |

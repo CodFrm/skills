@@ -35,13 +35,13 @@ How should I run them?
 2. Run them inline in this session — no per-task review on this path, so the
    first reading by anyone who did not write it is at wrap-up
 
-Worktree: I'll cut one at .dev-kit/worktrees/oauth-login — src/ has
-uncommitted changes that aren't part of this round. Say so if you'd rather not.
+Workspace: .dev-kit/worktrees/oauth-login already holds this round; the spec
+is committed on its branch.
 ```
 
-One message, one question, the worktree decision stated rather than asked. Write the answer into `mode`, set `status: running`, and go. **Nothing else in this skill stops for the user by design.**
+One message, one question. Report the existing workspace rather than proposing a new one, write the answer into `mode`, set `status: running`, and go. **Nothing else in this skill stops for the user by design.**
 
-Why the worktree is decided, not asked: under a plan the round absorbs an install and the decision is usually forced anyway. Take it against [that skill's criteria](../using-git-worktrees/SKILL.md#when-to-use--when-not-to), say which way you went in one clause, and let a word from the user overturn it. Detect an existing isolated workspace first. Either way **that skill's setup is still owed, in full, before the first task**.
+Verify the workspace recorded in the plan is the checkout you are standing in, the spec is tracked on its branch, `.dev-kit` resolves as a link or the in-place directory, and the baseline suite was run during setup. A missing or mismatched workspace goes back to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change); do not create a second worktree around the first.
 
 ## The loop
 
