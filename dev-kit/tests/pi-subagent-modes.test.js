@@ -181,11 +181,24 @@ test('aborting parallel work preserves completed results and marks every unfinis
   ]
 
   const started = Date.now()
-  const execution = tool.execute('abort', { tasks }, controller.signal, undefined, context(root))
-  setTimeout(() => controller.abort(), 250)
+  let sawCompletedQuickTask = false
+  const execution = tool.execute(
+    'abort',
+    { tasks },
+    controller.signal,
+    update => {
+      const quick = update.details?.results[0]
+      if (!sawCompletedQuickTask && quick?.exitCode === 0 && finalOutput(quick) === 'quick') {
+        sawCompletedQuickTask = true
+        controller.abort()
+      }
+    },
+    context(root),
+  )
   const result = await execution
   const elapsed = Date.now() - started
 
+  assert.equal(sawCompletedQuickTask, true)
   assert.ok(elapsed < 1500, `abort took ${elapsed}ms`)
   assert.equal(result.details.results.length, 6)
   assert.equal(finalOutput(result.details.results[0]), 'quick')

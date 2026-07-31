@@ -179,7 +179,7 @@ function createResult(request: ResolvedTaskRequest): TaskResult {
 		task: request.task,
 		profile: request.profile,
 		cwd: request.cwd,
-		exitCode: 0,
+		exitCode: -1,
 		messages: [],
 		stderr: "",
 		usage: emptyUsage(),
@@ -188,7 +188,7 @@ function createResult(request: ResolvedTaskRequest): TaskResult {
 }
 
 function markAborted(result: TaskResult): void {
-	result.exitCode = result.exitCode || 1;
+	if (result.exitCode <= 0) result.exitCode = 1;
 	result.stopReason = "aborted";
 	result.errorMessage = "Subagent was aborted";
 }
