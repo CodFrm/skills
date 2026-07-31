@@ -180,6 +180,20 @@ test('renderers show mode progress, errors, expanded tasks, and usage', async ()
   assert.match(chain, /Step 1.*read-only/)
   assert.match(chain, /Step 2.*write/)
   assert.match(chain, /Total: 4 turns/)
+
+  const runningChain = render(renderers.renderResult(
+    {
+      content: [{ type: 'text', text: 'running' }],
+      details: {
+        mode: 'chain',
+        results: [result({ step: 1 }), result({ step: 2, exitCode: -1, messages: [], stopReason: undefined })],
+      },
+    },
+    { expanded: false, isPartial: true },
+    theme,
+    {},
+  ))
+  assert.match(runningChain, /⏳.*1\/2 done, 1 running/)
 })
 
 test('parallel caps model-visible task output at 50KB while details keep the full message', async t => {

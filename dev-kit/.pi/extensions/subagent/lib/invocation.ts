@@ -124,9 +124,15 @@ function spawnAndCollect(
 		proc.stderr.on("data", data => {
 			result.stderr += data.toString();
 		});
-		proc.on("close", code => {
+		proc.on("close", (code, terminationSignal) => {
 			if (buffer.trim()) processLine(buffer);
-			finish(code ?? (wasAborted ? 1 : 0));
+			if (code === null && terminationSignal && !wasAborted) {
+				result.stopReason = "error";
+				result.errorMessage ||= `Subagent terminated by ${terminationSignal}`;
+				finish(1);
+				return;
+			}
+			finish(code ?? 1);
 		});
 		proc.on("error", error => {
 			result.errorMessage = error.message;

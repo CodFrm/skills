@@ -145,9 +145,12 @@ function renderParallel(results: TaskResult[], expanded: boolean, theme: Theme, 
 }
 
 function renderChain(results: TaskResult[], expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
-	const succeeded = results.filter(result => !isFailedResult(result)).length;
-	const icon = succeeded === results.length ? theme.fg("success", "✓") : theme.fg("error", "✗");
-	return renderMany("chain", results, icon, `${succeeded}/${results.length} steps`, expanded, theme, runtime);
+	const running = results.filter(result => result.exitCode === -1).length;
+	const succeeded = results.filter(result => result.exitCode !== -1 && !isFailedResult(result)).length;
+	const failed = results.filter(result => result.exitCode !== -1 && isFailedResult(result)).length;
+	const icon = running > 0 ? theme.fg("warning", "⏳") : failed > 0 ? theme.fg("error", "✗") : theme.fg("success", "✓");
+	const status = running > 0 ? `${succeeded + failed}/${results.length} done, ${running} running` : `${succeeded}/${results.length} steps`;
+	return renderMany("chain", results, icon, status, expanded, theme, runtime);
 }
 
 function renderMany(

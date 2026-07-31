@@ -8,6 +8,7 @@ const promptIndex = args.indexOf('--append-system-prompt')
 const promptPath = promptIndex === -1 ? null : args[promptIndex + 1]
 const outputMarker = task.match(/\[output=([^\]]*)\]/)
 const delayMarker = task.match(/\[delay=(\d+)\]/)
+const signalMarker = task.match(/\[signal=(SIG[A-Z]+)\]/)
 const markedFailure = task.includes('[fail]')
 const capture = {
   args,
@@ -29,6 +30,11 @@ process.on('SIGTERM', () => {
 
 const delay = Number(delayMarker?.[1] || process.env.FAKE_PI_DELAY_MS || 0)
 setTimeout(() => {
+  if (signalMarker) {
+    recordTimeline('signaled')
+    process.kill(process.pid, signalMarker[1])
+    return
+  }
   const stopReason = process.env.FAKE_PI_STOP_REASON || (markedFailure ? 'error' : 'end')
   const message = {
     role: 'assistant',

@@ -35,7 +35,7 @@ export function validateTaskRequest(
 	}
 
 	const explicitModel = params.model;
-	if (explicitModel !== undefined && !/^[^/\s]+\/[^/\s]+$/.test(explicitModel)) {
+	if (explicitModel !== undefined && !/^[^/\s]+\/[^/\s]+(?:\/[^/\s]+)*$/.test(explicitModel)) {
 		return invalid(`${prefix}model`, "must be a real provider/model id");
 	}
 	const model = explicitModel ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
@@ -67,5 +67,5 @@ export function validateTaskRequest(
 }
 
 function invalid(field: string, message: string): ValidationResult {
-	return { ok: false, error: `Invalid subagent request: ${field}: ${message}.` };
+	return { ok: false, error: `${field}: ${message}.` };
 }

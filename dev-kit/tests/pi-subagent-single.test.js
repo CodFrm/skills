@@ -78,7 +78,7 @@ test('single write task launches an isolated Pi process with explicit runtime ch
     {
       task: 'Implement the approved slice',
       profile: 'write',
-      model: 'local-llm/gpt-5.6-sol',
+      model: 'openrouter/anthropic/claude-3.5-sonnet',
       thinking: 'high',
       tools: ['read', 'artifact'],
       cwd: 'child',
@@ -115,7 +115,7 @@ test('single write task launches an isolated Pi process with explicit runtime ch
   assert.deepEqual(captures[0].args.slice(0, 4), ['--mode', 'json', '-p', '--no-session'])
   assert.deepEqual(captures[0].args.slice(captures[0].args.indexOf('--model'), captures[0].args.indexOf('--model') + 2), [
     '--model',
-    'local-llm/gpt-5.6-sol',
+    'openrouter/anthropic/claude-3.5-sonnet',
   ])
   assert.deepEqual(captures[0].args.slice(captures[0].args.indexOf('--thinking'), captures[0].args.indexOf('--thinking') + 2), [
     '--thinking',
@@ -220,9 +220,40 @@ test('invalid single-task fields fail before a Pi process starts', async t => {
     const result = await tool.execute('invalid', params, undefined, undefined, ctx)
     assert.equal(result.isError, true, JSON.stringify(params))
     assert.match(result.content[0].text, expected, JSON.stringify(params))
+    assert.doesNotMatch(result.content[0].text, /Invalid subagent request: Invalid subagent request:/)
     assert.deepEqual(result.details, { mode: 'single', results: [] })
   }
   assert.equal(fs.existsSync(capturePath), false, 'invalid input launched the fake Pi process')
+})
+
+test('a child killed by an external signal is reported as a failure', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-signal-'))
+  const previousArgv1 = process.argv[1]
+  process.argv[1] = FAKE_PI
+  t.after(() => {
+    process.argv[1] = previousArgv1
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const tool = await loadTool()
+  const result = await tool.execute(
+    'signal',
+    { task: 'Terminate now [signal=SIGKILL]', profile: 'read-only' },
+    undefined,
+    undefined,
+    {
+      cwd: root,
+      model: { provider: 'parent-provider', id: 'parent-model' },
+      thinkingLevel: 'low',
+      isProjectTrusted: () => false,
+    },
+  )
+
+  assert.equal(result.isError, true)
+  assert.equal(result.details.results[0].exitCode, 1)
+  assert.equal(result.details.results[0].stopReason, 'error')
+  assert.match(result.details.results[0].errorMessage, /SIGKILL/)
+  assert.match(result.content[0].text, /SIGKILL/)
 })
 
 test('single task failure returns exit, stop reason, error, stderr, and last output', async t => {
