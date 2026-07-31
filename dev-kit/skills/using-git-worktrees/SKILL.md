@@ -43,7 +43,7 @@ Equal paths, or a non-empty superproject, means an ordinary checkout → 0b.
 
 ### 0b · Ask, once — do not estimate
 
-**Running under a plan? The decision is taken, not asked** — [`executing-plans`](../executing-plans/SKILL.md#starting-the-run) takes it.
+**Running under a plan? The decision is taken, not asked** — the plan records the workspace, and [`executing-plans`](../executing-plans/SKILL.md#starting-the-run) checks it against the checkout.
 
 If your instructions already state a preference, honour it without asking. Otherwise ask, in one line, and wait:
 

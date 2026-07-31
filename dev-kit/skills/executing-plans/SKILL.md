@@ -24,7 +24,7 @@ Resume runtime verification from its own state, not from the presence of `report
 
 ## Starting the run
 
-**`mode` arrives answered** — [`writing-plans`' ready gate](../writing-plans/SKILL.md#the-gate-then-freeze) puts it to the user alongside the breakdown, in one message. Set `status: running` and go. **Nothing in this skill stops for the user by design.**
+**`mode` arrives answered** — [`writing-plans`' ready gate](../writing-plans/SKILL.md#the-gate-then-freeze) puts it to the user alongside the breakdown, in one message. Set `status: running` and go.
 
 A `ready` plan whose `mode` is still `null` never went through that gate — hand-written, older, or a session that broke before the answer came back. Put that half of the gate now, in its wording, before the first task. **The breakdown is not re-asked**: `ready` is what says it was already agreed.
 

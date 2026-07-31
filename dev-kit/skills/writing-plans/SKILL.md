@@ -115,7 +115,7 @@ Read the tier off the task's own text — how much of the *how* is already writt
 
 ## The gate, then freeze
 
-**A `draft` plan is not something to work from.** One message puts two things to the user — how the work is cut, and how it gets run — and nothing starts until both come back. They are ruling on how the work is cut, not re-approving what it does.
+**A `draft` plan is not something to work from.** One message puts two things to the user — how the work is cut, and how it gets run — and nothing starts until both come back.
 
 Resolve the current harness through [`using-dev-kit`'s platform mapping](../using-dev-kit/SKILL.md#platform-tools) before offering `subagent`; where it has no native dispatch tool, offer only `inline`.
 
@@ -130,7 +130,8 @@ is committed on its branch.
 
 Two things, then I start:
 
-A. The breakdown above — veto anything cut wrong.
+A. The breakdown above — veto anything cut wrong. You are ruling on how the
+   work is cut, not on what it does.
 B. How should I run it?
    1. Dispatch each task to a subagent  ← recommended: every task gets a clean
       context, and the three independent ones run in parallel
