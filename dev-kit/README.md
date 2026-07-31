@@ -67,7 +67,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 **一个 slug 贯穿全链路**：spec 文件名、plan 文件名、分支、工作区目录、产物目录都是它。
 
-闸门和分支点写在各个 skill 自己的 SKILL.md 里：每一环结尾都会点名下一环和选中它的条件，路线一次读一步。[skills/using-dev-kit/SKILL.md](./skills/using-dev-kit/SKILL.md) 只管接不上任何单个 skill 的那部分——怎么找到 skill、怎么跳过一环、以及不论大小都要还的那几样。`init` 不是链路的一环，单独触发。
+闸门和分支点写在各个 skill 自己的 SKILL.md 里：每一环结尾都会点名下一环和选中它的条件，路线一次读一步。[skills/using-dev-kit/SKILL.md](./skills/using-dev-kit/SKILL.md) 只管接不上任何单个 skill 的那部分——怎么找到 skill，以及一个请求该从哪扇门进来、什么时候一扇都不用进。`init` 不是链路的一环，单独触发。
 
 ## 可选 CLI
 

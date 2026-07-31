@@ -4,7 +4,7 @@ Five templates, in three files by the stage that sends them:
 
 | Stage | Templates |
 |---|---|
-| **The task loop** — [task-prompts.md](task-prompts.md) | [implementer](task-prompts.md#implementer), [task review and fix](task-prompts.md#task-review-and-fix) |
+| **The task loop** — [task-prompts.md](task-prompts.md) | [implementer](task-prompts.md#implementer), [batch review and fix](task-prompts.md#batch-review-and-fix) |
 | **Static wrap-up** — [wrap-up-prompts.md](wrap-up-prompts.md) | [static spec verification](wrap-up-prompts.md#static-spec-verification), [code review](wrap-up-prompts.md#code-review) |
 | **Runtime verification** — [verification-prompt.md](verification-prompt.md) | [runtime verifier](verification-prompt.md#runtime-verification-prompt) |
 
@@ -34,6 +34,6 @@ Bounding the **method** is legitimate and both wrap-up templates do it — this 
 
 **Every fix is a TDD round with the finding's own failing test as RED.**
 
-**A task's findings are fixed by the subagent that found them, inside [that same dispatch](task-prompts.md#task-review-and-fix)** — nothing extra is sent.
+**A batch's findings are fixed by the subagent that found them, inside [that same dispatch](task-prompts.md#batch-review-and-fix)** — nothing extra is sent.
 
-**Wrap-up's findings go to a fresh dispatch**, because by then the reviewer that would fix them is several tasks gone and the finding is often about two tasks at once. Reuse [the implementer prompt](task-prompts.md#implementer) with the finding in place of the task goal, at `mid` — or `strong` where the finding needs design judgement rather than correction.
+**Wrap-up's findings go to a fresh dispatch**, because by then the reviewer that would fix them is several batches gone and the finding is often about two batches at once. Reuse [the implementer prompt](task-prompts.md#implementer) with the finding in place of the task goal, at `mid` — or `strong` where the finding needs design judgement rather than correction.

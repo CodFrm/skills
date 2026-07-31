@@ -179,7 +179,7 @@ git branch -d <the branch>
 Route by size, size meaning what it asks for rather than how long it is:
 
 - **Substantial** — behaviour nobody agreed, a design the reviewer wants changed, work spanning several files. It re-enters the chain at the top, [`brainstorming`](../brainstorming/SKILL.md), and gets a plan of its own from there.
-- **Small** — a rename, a missed edge case, one line of docs, a test the reviewer wants. Take it straight, under [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size).
+- **Small** — a rename, a missed edge case, one line of docs, a test the reviewer wants. Take it straight, under the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once) and the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent).
 
 **Neither route lowers the bar.** Every commit on the branch cleared the evidence bar and was read by somebody who did not write it; a fix typed in because "the PR is basically done" clears neither.
 

@@ -8,7 +8,7 @@ description: >-
 
 **This is where a round starts.** Anything that changes behaviour enters the chain here, reaches an agreed design and a slug, then moves into an isolated branch before the written spec is created and committed. [The end of this skill](#what-happens-after-the-spec) names the next stage after approval.
 
-**A pure bug fix still gets a spec**, small: the symptom, the promised behaviour, non-goals, and what would count as a regression. Pure documentation and mechanical formatting can skip it — say so, and say why.
+**A pure bug fix still gets a spec**, small: the symptom, the promised behaviour, non-goals, and what would count as a regression.
 
 **The spec sets the round's language, and it is the language the user is asking in** — ask in Chinese, get a Chinese spec, Chinese mockup copy, and Chinese reports from every later stage; machine-facing tokens (field names, commands, ids, slugs) stay ASCII. Where the repository already has contributor docs in another language, follow the repository: read that off the files rather than asking, translate wholesale, never interleave two languages.
 
@@ -167,8 +167,6 @@ The spec is committed and the workspace is already isolated. **Now count the ste
 | Three steps or fewer, holding inside one session | **No plan.** Straight to `test-driven-development`; the work runs as a single slice in the existing round workspace |
 
 **Neither route reaches code outside the workspace established before the spec**. Even when the user declined a linked worktree, `using-git-worktrees` created or selected a dedicated branch before this file was written.
-
-Whichever route, [what every round owes](../using-dev-kit/SKILL.md#what-every-round-owes-whatever-its-size) is unchanged.
 
 **On the short route the final dispatches have no plan to hang off**, so fill them from the spec and branch range: the [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews-at-once), then the [fresh runtime verifier](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent).
 

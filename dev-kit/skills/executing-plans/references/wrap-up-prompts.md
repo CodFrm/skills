@@ -4,13 +4,13 @@ The branch's only static reading as a branch: the two go out in parallel, at `st
 
 ## Static spec verification
 
-Wrap-up, dispatched at `strong` alongside the code review. This is static verification against the spec and diff; a fresh subagent performs runtime verification only after this review loop passes. **Say nothing to either reviewer about the per-task reviews that came before.**
+Wrap-up, dispatched at `strong` alongside the code review. This is static verification against the spec and diff; a fresh subagent performs runtime verification only after this review loop passes. **Say nothing to either reviewer about the batch reviews that came before.**
 
 ```
 Statically verify this branch against its spec. Read the spec in full first: <spec path> — the
 requirements are in its design prose, so there is no shortcut section to read instead.
 
-Scope: git diff $(git merge-base <baseline branch> HEAD)..HEAD — <n> commits.
+Scope: git diff <range> — <n> commits.
 
 Three questions, and nothing else:
 (a) Missing or half done — the spec asks for it and the diff does not deliver, or delivers
@@ -50,7 +50,7 @@ Same range, same time, `strong`.
 Review this branch as code. Do not read the spec — whether it was the right thing to build
 is being checked separately, right now.
 
-Scope: git diff $(git merge-base <baseline branch> HEAD)..HEAD — <n> commits.
+Scope: git diff <range> — <n> commits.
 
 Look for: incorrect logic, unhandled edge cases and error paths, resource and concurrency
 mistakes, security exposure, tests that assert nothing or assert an implementation detail,

@@ -58,6 +58,7 @@ tasks:
     model: null                 # cheap | mid | strong — a tier, not an id. See below
     interfaces: null            # names and types this task produces that a later one consumes
     status: todo                # todo → doing → reviewing → done | blocked
+    commit: null                # short SHA, written when its evidence passes
     note: null                  # blocked, done came out different, or a finding let stand
 
   - id: 2
@@ -68,8 +69,8 @@ tasks:
     status: todo
 
 review:                  # wrap-up state, so a resumed session knows where it stands
-  round: 0               # fix rounds spent; three is the ceiling
   status: pending        # pending → passed | stopped
+  fix: null              # the fix commit's SHA, written before it goes back out to be checked
 
 verification:            # runtime-verifier state; executing-plans writes every field
   status: pending        # pending → running → reported → accepted | blocked
@@ -80,7 +81,7 @@ verification:            # runtime-verifier state; executing-plans writes every 
 
 **`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at once; overlapping paths run one after the other instead. Guess it wide rather than narrow.
 
-**`reviewing` is a state, not a formality.** A task whose commit is in the tree and whose [review and fix](../executing-plans/SKILL.md#the-task-review-and-its-fix-the-second-gate-before-done) have not finished sits there, so a resumed session re-dispatches the review instead of sending an implementer at code that is already written. A plan run `inline` has no per-task review, so its tasks go from `doing` straight to `done`.
+**`reviewing` is a state, not a formality.** A task whose evidence passed and whose [batch review and fix](../executing-plans/SKILL.md#the-batch-review-and-its-fix-the-second-gate-before-done) have not finished sits there with its SHA in `commit`, so a resumed session re-dispatches that review over the right commits instead of sending an implementer at code that is already written. **`commit` is what makes the batch survivable**: the review goes out only once its whole batch has passed, and a compaction in between loses SHAs that live nowhere else. A plan run `inline` has no batch review, so its tasks go from `doing` straight to `done`.
 
 **`verification` survives an interrupted final run.** `running` means a verifier was dispatched but its report has not been accepted; `reported` means its output returned and still needs the orchestrator's inspection. Only that inspection writes `accepted`. A resumed session never infers completion from a report file alone.
 
@@ -135,7 +136,7 @@ A. The breakdown above — veto anything cut wrong. You are ruling on how the
 B. How should I run it?
    1. Dispatch each task to a subagent  ← recommended: every task gets a clean
       context, and the three independent ones run in parallel
-   2. Run them inline in this session — no per-task review, and wrap-up's two
+   2. Run them inline in this session — no batch review, and wrap-up's two
       reviews and the runtime verification run here too, so no context but mine
       ever reads this code
 ```
@@ -146,7 +147,7 @@ Write both answers in together: `status: ready` and `mode`. **Neither is yours t
 
 | Written during execution | Frozen until the user re-cuts it |
 |---|---|
-| **State** — `status` (plan and task), `note`, `mode`, `worktree`, `review`, `verification` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
+| **State** — `status` (plan and task), `commit`, `note`, `mode`, `worktree`, `review`, `verification` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
 | **Facts discovered** — appended to `context`, and to a task's `interfaces` | |
 
 **Facts accrete; the shape of the work does not.** A task coming back `missing context` has usually found something true nobody had written down — that goes into `context`, which is finishing the plan, not editing it. **A fact that contradicts an entry already there is a collision, not a hole**, and it goes to the user.
