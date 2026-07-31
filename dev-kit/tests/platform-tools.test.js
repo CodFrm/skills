@@ -33,10 +33,14 @@ test('Claude mapping keeps native subagents and task tracking distinct', () => {
   assert.match(mapping, /parallel/i)
 })
 
-test('Pi mapping does not invent a native subagent tool', () => {
+test('Pi mapping translates the logical namespace and stays within the base tool set', () => {
   const mapping = read('references/pi-tools.md')
-  assert.match(mapping, /0\.81\.1/)
+  assert.match(mapping, /`dev-kit:<name>`/)
+  assert.match(mapping, /`<name>`/)
+  assert.match(mapping, /`\/skill:<name>`/)
   assert.match(mapping, /inline/)
   assert.match(mapping, /read,bash,edit,write,grep,find,ls/)
+  assert.match(mapping, /Do not recursively launch another `pi` process/)
+  assert.doesNotMatch(mapping, /verified against `@earendil-works\/pi-coding-agent` 0\.\d+/)
   assert.doesNotMatch(mapping, /`spawn_agent`|`Task` tool/)
 })

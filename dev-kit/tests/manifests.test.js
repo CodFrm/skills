@@ -2,14 +2,14 @@
 
 // Run: node --test dev-kit/tests/*.test.js
 //
-// Covers the facts that exist in more than one manifest. dev-kit ships through two marketplaces and
-// two plugin manifests, so its version, description and identity are written down three times over —
-// and nothing but memory kept them equal. c0de6b9 moved the spec commit onto the worktree branch and
+// Covers the facts that exist in more than one manifest. dev-kit ships through two marketplaces,
+// two plugin manifests and a Pi package, so its version and identity are repeated — and nothing but
+// memory kept them equal. c0de6b9 moved the spec commit onto the worktree branch and
 // rewrote the chain in dev-kit/.claude-plugin/plugin.json; the copy in the root marketplace kept
 // advertising the old order, and no test noticed. These assertions are that missing notice.
 //
-// What is deliberately *not* asserted: the Codex manifest's own description. It is a separate,
-// shorter blurb for a different listing, not a copy of this one.
+// The Claude marketplace/plugin share the long workflow description; Codex and Pi share the
+// shorter listing copy. The two pairs are intentional rather than four prose copies drifting apart.
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
@@ -29,6 +29,7 @@ const codexPlugin = read(PLUGIN_ROOT, '.codex-plugin', 'plugin.json')
 const listing = claudeMarketplace.plugins.find(plugin => plugin.name === 'dev-kit')
 
 test('every manifest names the same plugin', () => {
+  const piPackage = read(PLUGIN_ROOT, 'package.json')
   assert.ok(listing, 'dev-kit is missing from .claude-plugin/marketplace.json')
   assert.ok(
     codexMarketplace.plugins.some(plugin => plugin.name === 'dev-kit'),
@@ -36,23 +37,33 @@ test('every manifest names the same plugin', () => {
   )
   assert.equal(claudePlugin.name, 'dev-kit')
   assert.equal(codexPlugin.name, 'dev-kit')
+  assert.equal(piPackage.name, 'dev-kit')
 })
 
-test('one version, written down three times', () => {
+test('one version across every install manifest', () => {
+  const piPackage = read(PLUGIN_ROOT, 'package.json')
   assert.equal(listing.version, claudePlugin.version)
   assert.equal(codexPlugin.version, claudePlugin.version)
+  assert.equal(piPackage.version, claudePlugin.version)
 })
 
-test('the marketplace listing advertises the same chain as the plugin it installs', () => {
+test('each package listing advertises the description owned by its harness', () => {
+  const piPackage = read(PLUGIN_ROOT, 'package.json')
   assert.equal(listing.description, claudePlugin.description)
+  assert.equal(piPackage.description, codexPlugin.description)
 })
 
-test('identity does not fork between the listing and the two plugin manifests', () => {
+test('identity does not fork between install manifests', () => {
+  const piPackage = read(PLUGIN_ROOT, 'package.json')
   assert.deepEqual(listing.author, claudePlugin.author)
   assert.deepEqual(codexPlugin.author, claudePlugin.author)
   assert.equal(codexPlugin.homepage, claudePlugin.homepage)
   assert.equal(codexPlugin.repository, claudePlugin.repository)
   assert.equal(codexPlugin.license, claudePlugin.license)
+  assert.deepEqual(piPackage.author, claudePlugin.author)
+  assert.equal(piPackage.homepage, claudePlugin.homepage)
+  assert.equal(piPackage.repository, claudePlugin.repository)
+  assert.equal(piPackage.license, claudePlugin.license)
 })
 
 test('both marketplaces are the same marketplace', () => {

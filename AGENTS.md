@@ -20,12 +20,14 @@ dev-kit/                         唯一带可执行代码的合集；根 .claude
 ├── skills/                      同上
 ├── .claude-plugin/plugin.json   Claude Code 插件清单
 ├── .codex-plugin/plugin.json    Codex 插件清单
+├── package.json                 Pi package 清单与 skill 发现
+├── .pi/extensions/dev-kit.ts    Pi 的会话引导
 ├── hooks/                       SessionStart 把 using-dev-kit 的正文注入会话
 ├── bin/devkit + lib/            可选 CLI，零依赖
-└── tests/                       node --test，覆盖 hooks、lib 和上面这些清单
+└── tests/                       node --test，覆盖 hooks、Pi extension、lib 和上面这些清单
 ```
 
-`version`、description 和作者身份在 marketplace 和两份 `plugin.json` 里各有一份，由 `dev-kit/tests/manifests.test.js` 断言相等。
+`version` 和作者身份在 marketplace、两份 `plugin.json` 与 Pi `package.json` 里各有一份；Claude marketplace/plugin 共用长 description，Codex/Pi 共用短 description。由 `dev-kit/tests/manifests.test.js` 断言相等。
 
 写 `SKILL.md` 及其引用文件时，每句话过三关。
 
