@@ -54,7 +54,7 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.equal(tool.parameters.type, 'object')
 })
 
-test('single write task launches an isolated Pi process with explicit runtime choices', async t => {
+test('single write task ignores empty inactive modes and launches with explicit runtime choices', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-test-'))
   const childCwd = path.join(root, 'child')
   const capturePath = path.join(root, 'capture.jsonl')
@@ -82,6 +82,8 @@ test('single write task launches an isolated Pi process with explicit runtime ch
       thinking: 'high',
       tools: ['read', 'artifact'],
       cwd: 'child',
+      tasks: [],
+      chain: [],
     },
     undefined,
     update => updates.push(update),
@@ -217,11 +219,11 @@ test('invalid single-task fields fail before a Pi process starts', async t => {
   ]
 
   for (const [params, expected] of cases) {
-    const result = await tool.execute('invalid', params, undefined, undefined, ctx)
-    assert.equal(result.isError, true, JSON.stringify(params))
-    assert.match(result.content[0].text, expected, JSON.stringify(params))
-    assert.doesNotMatch(result.content[0].text, /Invalid subagent request: Invalid subagent request:/)
-    assert.deepEqual(result.details, { mode: 'single', results: [] })
+    await assert.rejects(
+      () => tool.execute('invalid', params, undefined, undefined, ctx),
+      expected,
+      JSON.stringify(params),
+    )
   }
   assert.equal(fs.existsSync(capturePath), false, 'invalid input launched the fake Pi process')
 })

@@ -57,13 +57,22 @@ export async function executeSubagent(
 }
 
 function selectMode(params: SubagentParams): { ok: true; mode: Mode } | { ok: false; error: string } {
-	const singleKeys: Array<keyof TaskRequest> = ["task", "profile", "model", "thinking", "tools", "cwd"];
-	const hasSingle = singleKeys.some(key => params[key] !== undefined);
-	const hasParallel = params.tasks !== undefined;
-	const hasChain = params.chain !== undefined;
+	const hasSingle = typeof params.task === "string" && params.task.trim() !== "";
+	const hasParallel = Array.isArray(params.tasks) && params.tasks.length > 0;
+	const hasChain = Array.isArray(params.chain) && params.chain.length > 0;
 	const count = Number(hasSingle) + Number(hasParallel) + Number(hasChain);
-	if (count !== 1) return { ok: false, error: "Provide exactly one mode: single fields, tasks, or chain." };
-	return { ok: true, mode: hasParallel ? "parallel" : hasChain ? "chain" : "single" };
+	if (count > 1) return { ok: false, error: "Provide exactly one mode: single fields, tasks, or chain." };
+	if (hasParallel) return { ok: true, mode: "parallel" };
+	if (hasChain) return { ok: true, mode: "chain" };
+	if (hasSingle || hasAnySingleField(params)) return { ok: true, mode: "single" };
+	if (params.tasks !== undefined && params.chain === undefined) return { ok: true, mode: "parallel" };
+	if (params.chain !== undefined && params.tasks === undefined) return { ok: true, mode: "chain" };
+	return { ok: false, error: "Provide exactly one mode: single fields, tasks, or chain." };
+}
+
+function hasAnySingleField(params: SubagentParams): boolean {
+	const singleKeys: Array<keyof TaskRequest> = ["task", "profile", "model", "thinking", "tools", "cwd"];
+	return singleKeys.some(key => params[key] !== undefined);
 }
 
 function validateAll(

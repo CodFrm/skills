@@ -92,7 +92,7 @@ function maxConcurrent(events) {
   return maximum
 }
 
-test('parallel keeps input order and partial failures while running at most four children', async t => {
+test('parallel ignores empty inactive modes, keeps input order, and runs at most four children', async t => {
   const { root, timelinePath } = useFakePi(t, 'dev-kit-subagent-parallel-')
   const tool = await loadTool()
   const updates = []
@@ -101,7 +101,22 @@ test('parallel keeps input order and partial failures while running at most four
     profile: 'write',
   }))
 
-  const result = await tool.execute('parallel', { tasks }, undefined, update => updates.push(update), context(root))
+  const result = await tool.execute(
+    'parallel',
+    {
+      task: '',
+      profile: 'read-only',
+      model: '',
+      thinking: '',
+      tools: [],
+      cwd: '',
+      tasks,
+      chain: [],
+    },
+    undefined,
+    update => updates.push(update),
+    context(root),
+  )
 
   assert.equal(result.isError, undefined)
   assert.match(result.content[0].text, /Parallel: 5\/6 succeeded/)
@@ -128,10 +143,10 @@ test('parallel limits and mode conflicts reject the whole request before spawnin
   ]
 
   for (const [params, expected] of cases) {
-    const result = await tool.execute('invalid-mode', params, undefined, undefined, context(root))
-    assert.equal(result.isError, true)
-    assert.match(result.content[0].text, expected)
-    assert.equal(result.details.results.length, 0)
+    await assert.rejects(
+      () => tool.execute('invalid-mode', params, undefined, undefined, context(root)),
+      expected,
+    )
   }
   assert.equal(fs.existsSync(capturePath), false)
 })
@@ -142,6 +157,13 @@ test('chain substitutes successful output and stops at the first failed step', a
   const result = await tool.execute(
     'chain',
     {
+      task: '',
+      profile: 'read-only',
+      model: '',
+      thinking: '',
+      tools: [],
+      cwd: '',
+      tasks: [],
       chain: [
         { task: 'first [output=alpha]', profile: 'read-only' },
         { task: 'second received={previous} [output=beta]', profile: 'read-only' },

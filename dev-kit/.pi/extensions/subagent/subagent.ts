@@ -14,8 +14,13 @@ export default function subagentExtension(pi: ExtensionAPI) {
 			"Use single fields for one task, tasks for parallel work, or chain for sequential {previous} substitution.",
 		].join(" "),
 		parameters: SubagentParams as never,
-		execute(_toolCallId, params, signal, onUpdate, ctx) {
-			return executeSubagent(params as SubagentArguments, pi, signal, onUpdate, ctx);
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			const result = await executeSubagent(params as SubagentArguments, pi, signal, onUpdate, ctx);
+			if (result.isError && result.details.results.length === 0) {
+				const message = result.content[0]?.type === "text" ? result.content[0].text : "Invalid subagent request.";
+				throw new Error(message);
+			}
+			return result;
 		},
 		...renderers,
 	});
