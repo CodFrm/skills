@@ -29,6 +29,21 @@ dev-kit/                         唯一带可执行代码的合集；根 .claude
 
 `version` 和作者身份在 marketplace、两份 `plugin.json` 与 Pi `package.json` 里各有一份；Claude marketplace/plugin 共用长 description，Codex/Pi 共用短 description。由 `dev-kit/tests/manifests.test.js` 断言相等。
 
+## DevKit 提示词是控制面
+
+DevKit 应写成流程控制和状态机，不写成教程或百科：
+
+- `SKILL.md` 只保留触发条件、入口前置、关键闸门、状态转换、职责边界、停止/升级条件和交接格式。
+- `reference` 负责具体方法、命令和可复用规则；template 只保留落地骨架和局部承重说明。
+- 优先删除重复理由、类比、文学化强调、目录式导语、多个相似例子，以及和正文重复的 Red Flags/checklist。
+- 一条约束只有在删掉后会导致流程错误、安全问题、不可恢复状态或证据失真时才作为硬规则保留；偏好不要写成硬约束。
+- 精简不能以歧义换长度：动作、状态、责任人、输入、输出和停止条件必须仍可直接执行。
+
+以下属于流程承重边界，不因精简删除：用户审批及破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、独立静态审查、fresh runtime verification、证据真实性，以及两条编排硬约束：
+
+1. 默认串行；并发必须用当前精确 HEAD 上的 plan facts 或只读 subagent 报告证明写集、语义依赖、共享可变资源和独立验证四个边界，任一不确定即串行。
+2. `subagent` 模式下主会话不审 source、commit 或 diff，只依据 implementer/reviewer/verifier 的结构化报告和证据做决策；报告不足时重派 reviewer/verifier，不自行补审。
+
 写 `SKILL.md` 及其引用文件时，每句话过三关。
 
 ## 一、这句话有没有动作
