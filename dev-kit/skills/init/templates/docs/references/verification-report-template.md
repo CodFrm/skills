@@ -12,7 +12,7 @@
 
 ## Verdict
 
-<!-- Fill last. Keep verdicts only here. For spec acceptance, one row per requirement. Where `not observed` came from unconfigured environment, "How observed" names the service and the absent variable names, never values; "unavailable" is not something anyone can act on. -->
+<!-- Fill last. Keep verdicts only here. For spec acceptance, one row per requirement. Where `not observed` came from unconfigured environment, "How observed" names the service and the absent variable names, never values. -->
 
 | # | Requirement / bug claim | Verdict | How observed | Check it yourself |
 |---|---|---|---|---|

@@ -65,7 +65,7 @@ The main config excludes scratch with `<setting>`; the scratch config targets on
 
 Copy [`../.env.example`](../.env.example) to ignored `.env`. Only the harness loads it; smoke and the application do not. Obtain authorization for real side effects, isolate test data and clean up.
 
-A service `.env` does not configure is filled in, not worked around: starting the dependency yourself or pointing the run at a mock instead both make the verdict describe an environment nobody chose. Name the service and the absent variables and ask the user.
+A service `.env` does not configure is asked for, not arranged: starting the dependency or substituting a mock makes the verdict describe an environment nobody chose. Name the service and the absent variables and ask the user.
 
 ## 7. Failure investigation
 

@@ -103,6 +103,7 @@ Continue through task, batch and green-suite boundaries. Stop for:
 
 - a user decision that changes the agreed requirement or task shape;
 - a destructive action or an external side effect not already authorized;
+- a verification requirement left unobserved by unconfigured real environment;
 - `verification.blocked` or wrap-up `review.status: stopped`.
 
 Limits:
@@ -146,15 +147,15 @@ An incomplete report without an external blocker goes to a fresh verifier for co
 
 Otherwise set `verification.status: reported` and inspect the report/evidence only: every requirement present; every `holds` backed by command, exit code and deciding observation; linked artifacts readable; initial/final HEAD, clean tree and plan checksum consistent. Unsupported claims go to another verifier, never to a main-session source/diff review. Observed failure is `does not hold`; unreached evidence is `not observed`.
 
-A requirement `not observed` because `.env` configures no real dependency does not reach `accepted` on your judgement, and you do not stand that dependency up either — then the verdict describes an environment you invented and the user never saw the question. The verifier is forbidden to arrange it and cannot reach the user; you can. Put the gap over as it came back — which requirements, which service, which variable names — and route on the answer:
+A requirement `not observed` because `.env` configures no real dependency does not reach `accepted`, and the main session does not stand that dependency up either. Report the blocked requirements, the service and the absent variable names, then route on the answer:
 
 | The user | What you do |
 |---|---|
-| fills `.env` | a fresh verifier scoped to those requirements alone, merged into the same `report.md` |
-| authorizes a way to reach an environment | that sentence goes verbatim into the new dispatch's pre-authorized list; a mocked path still returns `not observed` |
+| fills `.env` | write `verification.status: running` and dispatch a fresh verifier scoped to those requirements alone, merged into the same `report.md` |
+| authorizes a way to reach an environment | the same, with that sentence verbatim in the new dispatch's pre-authorized list; a mocked path still returns `not observed` |
 | declines | those requirements stay `not observed` and reach [delivery](#handing-it-back) unchanged |
 
-Re-verification is not a fix round and does not spend that allowance; what bounds it is what bounds any re-dispatch — the user supplied something that was not there before.
+Re-verification is not a fix round and does not spend that allowance.
 
 State every non-hold and unobserved requirement. Only the main session sets `verification.status: accepted`, then plan `status: done`. `done` means the bounded verification finished with findings intact, not that every requirement holds.
 

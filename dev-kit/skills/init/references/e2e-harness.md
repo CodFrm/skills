@@ -45,7 +45,7 @@ Use a language the repository already builds, with package/Make commands as thin
 
 Only scratch may load `.env`; the application and smoke suite must not. Commit `.env.example`, ignore `.env`, let real environment variables override file values, and run only user-authorized side effects with isolated test data and cleanup.
 
-A service `.env` does not configure is asked for, not arranged: standing the dependency up or substituting a mock both make the verdict describe an environment nobody chose. Name the service and the absent variables and ask the user.
+A service `.env` does not configure is asked for, not arranged: starting the dependency or substituting a mock makes the verdict describe an environment nobody chose. Name the service and the absent variables and ask the user.
 
 ## 7. Configure evidence output
 
