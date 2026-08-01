@@ -54,7 +54,7 @@ tasks:
       One observable sentence. "Given an expired token, calling refresh() returns a
       new session rather than 401." This is what the implementer makes true.
     deps: []                    # ids that must be done first. [] means it can start now
-    files: [src/auth/]          # what it expects to touch — this is the parallelism check
+    files: [src/auth/]          # expected writes — input to, never proof of, safe parallelism
     model: null                 # cheap | mid | strong — a tier, not an id. See below
     interfaces: null            # names and types this task produces that a later one consumes
     status: todo                # todo → doing → reviewing → done | blocked
@@ -68,6 +68,14 @@ tasks:
     interfaces: "consumes refreshSession(token: string): Session from task 1"
     status: todo
 
+parallel_evidence: []    # executing-plans appends one entry before every parallel batch
+  # - tasks: [3, 4]
+  #   head: abc1234      # tree inspected when independence was established
+  #   writes: "exact paths are disjoint; neither task generates or formats shared files"
+  #   dependencies: "neither consumes an interface, schema, config or behaviour from the other"
+  #   resources: "separate ports, services, fixtures, snapshots, caches and external accounts"
+  #   verification: "each focused command runs without the sibling's uncommitted changes"
+
 review:                  # wrap-up state, so a resumed session knows where it stands
   status: pending        # pending → passed | stopped
   fixes: []              # up to two fix SHAs, appended before each fix's full-suite run
@@ -79,7 +87,9 @@ verification:            # runtime-verifier state; executing-plans writes every 
   note: null             # interruption or blocker; never a softened verdict
 ```
 
-**`files` is load-bearing, not documentation.** It is what lets two ready tasks be dispatched at once; overlapping paths run one after the other instead. Guess it wide rather than narrow.
+**`files` is load-bearing, not documentation — but disjoint `files` are only the first parallelism check, never permission by themselves.** Guess each task's write set wide rather than narrow, including generated files, snapshots, lockfiles, manifests, shared fixtures and formatter-owned outputs. Ready tasks run in parallel only after [`executing-plans` proves their write sets, semantic dependencies, mutable resources and focused verification are independent](../executing-plans/SKILL.md#parallel-is-proved-not-assumed). If that proof is incomplete, they run serially.
+
+**`parallel_evidence` is runtime state, written immediately before a parallel dispatch.** It records the exact task ids, inspected HEAD and the four independence checks. “No conflict noticed”, textually different filenames, or an old entry from another HEAD is not evidence. A resumed session re-checks it against the current tree; uncertainty always falls back to serial execution.
 
 **`reviewing` is a state, not a formality.** A task whose commit is recorded and whose [batch review and fix](../executing-plans/SKILL.md#the-batch-review-and-its-fix-what-makes-a-task-done) have not finished sits there with its SHA in `commit`, so a resumed session re-dispatches that review over the right commits instead of sending an implementer at code that is already written. **`commit` is what makes the batch survivable**: the review goes out only once its whole batch has left `doing`, and a compaction in between loses SHAs that live nowhere else. A plan run `inline` has no batch review, so its tasks go from `doing` straight to `done`.
 
@@ -96,7 +106,7 @@ verification:            # runtime-verifier state; executing-plans writes every 
 - **Size it to one context window.** A task a subagent cannot finish without exploring the whole repository was cut too big.
 - **`deps` is the only ordering** — the executor picks by `deps`, never by list order.
 
-**Aim for parallelism where the work genuinely splits, and do not manufacture it.** Three tasks that all edit one file are one task wearing three hats.
+**Aim for parallelism only where the work is demonstrably independent, and do not manufacture it.** Three tasks that edit one file are one task wearing three hats; tasks in different files can still be coupled through an interface, generated output, shared fixture, configuration, port or service. When you cannot prove the boundary cheaply and precisely, encode the ordering in `deps` or let execution serialize them.
 
 ## Choosing a model: a tier, never an id
 
@@ -149,7 +159,7 @@ Write both answers in together: `status: ready` and `mode`, then check the final
 
 | Written during execution | Frozen until the user re-cuts it |
 |---|---|
-| **State** — `status` (plan and task), `commit`, `note`, `mode`, `worktree`, `review`, `verification` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
+| **State** — `status` (plan and task), `commit`, `note`, `mode`, `worktree`, `parallel_evidence`, `review`, `verification` | `goal`, and each task's `goal`, `deps`, `files`, `model` |
 | **Facts discovered** — appended to `context`, and to a task's `interfaces` | |
 
 **Facts accrete; the shape of the work does not.** A task coming back `missing context` has usually found something true nobody had written down — that goes into `context`, which is finishing the plan, not editing it. **A fact that contradicts an entry already there is a collision, not a hole**, and it goes to the user.

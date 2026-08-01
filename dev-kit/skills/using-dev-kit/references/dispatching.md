@@ -1,6 +1,6 @@
 # What to dispatch to a subagent
 
-The main session is the **orchestrator**: it holds the goal, the constraints, the decisions and the conversation with the user. Work that would flush those out gets dispatched.
+The main session is the **orchestrator**: it holds the goal, the constraints, the decisions and the conversation with the user. In `subagent` mode it makes decisions from subagent reports and does not review source code, commits or diffs itself. Work that would flush out its context — and every code-level review — gets dispatched.
 
 ## Three properties, all required
 
@@ -14,7 +14,13 @@ The main session is the **orchestrator**: it holds the goal, the constraints, th
 
 - **Anything needing back-and-forth with the user** — a subagent cannot ask them.
 - **Tightly coupled short loops** — `test-driven-development`'s RED→GREEN is the case to know: the whole round travels together or not at all.
-- **Parallel work hitting the same resource** — two agents writing one file, two runs fighting over one port. Parallelism is for **read-only** work or disjoint outputs.
+- **Parallel work whose independence is not proved** — different filenames are insufficient. Shared interfaces, generators, lockfiles, fixtures, snapshots, configuration, ports, services, caches, browser profiles or external accounts make tasks coupled. If any write, dependency, resource or verification boundary is unknown, dispatch serially.
+
+## Concurrency is opt-in
+
+Parallelism is an optimization after the work has been understood, not the default shape of every ready set. Before concurrent implementation, the main session records explicit plan facts or a read-only subagent report showing that exact write sets, semantic dependencies, mutable resources and focused verification are independent. “No conflict noticed” is not evidence; uncertainty falls back to serial execution.
+
+Read-only work is safer, not automatically safe: two investigations may still fight over a server, browser profile or output path. Static reviewers may run together because their outputs are read-only and deliberately separate. Tasks that write or drive runtime state use the stricter gate in [`executing-plans`](../../executing-plans/SKILL.md#parallel-is-proved-not-assumed).
 
 ## What must be dispatched
 

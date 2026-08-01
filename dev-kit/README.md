@@ -75,13 +75,13 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 1. `brainstorming`——探索需求并把设计谈定，确定贯穿全轮的 slug
 2. `brainstorming`——把设计写成当前 checkout 中未提交的 `docs/specs/<slug>.md`，按用户意见持续修改，直到用户明确说没有问题
 3. `using-git-worktrees`——这时才把这一轮关进独立工作区和分支；用 `mv` 将最终草稿移入并提交，随后安装依赖、跑 baseline
-4. `writing-plans`——转成 `.dev-kit/plans/<同一个 slug>.yaml`（gitignored）：只写怎么做，任务切成垂直切片，`deps` 排序、`files` 决定谁能并行；在同一条消息里让用户确认任务拆分与 subagent/inline mode
-5. `executing-plans`——读取 ready plan 里已经选定的 mode，然后不停：每批 ready 的任务派发出去，`files` 不重叠就并行，每个任务强制一轮 TDD（遇故障转 `systematic-debugging`）
+4. `writing-plans`——转成 `.dev-kit/plans/<同一个 slug>.yaml`（gitignored）：只写怎么做，任务切成垂直切片，`deps` 排序、`files` 只作为并发判断的第一层输入；在同一条消息里让用户确认任务拆分与 subagent/inline mode
+5. `executing-plans`——读取 ready plan 里已经选定的 mode，然后不停：每批 ready 的任务默认串行；只有 plan 事实或只读 subagent 报告充分证明写集、语义依赖、共享资源和独立验证都隔离，才记录 `parallel_evidence` 并并行。每个任务强制一轮 TDD（遇故障转 `systematic-debugging`）
    - **证据站得住不等于 done**（派发模式）：那个 commit（`git show <sha>`，不是工作区）交给另一个没写它的 subagent，审任务目标、项目规范、代码本身三条轴，**审完自己修**——每条 finding 一轮 TDD 落在自己的 commit 里，并配上覆盖它的测试报回来
    - 两种它不修、直接交回：修法属于设计决策的，以及说 plan 本身错了的。**一审一修**：还剩 blocking 的任务转 `blocked`，其余记进 `note` 带到收尾
 6. 静态收尾——两个 subagent 同时跑，一个只拿 spec + diff 验实现范围，一个只看代码；第一次修复后再做第二次静态审查，仍有 blocking 才做最后一次修复，**静态审查最多两轮**。跨任务的重复实现、两端对不齐的接口，只拿着一个 commit 的审查者看不见
 7. Runtime 验证——静态审查通过后派一个全新的第三 subagent，启动真实目标并按需驱动 UI / e2e，把逐项 verdict、证据和**用户自己怎么复现**写进 gitignored `e2e/scratch/<spec-slug>/report.md`；它只报告不修复，也不判整轮 done
-8. 编排验收——主会话打开报告和证据，逐项判断覆盖，讲清所有 `does not hold` / `not observed`，只有它写 `status: done`
+8. 编排验收——主会话只依据 subagent 的结构化 findings、验证报告和运行证据做决定，不再打开源码、commit 或 diff 做第三次代码审查；逐项讲清所有 `does not hold` / `not observed`，只有它写 `status: done`
 9. 交付——回到 `using-git-worktrees`，先讲清收尾留下了什么，再给 merge / PR / 先放着的菜单
 
 **一个 slug 贯穿全链路**：spec 文件名、plan 文件名、分支、工作区目录、产物目录都是它。
