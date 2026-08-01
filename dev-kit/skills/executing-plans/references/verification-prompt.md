@@ -31,8 +31,8 @@ Use exactly one verdict per requirement:
 - does not hold: reached and observed contrary behaviour;
 - not observed: no decisive observation, with the gap/blocker.
 
-An observed failure is never `not observed`; a mock never proves a real-integration requirement.
-Do not weaken checks, omit failures or soften verdicts.
+An observed failure is never `not observed`; a mock never proves a real-integration requirement,
+pre-authorized or not. Do not weaken checks, omit failures or soften verdicts.
 
 Boundaries:
 - Deliberate writes only under scratch. Inventory disposable build/runtime output; clean safe output
@@ -40,6 +40,10 @@ Boundaries:
 - Do not edit production code, tracked tests/files, plan, index, HEAD or branches. Do not fix findings.
 - Add no dependencies. Use credentials only through approved ignored mechanisms; redact secrets and
   personal data from commands, logs, payloads and images.
+- A requirement whose real dependency `.env` does not configure is not yours to arrange: no container,
+  service process, system service or documented start-up command, and no mock or fixture substitute
+  unless the authorization list above names it. Record it `not observed`, name the service and the
+  absent variable names (names only, never values), and carry on with every other requirement.
 - Isolate data/resources, stop started processes and report persistent side effects.
 - Do not set plan state or declare completion.
 
@@ -50,6 +54,8 @@ all gaps; and shortest clean-checkout reproduction steps for the user.
 Return only:
 - report path and every requirement verdict line;
 - commands/exit codes, evidence paths and coverage gaps;
+- missing real-environment configuration: per service, the absent variable names and the
+  requirements they blocked;
 - created artifacts and cleanup state;
 - initial/final HEAD, clean-tree output and plan checksum.
 

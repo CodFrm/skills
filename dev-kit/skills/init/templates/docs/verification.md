@@ -9,7 +9,7 @@ Use targeted committed tests alone when they fully observe the changed logic. Us
 ## Workflow
 
 1. Run `<typecheck/lint>` and the targeted tests; run the full suite only when risk/gate requires it.
-2. Build/start the drivable target with `<commands>`.
+2. Build/start the drivable target with `<commands>`. Only the target starts here: a real external dependency is reached through `.env`, and configuration it lacks is asked for, not arranged around ([`../e2e/README.md`](../e2e/README.md)).
 3. Write a one-off script under gitignored `e2e/scratch/<task-name>/`, reusing the harness in [`../e2e/README.md`](../e2e/README.md).
 4. Before running, create `report.md` from [`references/verification-report-template.md`](references/verification-report-template.md); update it as evidence arrives.
 5. Record exact commands, exit codes, deciding runtime observations, gaps and shortest user reproduction steps.
