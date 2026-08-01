@@ -1,12 +1,10 @@
 # Ready-made recipes: Go
 
-> The method for building guardrails (the escalation ladder, the five-part delivery contract, guard tests, wiring into CI, pre-commit design) is in [`lint-harness.md`](./lint-harness.md). This file is code you can copy directly.
+> The method for building guardrails is in [`lint-harness.md`](./lint-harness.md). This file is code you can copy directly.
 
 ---
 
 ## 1. The architectural dependency gate (using `go test`)
-
-**Why a test rather than a linter**: dependency-direction constraints need cross-package judgement, an enumerable exemption list, and to run on everyone's machine alongside `go test ./...`. Writing it as a scanning test is more direct than configuring a linter, and easier to express "the exemption list only shrinks".
 
 Check first whether an existing tool is sufficient (`depguard` inside golangci-lint can configure import bans). If it is, do not write your own. When it is not (you need directory prefixes, an exemption list, or a custom criterion), use the following.
 
@@ -213,7 +211,7 @@ issues:
       # Existing debt, frozen 2026-07-18, only shrinks
 ```
 
-**The crux**: `desc` / `msg` gives the **correct form + the reason + where it comes from**, not just "forbidden".
+`desc` / `msg` is where the corrective diagnostic goes.
 
 ---
 

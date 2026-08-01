@@ -1,8 +1,8 @@
 # Ready-made recipes: TypeScript / React
 
-> The method for building guardrails (the escalation ladder, the five-part delivery contract, guard tests, wiring into CI, pre-commit design) is in [`lint-harness.md`](./lint-harness.md). This file is code you can copy directly.
+> The method for building guardrails is in [`lint-harness.md`](./lint-harness.md). This file is code you can copy directly.
 >
-> **Copy each block together with its guard test.** Copying the rule without the test gets you a fake guardrail that may never have taken effect.
+> **Copy each block together with its guard test.**
 
 ## 1. Ban literal colours (the design token guardrail)
 
@@ -216,7 +216,7 @@ Better suited than lint to **cross-file consistency**: every `t("ns:key")` liter
 
 - Written as a standalone script (`scripts/check-i18n.mjs`), wired into the `lint` command.
 - **The script needs its own tests too** (`scripts/check-i18n.test.mjs`) — it is a guardrail, and it rots just the same.
-- When wiring it into pre-commit, **check the git index snapshot** rather than the working tree (see [`lint-harness.md`](./lint-harness.md#2-check-the-snapshot-in-the-git-index-not-the-working-tree)).
+- When wiring it into pre-commit, **check the git index snapshot** rather than the working tree (see [`lint-harness.md`](./lint-harness.md#check-the-snapshot-in-the-git-index-not-the-working-tree)).
 
 ---
 
@@ -253,7 +253,7 @@ rules: {
 }
 ```
 
-> Note the `(#135)` in the error message — **include that issue number**. A constraint holds when it carries "where it came from"; otherwise the next person will think the rule is arbitrary.
+> Note the `(#135)` in the error message — **include that issue number**.
 
 ---
 
@@ -334,4 +334,4 @@ describe("guardrail lint rules", () => {
 
 Comment the rule out of `eslint.config.js` → run the guard test → **confirm it goes red** → restore.
 
-**A guard test that never had this step is the same as none** — it can stay green while reporting nothing at all, because of a config filter, a file name that does not match, or a misspelled rule name.
+Without it a guard test can stay green while reporting nothing at all, because of a config filter, a file name that does not match, or a misspelled rule name.

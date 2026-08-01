@@ -53,7 +53,7 @@ Pre-commit is early feedback, never the merge gate. It must:
 - trigger by file type, including deletions where consistency checks require it;
 - expose a documented narrow escape hatch rather than forcing `--no-verify`.
 
-### 2. Check the snapshot in the Git index, not the working tree
+### Check the snapshot in the Git index, not the working tree
 
 Inspect the staged index snapshot rather than mutable working files.
 
@@ -65,12 +65,3 @@ git checkout-index --all --prefix="$snapshot/"
 ```
 
 Clean the exact temporary directory after the check.
-
-## Pre-delivery check
-
-- [ ] Selected by evidence/user decision and expressed at the cheapest adequate level
-- [ ] Real gate, precise scope, sanctioned exemption and corrective diagnostic
-- [ ] Guard test covers violating, compliant and exempt forms through real configuration
-- [ ] Disable/red/restore proof completed
-- [ ] Existing violations fixed or frozen in a shrinking baseline
-- [ ] Documentation names the actual enforcement boundary; whole tree is green
