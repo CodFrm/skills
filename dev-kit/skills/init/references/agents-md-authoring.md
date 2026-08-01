@@ -19,11 +19,3 @@ Keep a principle only when it is:
 - tagged `enforced by <gate>` only after that gate is verified, otherwise `review-only`.
 
 Select only principles requested by the user or supported by the scan. Rewrite them in the project's vocabulary; delete generic/template entries.
-
-## Self-check
-
-- [ ] Every route has trigger, document and ownership
-- [ ] Every principle passes all four gates above
-- [ ] Every enforced claim names a real verified check and exemption policy
-- [ ] Every stack/module/version fact is findable in tracked project files
-- [ ] Method detail is linked, not duplicated

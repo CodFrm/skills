@@ -57,7 +57,7 @@ Output a short verdict followed by one decision row per actionable finding:
 
 Order recurring proven failures first, then zero-cost lock-in, breached established conventions, structural gaps and generic gaps. Do not dump raw scan output or repeat findings outside their recommendation row.
 
-### B. Questions you need answered
+### Questions you need answered
 
 Apply these gates in order:
 
@@ -90,23 +90,21 @@ The main session writes documents. If dispatch is necessary, do one document ser
 
 ### Fill the placeholders from project facts
 
-Read [filling-templates.md](references/filling-templates.md). Every symbol, path, command and code shape must come from tracked project usage, or from a selected convention that was built and run before documentation. If neither exists, delete the section.
+Read [filling-templates.md](references/filling-templates.md).
 
 ### Write AGENTS.md
 
-Read [agents-md-authoring.md](references/agents-md-authoring.md). Keep only project facts, conditional routing, selected decidable principles on concrete repository seams, and a quick architecture map. Put methods in the owning docs.
+Read [agents-md-authoring.md](references/agents-md-authoring.md).
 
 ## Step 4 · Pin selected guardrails
 
 Read [lint-harness.md](references/lint-harness.md). It owns selection, escalation, exemptions, ratchets, pre-commit and the delivery contract. Ready-made implementations are in [TypeScript](references/lint-recipes-ts.md) and [Go](references/lint-recipes-go.md); other ecosystems use native tooling.
 
-Each selected rule must have precise scope, sanctioned exemption, corrective diagnostic, a guard test through the real configuration in both directions, a real merge/local gate, documentation pointer and a green tree. Verify the guard by disabling it once and observing the guard test fail, then restore it.
-
 ## Step 5 · Build selected e2e tracks
 
 Keep permanent smoke e2e under committed `e2e/` and one-off runtime verification under gitignored `e2e/scratch/`. Smoke uses mocked external dependencies and only stable core flows; scratch may use an authorized real environment.
 
-Read [e2e-harness.md](references/e2e-harness.md) for two-configuration isolation, hermetic resources, protocol mocks, independent oracle, orchestration and driver choice. Use the repository's existing runtime/toolchain.
+Read [e2e-harness.md](references/e2e-harness.md).
 
 Ownership after generation:
 
