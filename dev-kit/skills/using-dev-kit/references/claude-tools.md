@@ -5,7 +5,7 @@ Use the tools exposed by the running Claude Code version; where a build labels `
 | dev-kit action | Claude Code tool |
 |---|---|
 | Dispatch a fresh subagent | `Task` |
-| Dispatch independent work in parallel | Multiple `Task` calls in one message |
+| Dispatch a gate-approved parallel batch | Multiple `Task` calls in one message |
 | Wait for a foreground subagent | Read the `Task` result |
 | Wait for a background subagent | `TaskOutput` |
 | Continue an existing subagent | Resume it through `Task` with its agent id |
@@ -13,4 +13,4 @@ Use the tools exposed by the running Claude Code version; where a build labels `
 | Invoke a skill | `Skill` |
 | Read, edit or run commands | `Read`, `Edit`, `Write`, `Bash` |
 
-Resolve `subagent_type` and model from the agents the current installation offers; do not invent either. Keep independent parallel calls in one message so they start together. If no native `Task` or `Agent` tool is exposed, select `inline` before execution begins.
+Resolve `subagent_type` and model from the agents the current installation offers; do not invent either. Only work that passed [the shared concurrency gate](dispatching.md#concurrency-is-opt-in) may use parallel calls; place that approved batch in one message. If no native `Task` or `Agent` tool is exposed, select `inline` before execution begins.

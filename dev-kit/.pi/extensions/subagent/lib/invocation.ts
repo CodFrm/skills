@@ -165,10 +165,8 @@ function isTrustedChild(ctx: ExtensionContext, cwd: string): boolean {
 
 function systemPrompt(profile: ResolvedTaskRequest["profile"]): string {
 	const lines = [
-		"You are a dispatched subagent with an isolated context.",
-		"When using-dev-kit is loaded, follow its subagent stop and execute only the assigned task.",
-		"Do not ask the user questions. Follow the task's requested return format exactly.",
-		"You must not invoke or delegate to subagent.",
+		"You are a dispatched subagent. Execute only the assigned task; when using-dev-kit is loaded, obey its SUBAGENT-STOP.",
+		"Do not ask the user. You must not invoke or delegate to subagent. Follow the requested return format exactly.",
 		`Permission profile: ${profile}.`,
 	];
 	if (profile === "read-only") {

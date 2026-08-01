@@ -5,7 +5,7 @@ Use the tools exposed in the current session; do not enable features, edit globa
 | dev-kit action | Codex tool |
 |---|---|
 | Dispatch a fresh subagent | `spawn_agent` |
-| Dispatch independent work in parallel | Multiple `spawn_agent` calls, bounded by the available slots |
+| Dispatch a gate-approved parallel batch | Multiple `spawn_agent` calls, bounded by the available slots |
 | Inspect agents and slots | `list_agents` |
 | Wait for a result or message | `wait_agent` |
 | Add context to a running agent | `send_message` |
@@ -15,4 +15,4 @@ Use the tools exposed in the current session; do not enable features, edit globa
 | Invoke a skill | Load the native skill and follow it |
 | Read, edit or run commands | Use the native file and shell tools |
 
-Call collaboration tools directly, never from inside a shell or code-execution wrapper. A dispatch that needs no conversation gets a bounded task and the minimum relevant context; use `send_message` only for facts discovered after it started. If `spawn_agent` is absent, select `inline` before execution begins.
+Call collaboration tools directly, never from inside a shell or code-execution wrapper. Only work that passed [the shared concurrency gate](dispatching.md#concurrency-is-opt-in) may use multiple `spawn_agent` calls. Give each dispatch a bounded task and the minimum relevant context; use `send_message` only for facts discovered after it started. If `spawn_agent` is absent, select `inline` before execution begins.

@@ -55,9 +55,7 @@ function getBootstrapContent(): string | null {
 		cachedBootstrap = `${IMPORTANT_MARKER}
 ${BOOTSTRAP_MARKER}
 
-You have loaded dev-kit.
-
-The using-dev-kit content and Pi tool mapping are included below and are already loaded for this session. Follow them now; do not load using-dev-kit or pi-tools again.
+Dev-kit and its Pi mapping are loaded below. Follow them now; do not load them again.
 
 ${bootstrapBody}
 

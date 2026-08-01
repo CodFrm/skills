@@ -4,17 +4,6 @@
 >
 > **Copy each block together with its guard test.** Copying the rule without the test gets you a fake guardrail that may never have taken effect.
 
-## Contents
-
-| Section | Content |
-|---|---|
-| [1. Ban literal colours](#1-ban-literal-colours-the-design-token-guardrail) | Lightweight (pure config regex) / precise (a custom rule covering arbitrary hex values and variant prefixes) |
-| [2. i18n guardrails](#2-i18n-guardrails) | Ban hardcoded source-language text / ban `t(key, {defaultValue})` / the key completeness script |
-| [3. Force use of the wrapper](#3-force-use-of-the-wrapper) | `no-restricted-imports` / `no-restricted-properties` + how to write the exemption |
-| [4. Guard tests (required)](#4-guard-tests-required) | Loading the real configuration, the three assertion directions that must be covered, manual verification before delivery |
-
----
-
 ## 1. Ban literal colours (the design token guardrail)
 
 Two implementations; choose by how much precision you need.

@@ -1,77 +1,57 @@
 # Runtime verification prompt
 
-Use only after static wrap-up reaches `passed` through its two-review, two-fixer limit. Dispatch it at `strong` to a fresh subagent that implemented or reviewed none of the branch. **[The rules every dispatch shares](prompts.md#what-every-dispatch-shares) apply**, and every `<>` slot must be filled.
+Use after static wrap-up passes, at `strong`, with a fresh verifier. Apply [shared dispatch rules](prompts.md#what-every-dispatch-shares).
 
-```
-Verify the finished branch in a real runtime and produce its durable local verification report.
-This is not static spec review: that already compared the spec with the diff. Observe the built
-result instead of inferring behaviour from code, mocks or green tests.
+```text
+Verify the finished branch in its real runtime and write its local evidence report. Observe built
+behaviour; do not infer it from code, mocks or green tests.
 
-Spec: <spec path>, read in full.
-Plan: <plan path>; do not edit it.
-Scope: <baseline SHA>..HEAD — <n> commits, ending at <HEAD SHA>.
-Scratch root: e2e/scratch/<spec-slug>/
-Pre-authorized external or destructive effects: <exact list, or "none">.
+Spec: <spec path>, read completely.
+Plan: <plan path>, do not edit.
+Scope: <baseline SHA>..HEAD, <n> commits, exact reviewed HEAD <HEAD SHA>.
+Scratch root: e2e/scratch/<spec-slug>/.
+Pre-authorized destructive/external effects: <exact list or none>.
 
 Before running:
-- Read AGENTS.md / CLAUDE.md. If docs/verification.md exists, follow it and its report
-  template; read the e2e harness guide it points to.
-- Confirm `git check-ignore -q e2e/scratch/<spec-slug>/report.md` exits 0. If it does not,
-  write nothing and return that blocker; changing .gitignore now would change reviewed code.
-- Require `git status --porcelain=v1` to be empty before the first build or run. Otherwise write
-  nothing and return the entries: a dirty tree is not the reviewed branch.
-- Require `git rev-parse HEAD` to equal the exact `<HEAD SHA>` above. On any mismatch write nothing
-  and return both SHAs: a clean tree at another commit is still not the reviewed branch.
-- Record that initial HEAD and a SHA-256 checksum of the plan before running. Repeat both,
-  plus `git status --porcelain=v1`, at the end so the orchestrator can prove the reviewed tree
-  and gitignored plan stayed unchanged.
+- Read project instructions and docs/verification.md/e2e guide when present.
+- Require the report path to be gitignored, the working tree clean, and HEAD exactly <HEAD SHA>.
+  On failure write nothing and return the blocker/evidence.
+- Record initial HEAD and SHA-256 of the plan. Recheck both plus clean-tree output at the end.
 
-For every spec requirement, obtain the strongest real-world observation this repository permits.
-You may run commands, build and start the application, drive its UI/API/CLI, run targeted e2e,
-and create one-off scripts, logs, resources, screenshots, videos and report.md under the scratch
-root. Reuse the existing harness. Do not promote a scratch check into the committed suite.
-If a step would deploy, migrate real/shared data, send a message, call a mutating external API,
-charge money or cause any other outward-facing or destructive effect, run it only when that exact
-effect appears in the pre-authorized list above. Otherwise do not run it; return a blocker. You
-cannot ask the user from this dispatch.
+For every spec requirement obtain the strongest real-runtime observation this repository permits.
+You may build/start the target, drive UI/API/CLI, run focused e2e and write scripts/evidence only
+under the scratch root. Reuse the existing harness.
 
-Verdicts use exactly these labels, one per spec requirement:
-- holds — you observed the required behaviour; cite the command, exit code and deciding evidence.
-- does not hold — you reached it and observed behaviour contrary to the requirement.
-- not observed — you did not reach a decisive observation; say what blocked or remained uncovered.
+Do not perform any deploy, shared/real migration, message send, mutating external call, charge or
+other destructive/outward effect unless it appears exactly in the authorization list. Otherwise
+return a blocker; you cannot ask the user.
 
-An observed failure is `does not hold`, never `not observed`. A mocked path cannot establish a
-real-integration requirement; record it as `not observed` and say what the mock did establish.
-Do not weaken a check, omit a failed step or soften a verdict.
+Use exactly one verdict per requirement:
+- holds: observed, with command, exit code and deciding evidence;
+- does not hold: reached and observed contrary behaviour;
+- not observed: no decisive observation, with the gap/blocker.
+
+An observed failure is never `not observed`; a mock never proves a real-integration requirement.
+Do not weaken checks, omit failures or soften verdicts.
 
 Boundaries:
-- Deliberately create or edit files only under the scratch root. Build and runtime commands may
-  create disposable ignored outputs at the paths the project documents (for example build output,
-  caches, temporary databases or harness logs); inventory what they created, remove what this run
-  created when safe, and report every remainder. Do not edit production code, committed tests,
-  tracked project files, the plan, the index, HEAD or any branch.
-- Do not fix findings. The report finds; it does not fix.
-- Do not add dependencies. Use credentials only through the project's approved gitignored
-  mechanism; never expose credentials or personal data in commands, logs, payloads or images.
-- Use isolated test data, stop processes you started, clean up side effects, and report anything
-  persistent that could not be removed.
-- Do not declare the round done and do not set any status. The orchestrator judges your evidence.
+- Deliberate writes only under scratch. Inventory disposable build/runtime output; clean safe output
+  created by this run and report every remainder.
+- Do not edit production code, tracked tests/files, plan, index, HEAD or branches. Do not fix findings.
+- Add no dependencies. Use credentials only through approved ignored mechanisms; redact secrets and
+  personal data from commands, logs, payloads and images.
+- Isolate data/resources, stop started processes and report persistent side effects.
+- Do not set plan state or declare completion.
 
-Write e2e/scratch/<spec-slug>/report.md as you work. When docs/verification.md exists, use its
-structure and evidence forms, but keep the exact verdict labels above. Otherwise include:
-1. Verdict — every requirement once, with its label and how it was checked.
-2. How it was verified — exact steps in order.
-3. Evidence — commands, exit codes and deciding lines; annotated images or recordings for UI.
-4. Not verified — every gap and why.
-5. Reproduce it yourself — shortest path from a clean checkout to the observation.
+Write e2e/scratch/<spec-slug>/report.md as you work. Follow the project's report template when present;
+otherwise include: per-requirement verdict; ordered steps; commands/exit codes/deciding evidence;
+all gaps; and shortest clean-checkout reproduction steps for the user.
 
 Return only:
-- the report path
-- every requirement's verdict line
-- commands and exit codes
-- evidence paths and coverage gaps
-- created build/runtime artifact paths and cleanup status
-- initial and final HEAD, clean-tree output and plan checksum
+- report path and every requirement verdict line;
+- commands/exit codes, evidence paths and coverage gaps;
+- created artifacts and cleanup state;
+- initial/final HEAD, clean-tree output and plan checksum.
 
-Do not say `done`, `complete` or `ready to ship`.
+Do not say done, complete or ready to ship.
 ```

@@ -1,147 +1,65 @@
-<!--
-Template: docs/develop.md
-Usage: copy into the project's docs/, replace <angle brackets> with real content, and delete
-this comment block at the end.
-This file owns the concrete "how": commands, directory structure, code style, enforced rules,
-the commit and PR flow.
-It does not own: engineering principles (AGENTS.md), test design (testing.md), or the design
-system's visual language (design.md).
-
-⚠️ Every command here must genuinely exist and have been run by you. Inventing commands is the
-most common initialisation accident.
--->
+<!-- Replace placeholders with commands/facts verified on this branch. Delete unused sections and this comment. -->
 
 # Development standards
 
-> The engineering principles are in [`../AGENTS.md`](../AGENTS.md). This file is the mechanism: commands, structure, style, enforced rules, the commit flow.
-
-## Common commands
-
-<!-- Run each one before writing it in. State when each is used. -->
+## Commands
 
 ```bash
-<install dependencies>
-<dev mode / hot reload>
+<install>
+<develop/run>
 <build>
-<run>
-
-<full test suite>
-<targeted tests>
-<coverage>
-
+<targeted test>
+<full test>
 <lint>
-<lint autofix>
 <typecheck>
 <format>
-
-<generate code / mocks>          # if any
+<generate, if any>
 ```
 
-- The package manager is **<pnpm / go mod / uv ...>**. <State the enforcement mechanism, if any>
-- <This repository's particular traps, e.g.: `go test ./...` picks up a directory it should not, so use `<alternative command>` by default>
+Package manager/entry point: `<name and enforcement>`. Docs, pre-commit and CI use these same commands.
 
-> **These are this repository's only command entry points.** The docs, pre-commit and CI all call them; an equivalent bare command written elsewhere drifts, and produces "green locally, red in CI" with nobody knowing why.
-> <In a front-and-back-end monorepo, state the boundary: front-end commands go through `<package manager>`, and back-end and cross-stack aggregate commands go through `make`.>
+## Structure and style
 
-## Directory structure
-
-```
-<directory tree, one line of description per directory>
+```text
+<working directory tree with one responsibility per path>
 ```
 
-<!-- List the path aliases if there are any -->
-Path aliases: `<@App/*>` → `<src/*>` (defined in `<config file>`).
+- Path aliases: `<alias → target/config>`.
+- Formatting/naming/import rules: `<real project conventions and command>`.
+- Test location/naming: `<real convention>`.
 
-## Code style
+## Enforced rules
 
-- **Formatting** is owned by <tool>; do not adjust formatting by hand. Run `<command>` before committing.
-- <Naming conventions>
-- <File organisation convention: e.g. tests co-located with source / a separate tests directory>
-- <Import order and type-import conventions>
+| Rule | Correct form | Gate and exemption |
+|---|---|---|
+| `<decidable rule>` | `<approved wrapper/token/interface>` | `<rule/config/job>; exemption: <path/mechanism>` |
 
-## Enforced rules (already mechanically checked)
+Guard tests at `<path>` load the real configuration and assert violating, compliant and exempt forms.
 
-<!-- Each entry: the rule → the correct form → why → enforcement and exemption.
-     Conventions with no mechanical check do not go in this section; they go in the
-     corresponding topic document. -->
+## Persistent data changes
 
-| Rule | Correct form | Enforcement |
-| --- | --- | --- |
-| <No literal colours> | <Use a semantic token, see design.md> | <rule name> in `<config file>`; exemption: `<path>` |
-| <Visible strings must go through i18n> | <Use t(), and update every locale file> | <rule name>; exemption: test files |
-| <Success messages go through the notify wrapper> | <notifySuccess()> | <rule name>; exemption: the wrapper itself and its tests |
-| <Layer A must not import layer B> | <Obtain it through the getter> | <check name>, running inside `<command>` |
+<!-- Keep only when existing data may be rewritten/reinterpreted. -->
 
-> Each rule's guard test is at `<guard test path>` — it runs by loading the real configuration and asserts in both directions. **When changing these rules, change the guard test at the same time.**
-
-<!-- Keep when there is i18n -->
-## i18n
-
-- Source language: <language>. Locale file location: <path>.
-- Adding visible text → use `<the t function>`, **and update every locale file**.
-- **Do not** use `t(key, { defaultValue })` — on a missing key it falls back silently and bypasses the key check.
-- **Do not** translate dynamic content (user input, terminal output, markdown, logs).
-- Key completeness is checked by `<validation script>`, wired into `<lint command>` and pre-commit.
-
-<!-- Keep when there are logging conventions -->
-## Logging on critical flows
-
-- Use `<project logger>`, not `<the standard library log / console.log>`.
-- Message prefix `<package.Method:>`, with dynamic values in **structured fields** rather than string concatenation.
-- **What counts as a critical flow**: <enumerate: external calls, state changes, permission decisions, failure paths>.
-
-## When touching persistent data
-
-<!-- Keep when the project has any persistence (database, messaging, files on disk, client-side
-     local storage); delete this section for a purely stateless project -->
-
-**Code can be `git revert`ed; data already written out cannot.** Whenever a change rewrites or reinterprets **data that already exists** — <`<schema / migrations>`, `<message body schema>`, `<export file format>`, `<client-side local storage>`>:
-
-1. **Say it before changing it.** State in the PR: what changes, how much existing data it affects, whether it can be rolled back, and which parts are irreversible. **Dropped columns, lost precision and destructive backfills get named separately with a backup / export plan.**
-2. **Structure and backfill go in two separate commits** — combined, a failed backfill leaves you unable to tell whether the DDL or the data was at fault.
-3. **Migrations are append-only; history is not edited** — environments that already ran them will not re-run. See "Data and migrations" in [`architecture.md`](./architecture.md).
-4. **Verify in both directions against a database holding real existing data**: `<up command>` and `<down command>` once each, keeping the same query's results before and after (row counts, edge values, NULL counts). **Green on an empty database is the same as not running it.**
-5. **Review escalates a tier** — `<two reviewers / the data owner's sign-off>`, looking specifically at: is the migration rerunnable; does the backward direction really restore the data; edge values in the existing data (NULL / empty / dirty / two historical shapes); can the backfill be batched and resumed; how old and new code read each other's data during a rolling release; was the existing data confirmed to satisfy a new unique/not-null constraint.
+Before changing persistent data, obtain authorization for the exact scope and irreversible effects. State blast radius, rollback/export plan and compatibility window. Separate structure from backfill. Append migrations; do not edit history. Verify forward/backward against representative existing data with the same before/after query, and obtain `<required review>`.
 
 ## Commits and PRs
 
-### Commit messages
+Commit format: `<format>`. Pre-commit runs `<checks>` against staged index content; escape hatch: `<mechanism and required justification>`.
 
-<Format convention, e.g. Conventional Commits>
+PR evidence:
 
-```
-<type>(<scope>): <short description>
-```
+- what/why;
+- commands, exit codes and observations;
+- user-visible runtime evidence;
+- persistent-data blast radius/rollback when applicable.
 
-### Before committing
+## CI gate
 
-The pre-commit hook automatically runs <checks>. It **checks only staged files**, and checks the **snapshot in the git index rather than the working tree** — so "stage the broken version, revert the working tree to the good one" cannot get past it.
+<!-- Keep exactly one. -->
 
-In an emergency you can skip it with `SKIP_PRE_COMMIT=1 git commit`, **but state the reason in the PR**.
+- Merge requires `<job>` in `<config>`, running `<same local commands>`.
+- This repository has no merge-blocking CI; `<lint/test>` and pre-commit are local-only and skippable.
 
-### PR description
+## Related
 
-<PR structure requirements + evidence requirements>
-
-- State **what changed** and **why**.
-- **Paste the verification commands you actually ran and their results**, rather than just "tests pass".
-- Attach evidence for user-facing changes (command and output / logs / UI screenshots / a report link); see [`verification.md`](./verification.md).
-- **For anything touching persistent data**, list the changes, the blast radius and the rollback plan per the section above, and paste the forward and backward migration commands with their exit codes.
-
-## The CI gate
-
-<!-- Pick one and write it honestly; do not pretend there is a gate -->
-
-<With CI:> Merging requires passing `<job name>` in `<CI config file>`, which runs: <lint (including every guardrail), typecheck, tests (including guard tests), build, smoke e2e>. **It runs the same commands as local development.**
-
-<Without CI:> **This repository has no merge-blocking CI gate.** The guardrails take effect only in local `<lint command>` and pre-commit, and pre-commit can be skipped — meaning violations **can** get merged. Please run `<lint command>` and `<test command>` yourself before committing.
-
-## Related documents
-
-- Engineering principles → [`../AGENTS.md`](../AGENTS.md)
-- Layering and extension recipes → [`architecture.md`](./architecture.md)
-- Logging and observability → [`observability.md`](./observability.md)
-- How tests are designed, what to write and what not to → [`testing.md`](./testing.md)
-- End-to-end verification and reports → [`verification.md`](./verification.md)
-- The design system → [`design.md`](./design.md)
-- Documentation maintenance → [`documentation.md`](./documentation.md)
+[`../AGENTS.md`](../AGENTS.md) · [`architecture.md`](architecture.md) · [`testing.md`](testing.md) · [`verification.md`](verification.md)

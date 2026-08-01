@@ -27,6 +27,8 @@ pi remove <pi list 中显示的本地 source>
 - parallel：传 `tasks`，最多八项、同时最多四个进程；
 - chain：传 `chain`，后一步可在 `task` 中用 `{previous}` 接收前一步的成功输出，首个失败会停止链。
 
+这些是传输模式，不是并发授权。dev-kit 默认 single/串行；使用 parallel 前，调用方必须按 [`executing-plans`](../../../skills/executing-plans/SKILL.md#parallel-is-proved-not-assumed) 记录绑定当前精确 HEAD 的四边界证据，读操作也不例外。
+
 每个任务都需要：
 
 | 字段 | 用法 |
@@ -64,7 +66,7 @@ parallel 与 chain 把同样的任务对象放进对应数组。plan 继续只�
 
 JSONL 消息会流式送入工具更新。折叠与 Ctrl+O 展开视图显示任务、工具调用、turns、token/cache、cost、context 和模型；parallel 逐项保留成功或失败结果。每项送回父模型的文本最多 50KB，完整消息保留在 tool details。
 
-非零退出、`stopReason: error`、abort 与启动失败会保留 exit code、stop reason、错误消息、stderr 和最后输出。父会话仍负责检查证据、写 plan、做 review 与判定完成。
+非零退出、`stopReason: error`、abort 与启动失败会保留 exit code、stop reason、错误消息、stderr 和最后输出。父会话负责编排、机械证据检查和 plan 状态；在 `subagent` mode 下按 [`executing-plans` 的审查边界](../../../skills/executing-plans/SKILL.md#executing-a-plan) 从结构化结果决策，不自行审查源码、commit 或 diff。
 
 ## 测试
 

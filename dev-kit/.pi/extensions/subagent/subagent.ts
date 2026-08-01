@@ -11,7 +11,7 @@ export default function subagentExtension(pi: ExtensionAPI) {
 		label: "Subagent",
 		description: [
 			"Delegate tasks to fresh Pi processes with explicit permission profiles.",
-			"Use single fields for one task, tasks for parallel work, or chain for sequential {previous} substitution.",
+			"Use single fields by default, tasks only for gate-approved parallel work, or chain for sequential {previous} substitution.",
 		].join(" "),
 		parameters: SubagentParams as never,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {

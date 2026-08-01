@@ -16,7 +16,7 @@ export const SubagentParams = {
 	type: "object",
 	properties: {
 		...TaskItem.properties,
-		tasks: { type: "array", items: TaskItem, description: "Independent tasks for parallel mode" },
+		tasks: { type: "array", items: TaskItem, description: "Gate-approved independent tasks for parallel mode" },
 		chain: { type: "array", items: TaskItem, description: "Sequential tasks with optional {previous} substitution" },
 	},
 	additionalProperties: false,

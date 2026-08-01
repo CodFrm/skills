@@ -5,36 +5,30 @@ description: >-
 ---
 
 <SUBAGENT-STOP>
-If you were dispatched as a subagent to execute a specific task, ignore this skill.
+If you were dispatched for a specific task, ignore this skill and execute only that task.
 </SUBAGENT-STOP>
 
 # Using dev-kit
 
 ## The rule
 
-**Route before you start** — before writing code, running commands, even before asking a clarifying question. Invoke the door you picked as `dev-kit:<skill-name>`, state "using \<skill\> to \<purpose\>", and follow it strictly; a checklist becomes one todo per item.
+Route before acting. Invoke the selected door as `dev-kit:<skill-name>`, state "using \<skill\> to \<purpose\>", and follow it. When several skills apply, invoke the process skill first.
 
-**Process skills come first when several apply.** They set the approach; implementation and domain skills carry it out.
-
-**Before asking the user anything, look it up** — the base branch is `git merge-base`, whether CI exists is `ls .github/workflows`. [asking-users.md](references/asking-users.md) owns that rule.
+Before asking the user, apply [the three gates](references/asking-users.md#three-tiers-findable--cheap-if-wrong--rework-if-wrong).
 
 ## Which door you come in by
 
-**This is the only routing decision you make.**
-
-| The request | Where it goes |
+| Request state | Route |
 |---|---|
-| "Fix that typo" · "Add a log line here" · "Rename X to Y" — you already know what to change, where, and how you will check it | **No chain.** Say what you are about to do, then `test-driven-development` |
-| "Add OAuth login" · "This list should be filterable" · "Make the export async" | `brainstorming` |
-| "This test fails" · "The build errors" · "It 502s sometimes" | `systematic-debugging` |
-| "There is no AGENTS.md" · "The same mistake keeps coming back" | `init`, which is not on the chain and returns to it |
+| The change, location and verification are already settled | No chain. Use `test-driven-development` for behaviour; otherwise run the applicable project checks |
+| New or changed behaviour, UI or contract | `brainstorming` |
+| Bug, failing test/build, regression or unexplained mismatch | `systematic-debugging` |
+| Project constraints, contributor docs or recurring convention failures need establishing | `init` — independent of the development chain |
 
-Something turning out to be undecided — a second option, a boundary nobody has drawn — is a `brainstorming` round, whatever is already written.
-
-**A branch never comes off, on any path.**
+If any requirement or boundary is undecided, route to `brainstorming`. Implementation never runs directly on `main` or `master`.
 
 ## Platform tools
 
-Before dispatching or translating a named tool, identify the current harness from the tools it actually exposes and read exactly one mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). Where the mapping says no native subagent exists, choose `inline`; an external process is not a native subagent.
+Before dispatching, read exactly one current-harness mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). If it exposes no native subagent, choose "inline".
 
-What to hand a subagent, and what never to, is in [dispatching.md](references/dispatching.md).
+[dispatching.md](references/dispatching.md) owns what to delegate. [`executing-plans`](../executing-plans/SKILL.md#parallel-is-proved-not-assumed) owns every parallel-dispatch gate.

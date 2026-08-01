@@ -1,104 +1,57 @@
-<!--
-Template: AGENTS.md
-Usage: copy to the project root, replace <angle brackets> with real content, delete any section
-you do not need, and delete this comment block at the end.
-Hard rules:
-  1. Only four things live here — project facts, the must-read routing table, non-negotiable
-     principles, a quick architecture map. Every "how exactly" detail sinks into docs/.
-  2. Every principle must be decidable + land on a concrete extension point in this repository
-     + carry a why. Missing any of the three means do not write it.
-  3. Where a mechanical check exists, note the enforcement source and the exemption policy.
-  4. A fact exists in exactly one place — if it is already in docs/, link to it.
--->
+<!-- Copy to project root. Replace placeholders; delete unused routes/principles and this comment. Keep only verified project facts, conditional routes, selected principles and a quick map. -->
 
 # AGENTS.md
 
-This file is the **single source of guidance** for every AI coding agent working in this repository. `CLAUDE.md` is nothing but a one-line `@AGENTS.md` — **change the rules here, and do not split them across both**.
+`CLAUDE.md` imports this file; keep agent rules here only.
 
-<!-- The routing table: the most important part of the file. "When → read what → what it owns",
-     not a list of documents. Add a scope reminder where needed. -->
+## Read before changing
 
-> **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development standards: commands, directory structure, code style, the test mechanism, the commit flow.
+| When | Read | It owns |
+|---|---|---|
+| Before code | [`docs/develop.md`](docs/develop.md) | commands, structure, style, enforced rules, commit flow |
+| Before tests | [`docs/testing.md`](docs/testing.md) | boundary, coverage, fixtures/mocks, exceptions, commands |
+| Before runtime verification | [`docs/verification.md`](docs/verification.md) | real-target scratch workflow and report |
+| Before UI | [`docs/design.md`](docs/design.md) | tokens, components, themes, states, accessibility |
+| Before observability work | [`docs/observability.md`](docs/observability.md) | levels, instrumentation and sensitive-data rules |
+| Before contributor docs | [`docs/documentation.md`](docs/documentation.md) | ownership and fact checks |
 
-> **Before writing, changing or deleting any test, read [`docs/testing.md`](docs/testing.md)** — how tests are designed, what to write, **what not to write**, how to clean up, how to run them. TDD's two exceptions are there, so **do not infer exceptions from the principles in this file**.
-
-> **To confirm a change really works, read [`docs/verification.md`](docs/verification.md)** — driving the real application end to end with a one-off scratch script. This is not the committed test suite.
-
-<!-- Keep when observability was done -->
-> **When adding logs, metrics or traces to a critical path, or investigating with them, read [`docs/observability.md`](docs/observability.md)** — choosing a level, where to instrument, what must never be logged.
-
-<!-- Keep when there is a front end -->
-> **Before creating or modifying any page, dialog or section, read [`docs/design.md`](docs/design.md)** — colour tokens, the component palette, theming, layout/motion/state patterns, the new-page recipe. **Its Core Constraints apply to every UI change, not just new ones.**
-
-<!-- Keep when there are more than 3 docs -->
-> **Before adding, editing or reorganising any contributor documentation, read [`docs/documentation.md`](docs/documentation.md)** — organisation rules + fact-checking against the current branch. *If `git grep` cannot find it on this branch, do not claim it.*
-
-> **Documentation index:** [`docs/README.md`](docs/README.md)
+Delete routes whose documents were not generated. Index: [`docs/README.md`](docs/README.md).
 
 ## Project overview
 
-<project name> — <one sentence on what it is and what problem it solves>.
+<project name> — <one sentence>.
 
-- Stack: <language and version / framework / build tooling>
-- Package manager: **<pnpm / go mod / uv …>** <(and its enforcement mechanism, if any)>
-- Module path / package name: `<module path>`
-- Output: <binary / extension package / image …>
+- Stack: <language/framework/tooling and versions>
+- Package manager: <name and enforcement>
+- Module/package: `<name>`
+- Output: <artifact>
 
-## Engineering principles (non-negotiable)
+## Engineering principles
 
-Whatever the mechanisms in `docs/*` say, these hold. Where the scope is limited, say so in the entry.
+<!-- Keep only user-selected or scan-supported entries. Rewrite onto real repository seams. Tag each enforced by <gate> or review-only. -->
 
-<!-- Tag each entry "enforced by <gate>" or "review-only" — the review-only column is the
-     standing pool of guardrail candidates. Draw on these per project, preferring few and
-     accurate over many and hollow. Shape: conclusion (bold) + concrete form + why + link. -->
-
-- **TDD/BDD first — the failing test before any change to observable behaviour.** Describe it as `Given/When/Then` or `describe`/`it`, covering the happy path plus at least one edge or failure case **the contract genuinely owns** (the criterion is the gate in [`docs/testing.md`](docs/testing.md#covering-the-behaviour-space-deliberately) — a contract with no edge gets only the happy path, not a manufactured one). The two exceptions are in [`docs/testing.md`](docs/testing.md#exceptions-to-tdd) and are **not** a blanket rule by file or task category.
-
-- **Confirm the bug really exists before fixing it.** Reproduce it **with a failure reason matching the report**, fix the reproduction into a failing test, then change the implementation. When you cannot reproduce it, **say so plainly and stop** — do not fix a hallucinated bug.
-
-- **Fix the root cause, do not patch.** No guard at the consumer to paper over a bad value from the producer; normalise once at the boundary, not repeatedly at call sites. Refactoring **the unit you are changing** is in scope — a different thing from the drive-by refactoring banned below.
-
-- **Scope discipline — touch only what this task needs.** One change = the producer + its tests + at most one drive-by drift fix. **Banned**: smuggled-in refactors, rename sweeps, formatting, import reordering, unrelated test changes — they drown the real change and break `git bisect`. Unrelated mess gets **reported, not fixed in passing**. Three lines of similar code beat a premature abstraction.
-
-- **Reuse first — grep before writing.** Two parallel implementations drift within weeks. Decidable heuristics: a new file importing both a UI primitive **and** a data store is probably rebuilding <existing component>; copying more than 10 lines → extract it; the same fix in two similar blocks → **the second is a bug**, delete it and call the first. <This repository's shared entry points: components, hooks, utilities.>
-
-- **SOLID / high cohesion, low coupling — on this repository's own extension points.**
-  - <Adding an X → implement `<interface name>` and `Register()` it in `init()`; **do not `switch` on a type string in shared code**.>
-  - <Depend on interfaces through a getter; a service must not import another service's repository.>
-  - <Dependency direction is one-way: `A → B → C`; `<cross-cutting layer>` is a leaf.>
-  *<Enforced by `<check name>` since `<date>` (inside `<command>`); the exemption list **only shrinks**.>*
-
-- **No defensive code — a pointless fallback is a liability.** Defences for the impossible, swallowed errors and shims for retired data become noise nobody dares delete, while the real bug hides behind the guard.
-  - **Validate at boundaries only** — <this repository's boundaries: external input / IPC / plugin host calls>. Internal calls trust each other.
-  - **Do not swallow errors** — `catch { return defaultState }` masks failure and propagates dirty state.
-  - **Do not double-fallback a user-configurable field** — `value || "default"` overrides a deliberate empty value.
-  - **Do not leave runtime shims for retired data** — a migration runs once, so delete the field.
-
-- **Direct replacement beats an adapter sandwich.** When swapping a backend or library, **replace in place**; no `interface Foo + LegacyImpl + NewImpl` unless both coexist at runtime. A sandwich forces every call site to work out which layer it is on.
-
-- **Leave no dead code and no deletion markers.** Git remembers; delete it outright.
-
-- **Before adding a dependency, ask whether what exists can do it.** A permanent maintenance and security burden. When genuinely needed: lockfile committed, one package manager only (<enforcement mechanism>), and the PR explains why the existing approach was insufficient.
-
-- **Credentials and sensitive data stay out of the repository, the logs and the reports.** Secrets in `.env` (gitignored) or <secret management>. Redact before pasting anywhere. <This project's data red lines.>
-
-- **Critical paths must be observable.** <External calls / state changes / permission decisions / failure degradations> emit structured logs with a correlation id, so a failure can be reconstructed rather than guessed at. Details in [`docs/observability.md`](docs/observability.md).
+- **TDD first for observable behaviour.** [`docs/testing.md`](docs/testing.md) owns boundaries and exceptions. <enforcement tag>
+- **Reproduce a bug before fixing it.** Require a matching failure and root cause; otherwise stop. <enforcement tag>
+- **Fix the source boundary, not repeated consumers.** <project-specific seam and why>. <enforcement tag>
+- **Limit scope to the requested producer and its tests.** Report unrelated cleanup. <enforcement tag>
+- **Reuse `<project entry points>` before adding another implementation.** <decidable reuse rule and why>. <enforcement tag>
+- **Extend through `<interface/registry>`; do not branch in `<shared dispatcher>`.** <why>. <enforcement tag>
+- **Validate at `<external boundaries>`; propagate internal errors.** <why>. <enforcement tag>
+- **Replace `<old system>` directly unless both implementations coexist at runtime.** <why>. <enforcement tag>
+- **Keep credentials/personal data out of repository, logs and reports.** Use <approved mechanism/redaction>. <enforcement tag>
+- **Instrument `<critical flows>` through `<logger>` with correlation ids.** <enforcement tag>
 
 ## Architecture
 
-> **In depth:** [`docs/architecture.md`](docs/architecture.md) — layering, dependency direction, subsystems, the "how to add an X" recipes. Below is a quick map only.
+> Details: [`docs/architecture.md`](docs/architecture.md).
 
+```text
+<main modules/layers and call direction>
 ```
-<an ASCII diagram: the main modules / processes / layers, and the call direction>
-```
 
-- **<module A>** — <one-sentence responsibility>
-- **<module B>** — <one-sentence responsibility>
+- `<module>` — <responsibility>
 
-<!-- Every constraint below must be verifiable with git grep -->
 ### Key constraints
 
-- <Front end and back end communicate only via <IPC mechanism>; no new HTTP-style endpoints.>
-- <New migrations may only be appended to `<list>`; **modifying an existing migration is banned**.>
-- <Critical flows must log through `<logging entry point>`, prefix `<package.Method:>`, dynamic values in structured fields.>
-- <`<generated directory>` is generated output; regenerate with `<command>` rather than hand-editing.>
+- <decidable dependency rule and real paths/interfaces>
+- <migration/generated-output/logging rule and its gate>
