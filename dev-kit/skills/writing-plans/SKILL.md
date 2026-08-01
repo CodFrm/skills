@@ -64,8 +64,8 @@ Record `files` wide enough to include generated files, lockfiles, manifests, fix
 ## Cutting the tasks
 
 - Each task is one observable vertical slice and one complete RED → GREEN → REFACTOR round.
+- Prefer the largest independently reviewable slice that fits one context window. Combine adjacent work that shares an outcome and test setup; do not make a task for each file, function, test case or mechanical step.
 - Never split tests, types or layers into separate tasks.
-- Size each task to one context window.
 - Put every known ordering constraint in `deps`; list order has no meaning.
 - Put each cross-task interface/signature on the consuming task.
 - Do not manufacture tasks or concurrency. Unknown boundaries execute serially.
