@@ -396,7 +396,11 @@ function addressOf(node, key, label) {
 // Resolves every {key, value, vocab, label} field on one object into a line edit. All addresses
 // are found and all vocabularies checked before any edit is returned, so one invalid flag among
 // several leaves the whole set unresolved — the caller never sees a partial result to write.
-function resolveEdits(node, fields) {
+//
+// The replacement line reuses everything the original had left of the key rather than rebuilding
+// it as indentation: the first key of a task sits on the dash line, where those columns are `- `,
+// and spaces there would leave a plan whose tasks are no longer a list.
+function resolveEdits(doc, node, fields) {
   const entries = fields.map(f => {
     const entry = addressOf(node, f.key, f.label)
     if (f.vocab && !f.vocab.includes(f.value)) {
@@ -406,7 +410,8 @@ function resolveEdits(node, fields) {
   })
   return fields.map((f, i) => {
     const entry = entries[i]
-    return { line: entry.value.line, endLine: entry.value.endLine, text: `${' '.repeat(entry.indent)}${f.key}: ${encodeScalar(f.value)}` }
+    const prefix = doc.lines[entry.line - 1].slice(0, entry.indent)
+    return { line: entry.value.line, endLine: entry.value.endLine, text: `${prefix}${f.key}: ${encodeScalar(f.value)}` }
   })
 }
 
@@ -567,7 +572,7 @@ async function cmdPlan(argv, io = {}) {
         err(`devkit: plan set needs "status" or "mode", not "${field}"\n${USAGE}`)
         return 1
       }
-      await save(resolveEdits(doc.root, [{ key: field, value, vocab: vocabs[field], label: field }]))
+      await save(resolveEdits(doc, doc.root, [{ key: field, value, vocab: vocabs[field], label: field }]))
       return 0
     }
     if (sub === 'task') {
@@ -579,7 +584,7 @@ async function cmdPlan(argv, io = {}) {
       if (flags.commit !== undefined) fields.push({ key: 'commit', value: flags.commit, vocab: null, label: `task ${id}: commit` })
       if (flags.note !== undefined) fields.push({ key: 'note', value: flags.note, vocab: null, label: `task ${id}: note` })
       if (!fields.length) { err(`devkit: plan task needs --status, --commit or --note\n${USAGE}`); return 1 }
-      await save(resolveEdits(task, fields))
+      await save(resolveEdits(doc, task, fields))
       return 0
     }
     if (sub === 'review' || sub === 'verification') {
@@ -592,7 +597,7 @@ async function cmdPlan(argv, io = {}) {
         .filter(key => flags[key] !== undefined)
         .map(key => ({ key, value: flags[key], vocab: vocabs[key], label: `${sub}.${key}` }))
       if (!fields.length) { err(`devkit: plan ${sub} needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
-      await save(resolveEdits(entry.value, fields))
+      await save(resolveEdits(doc, entry.value, fields))
       return 0
     }
   } catch (e) { return fail(e) }

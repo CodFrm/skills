@@ -276,20 +276,20 @@ test('encodeScalar leaves a plain value unquoted and quotes what would misparse'
 
 test('resolveEdits addresses an inline scalar by its one line', () => {
   const doc = load('conforming.yaml')
-  const edits = resolveEdits(doc.root, [{ key: 'status', value: 'done', vocab: VOCAB.status, label: 'status' }])
+  const edits = resolveEdits(doc, doc.root, [{ key: 'status', value: 'done', vocab: VOCAB.status, label: 'status' }])
   assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'status: done' }])
 })
 
 test('resolveEdits addresses a folded block scalar by its whole span, in a real plan', () => {
   const doc = load('2026-08-01-dev-kit-evals.yaml')
   const nine = taskNodes(doc).find(t => textOf(t, 'id') === '9')
-  const edits = resolveEdits(nine, [{ key: 'note', value: 'Recut: superseding the prior note.', vocab: null, label: 'task 9: note' }])
+  const edits = resolveEdits(doc, nine, [{ key: 'note', value: 'Recut: superseding the prior note.', vocab: null, label: 'task 9: note' }])
   assert.deepEqual(edits, [{ line: 147, endLine: 152, text: '    note: "Recut: superseding the prior note."' }])
 })
 
 test('resolveEdits fails on an off-vocabulary value and addresses nothing', () => {
   const doc = load('conforming.yaml')
-  assert.throws(() => resolveEdits(doc.root, [{ key: 'status', value: 'dong', vocab: VOCAB.status, label: 'status' }]), err => {
+  assert.throws(() => resolveEdits(doc, doc.root, [{ key: 'status', value: 'dong', vocab: VOCAB.status, label: 'status' }]), err => {
     assert.ok(err instanceof PlanError)
     assert.match(err.message, /status/)
     assert.match(err.message, /dong/)
@@ -299,7 +299,7 @@ test('resolveEdits fails on an off-vocabulary value and addresses nothing', () =
 
 test('resolveEdits fails when the key is not in the object', () => {
   const doc = load('missing-keys.yaml')
-  assert.throws(() => resolveEdits(doc.root, [{ key: 'status', value: 'running', vocab: VOCAB.status, label: 'status' }]), err => {
+  assert.throws(() => resolveEdits(doc, doc.root, [{ key: 'status', value: 'running', vocab: VOCAB.status, label: 'status' }]), err => {
     assert.ok(err instanceof PlanError)
     assert.match(err.message, /not found/)
     return true
@@ -309,13 +309,13 @@ test('resolveEdits fails when the key is not in the object', () => {
 test('resolveEdits fails when the key is written twice, same as entryOf', () => {
   const doc = load('duplicate-keys.yaml')
   const task = taskNodes(doc)[0]
-  assert.throws(() => resolveEdits(task, [{ key: 'status', value: 'done', vocab: VOCAB.taskStatus, label: 'task 1: status' }]), PlanError)
+  assert.throws(() => resolveEdits(doc, task, [{ key: 'status', value: 'done', vocab: VOCAB.taskStatus, label: 'task 1: status' }]), PlanError)
 })
 
 test('resolveEdits validates every field before addressing any, so one bad value blocks the whole set', () => {
   const doc = load('conforming.yaml')
   const two = taskNodes(doc)[1]
-  assert.throws(() => resolveEdits(two, [
+  assert.throws(() => resolveEdits(doc, two, [
     { key: 'status', value: 'bogus', vocab: VOCAB.taskStatus, label: 'task 2: status' },
     { key: 'commit', value: 'deadbeef', vocab: null, label: 'task 2: commit' },
   ]), PlanError)
@@ -384,6 +384,22 @@ test('writing verification.note at the very end of the 106-line plan preserves e
   assertOnlySpanChanged(before, after, 102, 4, '  note: "Re-verified: after the recut."')
 })
 
+test('writing the key that sits on a task\'s dash line keeps the "- " that makes it a task', async () => {
+  // `- status: todo` puts a writable key in the item column. Rebuilding that column as indentation
+  // deletes the dash, and the plan then parses as a mapping with no tasks in it at all.
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'dashed.yaml')
+  const before = 'status: running\ntasks:\n  - status: todo\n    id: 1\n    deps: []\n'
+  fs.writeFileSync(file, before)
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'dashed'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assert.equal(after, before.replace('- status: todo', '- status: doing'))
+  assert.equal(taskNodes(parsePlan(after, 'dashed')).length, 1)
+})
+
 test('a write lands through a temp file and rename, leaving no stray file behind', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const { code } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
@@ -399,6 +415,7 @@ test('plan set status writes the plan status, and nothing else', async () => {
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   const { code, out, err } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
   assert.equal(err, '')
+  assert.equal(out, '')
   assert.equal(code, 0)
   assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'status').value.text, 'done')
 })
