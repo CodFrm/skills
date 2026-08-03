@@ -446,9 +446,15 @@ function resolveEdits(doc, node, fields) {
 // or several for an append (`text` as an array). Applied highest line first so an earlier
 // multi-line span (a folded scalar collapsing to one line, or a block appended below) cannot shift
 // the still-pending addresses below it.
+//
+// Two edits share a line when an append lands directly above a scalar the same command rewrites
+// (`review --status ... --fix ...` on a fixes list that ends just above `status:`). The
+// replacement has to go first: an insertion there shifts the line the replacement addressed, which
+// would then land on the item just inserted. Ordering by the wider span settles that here rather
+// than leaving it to the order the caller happened to build the two edits in.
 function applyEdits(lines, edits) {
   const out = lines.slice()
-  for (const e of [...edits].sort((a, b) => b.line - a.line)) {
+  for (const e of [...edits].sort((a, b) => b.line - a.line || b.endLine - a.endLine)) {
     out.splice(e.line - 1, e.endLine - e.line + 1, ...(Array.isArray(e.text) ? e.text : [e.text]))
   }
   return out
@@ -495,8 +501,9 @@ function resolveAppend(doc, node, key, label, render, limit = Infinity) {
   const entry = entryOf(node, key)
   if (!entry) throw new PlanError(`${label}: not found, so it cannot be written`, node.line)
   const seq = entry.value
-  if (seq.kind !== 'seq' || (seq.inline && seq.items.length)) {
-    throw new PlanError(`${label}: is not a list this command can append to`, entry.line)
+  if (seq.kind !== 'seq') throw new PlanError(`${label}: is not a list, so it cannot be appended to`, entry.line)
+  if (seq.inline && seq.items.length) {
+    throw new PlanError(`${label}: is a non-empty inline list; rewrite it as a block list before appending`, entry.line)
   }
   if (seq.items.length >= limit) {
     throw new PlanError(`${label}: already has ${seq.items.length}, the limit is ${limit}`, entry.line)
@@ -564,7 +571,7 @@ const SUBS = {
   task: { flags: ['--plan', '--status', '--commit', '--note'], positional: ['id'] },
   review: { flags: ['--plan', '--status', '--fix'] },
   context: { flags: ['--plan', '--add'] },
-  evidence: { flags: ['--plan', '--tasks', '--head', '--source', '--writes', '--dependencies', '--resources', '--verification'] },
+  evidence: { flags: ['--plan', ...KEYS.evidence.map(k => `--${k}`)] },
   verification: { flags: ['--plan', '--status', '--report', '--head', '--note'] },
 }
 const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|evidence|verification> [--plan <slug>] ...`
@@ -576,7 +583,9 @@ const FIXES_LIMIT = 2
 
 const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeScalar(value)}`]
 
-const EVIDENCE_FIELDS = ['tasks', 'head', 'source', 'writes', 'dependencies', 'resources', 'verification']
+// The seven boundary flags are the seven keys checkPlan grades a parallel_evidence entry against;
+// a second copy would drift, and the entry it drifted on is the one this command wrote.
+const EVIDENCE_FIELDS = KEYS.evidence
 
 const evidenceItem = flags => itemIndent => {
   const dash = ' '.repeat(itemIndent)

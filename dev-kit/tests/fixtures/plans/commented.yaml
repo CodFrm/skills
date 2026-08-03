@@ -18,11 +18,11 @@ tasks:
     commit: null
     note: null
 
-parallel_evidence: []
+parallel_evidence: []         # executing-plans writes immediately before each parallel dispatch
 
 review:
   status: pending             # pending → passed | stopped
-  fixes: []
+  fixes: []                   # up to two wrap-up fixer SHAs
 
 verification:
   status: pending             # pending → running → reported → accepted | blocked

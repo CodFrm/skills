@@ -25,7 +25,7 @@ const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 
 const {
-  VOCAB, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
+  VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
   encodeScalar, resolveEdits, applyEdits, resolveAppend,
 } = require('../lib/plan')
 
@@ -426,6 +426,20 @@ test('applyEdits folds a multi-line span down to the one new line, shifting what
   assert.deepEqual(out.slice(147), doc.lines.slice(152))
 })
 
+// `review --status ... --fix ...` on a plan whose fixes list ends directly above `status:` gives
+// both edits the same `line`: the replacement rewrites that line, the insertion goes in front of
+// it. Insertion first shifts the line the replacement addressed, and the replacement then lands on
+// the item just inserted — one `status:` written twice, the fix gone. The order must not depend on
+// which one the caller happened to push first.
+test('applyEdits puts a same-line replacement before an insertion, whichever order it is handed', () => {
+  const lines = ['review:', '  fixes:', '    - abc1234', '  status: pending']
+  const replace = { line: 4, endLine: 4, text: '  status: passed' }
+  const insert = { line: 4, endLine: 3, text: ['    - def5678'] }
+  const expected = ['review:', '  fixes:', '    - abc1234', '    - def5678', '  status: passed']
+  assert.deepEqual(applyEdits(lines, [replace, insert]), expected)
+  assert.deepEqual(applyEdits(lines, [insert, replace]), expected)
+})
+
 // --- resolveAppend: the second write shape, an insertion instead of a replacement --------------
 
 test('resolveAppend converts an inline empty list into block form, on the key\'s own line', () => {
@@ -508,6 +522,55 @@ test('resolveAppend fails when the key is not in the object', () => {
   assert.throws(() => resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "x"`]), err => {
     assert.ok(err instanceof PlanError)
     assert.match(err.message, /not found/)
+    return true
+  })
+})
+
+// A folded item's dash line is not where it ends. Inserting after that line alone would put the
+// new dash inside somebody's prose.
+test('resolveAppend inserts after the last line of a folded item, not after its dash line', () => {
+  const doc = parsePlan([
+    'status: running',
+    'context:',
+    '  - >-',
+    '    a verified fact folded',
+    '    across two lines',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const edit = resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "next"`])
+  assert.deepEqual(edit, { line: 6, endLine: 5, text: ['  - "next"'] })
+})
+
+test('resolveAppend refuses a key that is present but is not a list', () => {
+  const doc = parsePlan(['status: running', 'context:', 'tasks:', '  - id: 1', '    status: todo'].join('\n'), 'inline')
+  assert.throws(() => resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "x"`]), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /not a list/)
+    return true
+  })
+})
+
+// Only `[]` has a conversion the append is allowed to make. A hand-written `[a, b]` would have to
+// be rewritten line for line, and guessing at that is decision 7's "never guess" — but the refusal
+// has to say which shape it is refusing, or there is nothing for the caller to act on.
+test('resolveAppend names the shape when it refuses a non-empty inline list', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    'review:',
+    '  status: pending',
+    '  fixes: [abc1234]',
+  ].join('\n'), 'inline')
+  const review = entryOf(doc.root, 'review').value
+  assert.throws(() => resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- deadbee`], 2), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /inline list/)
+    assert.equal(err.line, 7)
     return true
   })
 })
@@ -877,6 +940,17 @@ test('plan context needs --add', async () => {
   assert.match(err, /--add/)
 })
 
+// The second run reads the file the first one wrote: its list is now one item longer, and the new
+// address is below that item, not on it.
+test('two appends in a row leave both entries, the second after the first', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  assert.equal((await run(cwd, ['context', '--add', 'first added', '--plan', 'live'])).code, 0)
+  assert.equal((await run(cwd, ['context', '--add', 'second added', '--plan', 'live'])).code, 0)
+  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'context').value
+  assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'first added', 'second added'])
+})
+
 test('plan review --fix converts the inline empty fixes: [] into block form', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
@@ -896,6 +970,38 @@ test('plan review --status and --fix together write both, or neither', async () 
   const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
   assert.equal(entryOf(review, 'status').value.text, 'passed')
   assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234'])
+})
+
+// Both edits address the same line here: the insertion goes in front of `status:`, the replacement
+// rewrites it. Getting that pair backwards writes `status:` twice and drops the fix.
+test('plan review --status and --fix land together when the fixes list ends right above status', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'above.yaml')
+  fs.writeFileSync(file, ['status: running', 'tasks:', '  - id: 1', '    status: todo', '    deps: []', '', 'review:', '  fixes:', '    - abc1234', '  status: pending', ''].join('\n'))
+  const { code, err } = await run(cwd, ['review', '--status', 'passed', '--fix', 'def5678', '--plan', 'above'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'above').root, 'review').value
+  assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234', 'def5678'])
+  assert.equal(entryOf(review, 'status').value.text, 'passed')
+})
+
+test('appending to a template-shaped plan keeps the legend on the [] line it converts', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, 'commented.yaml'), 'utf8')
+  const cwd = project({ tpl: 'commented.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'tpl.yaml')
+  const { code, err } = await run(cwd, ['review', '--fix', 'abc1234', '--plan', 'tpl'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const beforeLines = before.split('\n')
+  const afterLines = fs.readFileSync(file, 'utf8').split('\n')
+  const legend = beforeLines[24].slice('  fixes: []'.length)
+  assert.notEqual(legend.trim(), '', 'the fixture must carry the template legend this test is about')
+  assert.deepEqual(afterLines.slice(0, 24), beforeLines.slice(0, 24))
+  assert.equal(afterLines[24], `  fixes:${legend}`)
+  assert.equal(afterLines[25], '    - abc1234')
+  assert.deepEqual(afterLines.slice(26), beforeLines.slice(25))
 })
 
 // Shared by the two tests below: a plan whose review.fixes is already at the two-fixer cap.
@@ -974,6 +1080,20 @@ test('plan evidence fails naming exactly the missing flags, and writes nothing',
   assert.doesNotMatch(err, /--tasks/)
   assert.doesNotMatch(err, /--head/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+// The seven flags and the seven keys check grades a parallel_evidence entry against are one list.
+// Two copies drift, and the drifted entry is the one this command just wrote.
+test('the entry plan evidence writes is one plan check finds no improvised key in', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const argv = ['evidence']
+  for (const key of KEYS.evidence) argv.push(`--${key}`, `a ${key} boundary`)
+  argv.push('--plan', 'live')
+  assert.equal((await run(cwd, argv)).code, 0)
+  const { code, out, err } = await run(cwd, ['check', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.doesNotMatch(out, /parallel_evidence/)
 })
 
 test('bin/devkit plan context appends through the real CLI', () => {
