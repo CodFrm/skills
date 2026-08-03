@@ -1,0 +1,46 @@
+spec: docs/specs/2026-08-02-duplicate.md
+status: running
+mode: inline
+worktree: .dev-kit/worktrees/duplicate
+
+goal: "A plan where one task carries status twice and two tasks answer to id 2"
+
+tasks:
+  - id: 1
+    goal: "Two status lines in one task"
+    deps: []
+    files: [src/a.js]
+    model: mid
+    interfaces: null
+    status: todo
+    commit: null
+    status: done
+    note: null
+  - id: 2
+    goal: "First claimant of id 2"
+    deps: []
+    files: [src/b.js]
+    model: mid
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+  - id: 2
+    goal: "Second claimant of id 2"
+    deps: []
+    files: [src/c.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: null
+    note: null
+
+review:
+  status: pending
+  fixes: []
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null

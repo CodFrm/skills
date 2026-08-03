@@ -1,0 +1,105 @@
+spec: docs/specs/2026-07-31-pi-subagent-integration.md
+status: done
+mode: inline
+worktree: .dev-kit/worktrees/2026-07-31-pi-subagent-integration
+
+goal: >-
+  Installing the optional local Pi package and reloading exposes a model-selectable,
+  profile-bounded subagent tool, while the base dev-kit package still routes Pi to inline.
+
+context:
+  - "The approved spec is committed as a1feb4d and owns the package boundary, dispatch contract, failure semantics, and accepted test seams at docs/specs/2026-07-31-pi-subagent-integration.md:3-132."
+  - "The base Pi package manifest exposes only ./.pi/extensions/dev-kit.ts and ./skills at dev-kit/package.json:23-27, so the optional package must remain outside that manifest."
+  - "The current Pi mapping declares native dispatch unavailable and forbids recursive shell-launched Pi, while allowing an installed delegation tool to be mapped from its actual schema at dev-kit/skills/using-dev-kit/references/pi-tools.md:14-16."
+  - "Plan model values are relative tiers resolved at dispatch time, never model ids, at dev-kit/skills/writing-plans/SKILL.md:101-115."
+  - "The existing Pi tests load a TypeScript extension through a fake ExtensionAPI at dev-kit/tests/pi-extension.test.js:22-39, and the current mapping assertions live at dev-kit/tests/platform-tools.test.js:36-44."
+  - "Pi package local-path installation is documented at /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/docs/packages.md:27,107-133, and bundled Pi/typebox imports belong in peerDependencies at that file's line 171."
+  - "The installed upstream is @earendil-works/pi-coding-agent 0.82.1 (`node -p require(...).version`), whose examples/extensions/subagent/index.ts:4-36 defines isolated subprocesses, three modes, eight tasks, four concurrent, and a 50KB per-task cap."
+  - "The upstream runner uses `--mode json -p --no-session` and abort propagation at /opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/examples/extensions/subagent/index.ts:294-408; its renderers begin at lines 700 and 744."
+  - "`pi list` in this workspace reports only pi-smart-compact and the base dev-kit package, so this session exposes no installed delegation tool and the ready gate must select inline."
+  - "The baseline command `node --test dev-kit/tests/*.test.js` passed 64/64 before implementation on commit a1feb4d."
+
+tasks:
+  - id: 1
+    goal: >-
+      Given the optional package path and one valid single-task request, loading the package
+      registers `subagent`, launches one fresh Pi process with the selected profile, model,
+      thinking, cwd, and inherited trust boundary, and returns its final output or exact failure evidence.
+    deps: []
+    files:
+      - dev-kit/.pi/extensions/subagent/package.json
+      - dev-kit/.pi/extensions/subagent/subagent.ts
+      - dev-kit/.pi/extensions/subagent/lib/
+      - dev-kit/tests/pi-subagent-single.test.js
+      - dev-kit/tests/fixtures/fake-pi.js
+    model: strong
+    interfaces: null
+    status: done
+    commit: f5401dc
+    note: null
+
+  - id: 2
+    goal: >-
+      Given valid parallel or chain input, the same tool enforces eight queued tasks and four
+      concurrent processes, preserves every sibling result, substitutes only successful previous
+      output, and aborts unfinished children without losing completed evidence.
+    deps: [1]
+    files:
+      - dev-kit/.pi/extensions/subagent/subagent.ts
+      - dev-kit/.pi/extensions/subagent/lib/
+      - dev-kit/tests/pi-subagent-modes.test.js
+      - dev-kit/tests/fixtures/fake-pi.js
+    model: mid
+    interfaces: null
+    status: done
+    commit: 57597e5
+    note: null
+
+  - id: 3
+    goal: >-
+      Given streaming single, parallel, or chain events, the tool presents official-style compact
+      and expanded progress with per-task usage, errors, model identity, and 50KB parent-context truncation.
+    deps: [2]
+    files:
+      - dev-kit/.pi/extensions/subagent/subagent.ts
+      - dev-kit/.pi/extensions/subagent/lib/render.ts
+      - dev-kit/.pi/extensions/subagent/lib/modes.ts
+      - dev-kit/.pi/extensions/subagent/lib/types.ts
+      - dev-kit/tests/pi-subagent-render.test.js
+    model: mid
+    interfaces: null
+    status: done
+    commit: 44a1697
+    note: null
+
+  - id: 4
+    goal: >-
+      Given base dev-kit alone or the optional package installed, the Pi mapping, tests, attribution,
+      and install documentation make the ready gate choose only inline in the first case and offer
+      subagent in the second without asking for agent files or persistent model mappings.
+    deps: []
+    files:
+      - README.md
+      - dev-kit/README.md
+      - dev-kit/.pi/extensions/subagent/README.md
+      - dev-kit/.pi/extensions/subagent/NOTICE.md
+      - dev-kit/skills/using-dev-kit/references/pi-tools.md
+      - dev-kit/tests/platform-tools.test.js
+    model: cheap
+    interfaces: null
+    status: done
+    commit: 2d9f4c2
+    note: null
+
+review:
+  status: done
+  fix: a000259
+
+verification:
+  status: passed
+  report: e2e/scratch/2026-07-31-pi-subagent-integration/report.md
+  head: a000259
+  note: >-
+    Fresh local-path install/load/execute/remove verification passed without provider requests;
+    base-only and post-remove loaders exposed no subagent, the optional loader did, and no agent
+    profile or persistent model mapping was created.
