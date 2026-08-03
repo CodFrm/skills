@@ -1290,3 +1290,15 @@ test('bin/devkit plan carries the exit code of an async command', () => {
   assert.throws(() => devkit(['plan', 'check', '--plan', 'pi'], { stdio: 'pipe' }), e => e.status === 1)
   assert.match(devkit(['help']), /devkit plan/)
 })
+
+test('devkit help names every plan subcommand the CLI accepts', async () => {
+  // The list comes from lib/plan.js's own usage line rather than being written out again here: a
+  // subcommand added there and forgotten in HELP is the drift this catches.
+  let usage = ''
+  await cmdPlan([], { err: s => { usage += s } })
+  const subs = /devkit plan <([a-z|]+)>/.exec(usage)[1].split('|')
+  assert.ok(subs.length > 3, usage)
+
+  const help = execFileSync(process.execPath, [BIN, 'help'], { encoding: 'utf8' })
+  for (const sub of subs) assert.match(help, new RegExp(`devkit plan ${sub}\\b`), sub)
+})

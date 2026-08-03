@@ -17,6 +17,8 @@ The main session is the orchestrator:
 3. In `subagent` mode it never reviews source, commit content or diffs. It decides only from structured implementer/reviewer/verifier results and mechanical SHA/state checks. An insufficient report triggers a fresh reviewer or verifier; the main session never fills the review gap.
 4. Work is not complete in the context that produced it: task/batch review → two-axis static wrap-up → fresh runtime verification.
 
+When `devkit` is available, its `plan` subcommands read and write the plan; otherwise edit the YAML directly.
+
 ## Resume state
 
 - `doing`: recover its SHA mechanically from history. If ambiguous, dispatch a read-only scout that identifies the commit without judging it. Recovered → `reviewing`; otherwise → `todo`.
