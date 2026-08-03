@@ -239,9 +239,14 @@ function taskNode(doc, id) {
   return found[0] || null
 }
 
+// `ids: null` for a deps that is written as something other than a list: it names a dependency
+// this reader cannot enumerate, and reading it as the empty list would call the task ready.
 const depsOf = node => {
   const e = entryOf(node, 'deps')
-  return e && e.value.kind === 'seq' ? { line: e.line, ids: e.value.items.map(i => i.text) } : { line: node.line, ids: [] }
+  if (!e) return { line: node.line, ids: [] }
+  if (e.value.kind === 'seq') return { line: e.line, ids: e.value.items.map(i => i.text) }
+  if (e.value.kind === 'scalar' && e.value.text === null) return { line: e.line, ids: [] }
+  return { line: e.line, ids: null }
 }
 
 // Ready is `status: todo` with every dep `done` — executing-plans/SKILL.md's definition.
@@ -256,6 +261,7 @@ function readyTasks(doc) {
   const ready = []
   for (const t of tasks) {
     const { line, ids } = depsOf(t)
+    if (ids === null) throw new PlanError(`task ${textOf(t, 'id')} wrote deps as a value, not a list of task ids`, line)
     for (const dep of ids) {
       if (!status.has(dep)) throw new PlanError(`task ${textOf(t, 'id')} depends on task ${dep}, which this plan does not have`, line)
     }
@@ -308,9 +314,13 @@ function checkPlan(doc) {
   const tasksEntry = guard(() => entryOf(root, 'tasks'))
   if (tasksEntry === null) fail(root.line, 'tasks: missing')
   else if (tasksEntry && tasksEntry.value.kind !== 'seq') fail(tasksEntry.line, 'tasks: not a list of tasks')
+  else if (tasksEntry) {
+    for (const item of tasksEntry.value.items) if (item.kind !== 'map') fail(item.line, 'task: not a mapping, so it has no id')
+  }
 
+  const tasks = guard(() => taskNodes(doc)) || []
   const ids = new Map()
-  for (const t of taskNodes(doc)) {
+  for (const t of tasks) {
     const id = guard(() => textOf(t, 'id'))
     const label = id ? `task ${id}: ` : 'task: '
     known(t, label, KEYS.task)
@@ -322,11 +332,13 @@ function checkPlan(doc) {
     vocab(t, 'status', `${label}status`, VOCAB.taskStatus, { required: true })
   }
   // Second pass: a dep may name a task cut further down the file.
-  for (const t of taskNodes(doc)) {
-    const { line, ids: deps } = depsOf(t)
+  for (const t of tasks) {
+    const d = guard(() => depsOf(t))
+    if (d === undefined) continue  // deps has no address; known() reported that above
     const label = guard(() => textOf(t, 'id')) || '?'
-    for (const dep of deps) {
-      if (!ids.has(dep)) fail(line, `task ${label}: deps names task ${dep}, which this plan does not have`)
+    if (d.ids === null) { fail(d.line, `task ${label}: deps is not a list of task ids`); continue }
+    for (const dep of d.ids) {
+      if (!ids.has(dep)) fail(d.line, `task ${label}: deps names task ${dep}, which this plan does not have`)
     }
   }
 
@@ -356,10 +368,12 @@ async function findPlans(planDir) {
   for (const name of names) {
     const file = await resolveInside(planDir, name)
     if (!file) continue
+    // What cannot be read as a file is not a plan — a directory named *.yaml above all, which
+    // otherwise counts as a candidate here and then fails as EISDIR wherever it is opened.
+    let text
+    try { text = await fsp.readFile(file, 'utf8') } catch { continue }
     let status = null
-    try {
-      status = textOf(parsePlan(await fsp.readFile(file, 'utf8'), name).root, 'status')
-    } catch { status = null }
+    try { status = textOf(parsePlan(text, name).root, 'status') } catch { status = null }
     plans.push({ slug: name.replace(/\.yaml$/, ''), name, file, status })
   }
   return plans
@@ -408,9 +422,10 @@ async function cmdPlan(argv, io = {}) {
   let chosen
   if (flags.plan !== undefined) {
     const slug = flags.plan.replace(/\.yaml$/, '')
-    const file = await resolveInside(planDir, `${slug}.yaml`)
-    if (!file) { err(`devkit: no plan "${slug}" in ${PLANS}/${plans.length ? ` (have ${plans.map(p => p.slug).join(', ')})` : ''}`); return 1 }
-    chosen = { slug, name: path.basename(file), file }
+    // The slug picks one of the files just enumerated, so nothing typed here is ever joined into
+    // a path: every candidate came out of readdir and through resolveInside already.
+    chosen = plans.find(p => p.slug === slug)
+    if (!chosen) { err(`devkit: no plan "${slug}" in ${PLANS}/${plans.length ? ` (have ${plans.map(p => p.slug).join(', ')})` : ''}`); return 1 }
   } else {
     const live = plans.filter(p => p.status !== 'done')
     if (live.length !== 1) {

@@ -1,0 +1,51 @@
+spec: docs/specs/2026-08-02-off-shape.md
+status: running
+mode: inline
+worktree: .dev-kit/worktrees/off-shape
+
+goal: "A plan whose tasks list holds shapes that have no address"
+
+context: []
+
+tasks:
+  - id: 1
+    goal: "Done already"
+    deps: []
+    files: [src/a.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: abc1234
+    note: null
+  - id: 2
+    goal: "deps written as a value, not a list"
+    deps: 1
+    files: [src/b.js]
+    model: mid
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+  - id: 3
+    goal: "deps written twice"
+    deps: []
+    files: [src/c.js]
+    model: mid
+    interfaces: null
+    deps: [1]
+    status: todo
+    commit: null
+    note: null
+  - a fourth task nobody wrote as a mapping
+
+parallel_evidence: []
+
+review:
+  status: pending
+  fixes: []
+
+verification:
+  status: passed
+  report: null
+  head: null
+  note: null

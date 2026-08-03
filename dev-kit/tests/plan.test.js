@@ -185,6 +185,16 @@ test('a dep on a task nobody cut fails and says which', () => {
   })
 })
 
+test('a deps that is not a list is refused, not read as no deps', () => {
+  // `deps: 1` names a dependency. Reading it as the empty list calls task 2 ready while task 1
+  // is unfinished, which is the one answer `next` exists to get right.
+  assert.throws(() => readyTasks(load('off-shape-tasks.yaml')), err => {
+    assert.ok(err instanceof PlanError)
+    assert.equal(err.line, 22)
+    return true
+  })
+})
+
 // --- check -------------------------------------------------------------------------------------
 
 const lines = list => list.map(p => p.line)
@@ -234,6 +244,18 @@ test('check reports a dangling dep as an error', () => {
   assert.deepEqual(lines(errors), [22])
 })
 
+test('one unaddressable task does not swallow the rest of the report', () => {
+  // A scalar deps on task 2, a deps written twice on task 3, a list item that is not a task at
+  // all, and an off-vocabulary value after all three: check is the whole-file pass, so the ones
+  // it cannot address must be reported rather than end it.
+  const { errors, notes } = checkPlan(load('off-shape-tasks.yaml'))
+  assert.deepEqual(lines(errors), [22, 35, 39, 48])
+  assert.deepEqual(notes, [])
+  assert.match(errors[0].message, /deps/)
+  assert.match(errors[1].message, /deps/)
+  assert.match(errors[3].message, /verification\.status/)
+})
+
 // --- commands ----------------------------------------------------------------------------------
 
 test('plan next prints the id and goal of every ready task', async () => {
@@ -256,6 +278,14 @@ test('plan next fails on a dangling dep', async () => {
   const { code, err } = await run(cwd, ['next'])
   assert.equal(code, 1)
   assert.match(err, /dangling\.yaml:22/)
+})
+
+test('plan next names no task ready on a deps it cannot read', async () => {
+  const cwd = project({ 'off-shape': 'off-shape-tasks.yaml' })
+  const { code, out, err } = await run(cwd, ['next'])
+  assert.equal(code, 1)
+  assert.equal(out, '')
+  assert.match(err, /off-shape\.yaml:22/)
 })
 
 test('plan show prints the state summary', async () => {
@@ -343,6 +373,17 @@ test('--plan takes the slug, with or without the extension', async () => {
   const cwd = project({ live: 'conforming.yaml', 'also-live': 'extra-keys.yaml' })
   assert.equal((await run(cwd, ['show', '--plan', 'live'])).code, 0)
   assert.equal((await run(cwd, ['show', '--plan', 'live.yaml'])).code, 0)
+})
+
+test('a directory whose name ends in .yaml is not a plan', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans', 'adir.yaml'))
+  const listed = await run(cwd, ['show'])
+  assert.equal(listed.code, 0)
+  assert.match(listed.out, /^plan: live$/m)
+  const named = await run(cwd, ['show', '--plan', 'adir'])
+  assert.equal(named.code, 1)
+  assert.match(named.err, /adir/)
 })
 
 test('a slug that is not there fails saying so', async () => {
