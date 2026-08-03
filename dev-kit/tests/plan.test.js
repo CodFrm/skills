@@ -274,10 +274,48 @@ test('encodeScalar leaves a plain value unquoted and quotes what would misparse'
   assert.equal(encodeScalar('line one\nline two'), '"line one\\nline two"')
 })
 
-test('resolveEdits addresses an inline scalar by its one line', () => {
+test('resolveEdits addresses an inline scalar by its one line and keeps its trailing comment', () => {
   const doc = load('conforming.yaml')
   const edits = resolveEdits(doc, doc.root, [{ key: 'status', value: 'done', vocab: VOCAB.status, label: 'status' }])
-  assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'status: done' }])
+  assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'status: done               # draft → ready → running → done | stopped' }])
+})
+
+test('resolveEdits leaves a value with no trailing comment exactly as before', () => {
+  const doc = load('conforming.yaml')
+  const two = taskNodes(doc)[1]
+  const edits = resolveEdits(doc, two, [{ key: 'status', value: 'doing', vocab: VOCAB.taskStatus, label: 'task 2: status' }])
+  assert.deepEqual(edits, [{ line: 33, endLine: 33, text: '    status: doing' }])
+})
+
+test('resolveEdits finds the comment boundary from the value\'s parsed extent, not by scanning for #', () => {
+  // The note is a quoted value that itself contains "#", followed by a real trailing comment.
+  // A write that rescanned this raw line for "#" would cut inside the quoted value; the boundary
+  // has to come from where decodeScalar already knows the quote closes.
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: "issue #42 needs a fix"   # filed by triage',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const task = taskNodes(doc)[0]
+  const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
+  assert.deepEqual(edits, [{ line: 5, endLine: 5, text: '    note: still open   # filed by triage' }])
+})
+
+test('resolveEdits leaves no spurious comment when a quoted value containing # has none of its own', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: "issue #42 needs a fix"',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const task = taskNodes(doc)[0]
+  const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
+  assert.deepEqual(edits, [{ line: 5, endLine: 5, text: '    note: still open' }])
 })
 
 test('resolveEdits addresses a folded block scalar by its whole span, in a real plan', () => {
@@ -406,6 +444,86 @@ test('a write lands through a temp file and rename, leaving no stray file behind
   assert.equal(code, 0)
   const names = fs.readdirSync(path.join(cwd, '.dev-kit', 'plans'))
   assert.deepEqual(names, ['live.yaml'])
+})
+
+// commented.yaml copies writing-plans/SKILL.md's own template, whose four writable `status:`
+// lines all carry a state legend as a trailing comment. Neither real plan fixture has one.
+test('writing the plan status in a plan shaped like the template keeps its state legend', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, 'commented.yaml'), 'utf8')
+  const cwd = project({ tpl: 'commented.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'tpl.yaml')
+  const { code, err } = await run(cwd, ['set', 'status', 'running', '--plan', 'tpl'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 2, 1, 'status: running                 # draft → ready → running → done | stopped')
+})
+
+test('writing a task status in a plan shaped like the template keeps its state legend', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, 'commented.yaml'), 'utf8')
+  const cwd = project({ tpl: 'commented.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'tpl.yaml')
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'tpl'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 17, 1, '    status: doing              # todo → doing → reviewing → done | blocked')
+})
+
+test('writing review.status and verification.status each keep their own state legend', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, 'commented.yaml'), 'utf8')
+  const cwd = project({ tpl: 'commented.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'tpl.yaml')
+  assert.equal((await run(cwd, ['review', '--status', 'passed', '--plan', 'tpl'])).code, 0)
+  assert.equal((await run(cwd, ['verification', '--status', 'running', '--plan', 'tpl'])).code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  const afterLines = after.split('\n')
+  assert.equal(afterLines[23], '  status: passed             # pending → passed | stopped')
+  assert.equal(afterLines[27], '  status: running             # pending → running → reported → accepted | blocked')
+  const beforeLines = before.split('\n')
+  assert.deepEqual(afterLines.slice(0, 23), beforeLines.slice(0, 23))
+  assert.deepEqual(afterLines.slice(24, 27), beforeLines.slice(24, 27))
+  assert.deepEqual(afterLines.slice(28), beforeLines.slice(28))
+})
+
+// The write path is decision 8's temp-file-plus-rename inside writePlanFile; a filesystem error
+// there must exit the same clean way as every other failure (decision 12), not as an unhandled
+// rejection — bin/devkit's promise chain has no .catch, so any rejection it sees is a crash.
+test('a filesystem error while writing exits cleanly through cmdPlan, and the plan is untouched', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const dir = path.join(cwd, '.dev-kit', 'plans')
+  const file = path.join(dir, 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  fs.chmodSync(dir, 0o500)
+  try {
+    const { code, err } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
+    assert.equal(code, 1)
+    assert.match(err, /^devkit: /)
+  } finally {
+    fs.chmodSync(dir, 0o700)
+  }
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('a filesystem error while writing, through the real CLI, prints no stack trace', () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const dir = path.join(cwd, '.dev-kit', 'plans')
+  const file = path.join(dir, 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  fs.chmodSync(dir, 0o500)
+  let caught
+  try {
+    execFileSync(process.execPath, [BIN, 'plan', 'set', 'status', 'done', '--plan', 'live'], { cwd, encoding: 'utf8', stdio: 'pipe' })
+  } catch (e) {
+    caught = e
+  } finally {
+    fs.chmodSync(dir, 0o700)
+  }
+  assert.ok(caught, 'expected a non-zero exit')
+  assert.notEqual(caught.status, 0)
+  assert.match(caught.stderr, /^devkit: /)
+  assert.doesNotMatch(caught.stderr, /\n\s+at /)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
 // --- writing: the commands ------------------------------------------------------------------

@@ -55,7 +55,9 @@ const KEY_RE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+([\s\S]*))?$/
 const ITEM_RE = /^-(?:[ \t]+([\s\S]*))?$/
 const BLOCK_RE = /^[>|][-+]?\d*$/
 
-const scalar = (line, endLine, text, style) => ({ kind: 'scalar', line, endLine, text, style })
+// `comment` is the trailing text after the value, verbatim (including its leading blanks), or ''
+// when there is none — a write reuses it untouched instead of rescanning the line for `#`.
+const scalar = (line, endLine, text, style, comment = '') => ({ kind: 'scalar', line, endLine, text, style, comment })
 
 function indentOf(raw, lineNo) {
   const m = /^[ ]*/.exec(raw)[0].length
@@ -139,7 +141,8 @@ function parseValue(st, rest, keyIndent, keyLine) {
   if (head[0] === '>' || head[0] === '|') return parseBlockScalar(st, head, keyIndent, keyLine)
   if (head[0] === '[') return parseInlineSeq(head, keyLine)
   if (head[0] === '{') throw new PlanError('a flow mapping is not part of the plan shape', keyLine)
-  return scalar(keyLine, keyLine, decodeScalar(head, keyLine), 'inline')
+  const { value, comment } = decodeScalar(head, keyLine)
+  return scalar(keyLine, keyLine, value, 'inline', comment)
 }
 
 function parseBlockScalar(st, head, keyIndent, keyLine) {
@@ -174,10 +177,14 @@ function parseInlineSeq(head, keyLine) {
   const m = /^\[([^[\]{}]*)\](?:[ \t]+#.*)?$/.exec(head)
   if (!m) throw new PlanError('an inline list must open and close on one line, without nesting', keyLine)
   const inner = m[1].trim()
-  const items = inner === '' ? [] : inner.split(',').map(s => scalar(keyLine, keyLine, decodeScalar(s.trim(), keyLine), 'inline'))
+  const items = inner === '' ? [] : inner.split(',').map(s => scalar(keyLine, keyLine, decodeScalar(s.trim(), keyLine).value, 'inline'))
   return { kind: 'seq', line: keyLine, indent: null, inline: true, items }
 }
 
+// Returns the decoded value and, verbatim, whatever trails it on the line — '' or a run of blanks
+// followed by `# ...`. The split is the boundary the value's own grammar already defines (a
+// quote's close, or the first run of blanks before `#`), so a write can reuse it exactly instead
+// of scanning the raw line for `#` again, which would be fooled by a `#` the value itself contains.
 function decodeScalar(raw, line) {
   const s = raw.replace(/\r$/, '')
   if (s[0] === '"' || s[0] === "'") {
@@ -193,12 +200,15 @@ function decodeScalar(raw, line) {
       text += s[i]
     }
     if (i >= s.length) throw new PlanError('a quoted value that never closes', line)
-    const tail = s.slice(i + 1).trim()
+    const comment = s.slice(i + 1)
+    const tail = comment.trim()
     if (tail !== '' && !tail.startsWith('#')) throw new PlanError('trailing text after a quoted value', line)
-    return text
+    return { value: text, comment }
   }
-  const plain = s.split(/[ \t]+#/)[0].trim()
-  return plain === '' || plain === 'null' || plain === '~' ? null : plain
+  const m = /[ \t]+#/.exec(s)
+  const plain = (m ? s.slice(0, m.index) : s).trim()
+  const comment = m ? s.slice(m.index) : ''
+  return { value: plain === '' || plain === 'null' || plain === '~' ? null : plain, comment }
 }
 
 function parsePlan(text, file) {
@@ -411,7 +421,10 @@ function resolveEdits(doc, node, fields) {
   return fields.map((f, i) => {
     const entry = entries[i]
     const prefix = doc.lines[entry.line - 1].slice(0, entry.indent)
-    return { line: entry.value.line, endLine: entry.value.endLine, text: `${prefix}${f.key}: ${encodeScalar(f.value)}` }
+    // entry.value.comment is whatever trailed the old value, verbatim (decision 11); it is not
+    // recomputed here, so a `#` inside the new value can never be mistaken for it.
+    const text = `${prefix}${f.key}: ${encodeScalar(f.value)}${entry.value.comment}`
+    return { line: entry.value.line, endLine: entry.value.endLine, text }
   })
 }
 
@@ -425,12 +438,20 @@ function applyEdits(lines, edits) {
 }
 
 // Same-directory temp file plus rename (decision 8): a process killed mid-write leaves the plan
-// exactly as it was, never half-written.
+// exactly as it was, never half-written. A filesystem error here (permission, disk full, a rename
+// that cannot land) is turned into a PlanError so it exits through the same clean path as every
+// other failure (decision 12) instead of an unhandled rejection — bin/devkit's promise chain has
+// no .catch, so anything else thrown here would surface as a crash with a stack trace.
 async function writePlanFile(file, lines) {
   const dir = path.dirname(file)
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}-${Date.now()}.tmp`)
-  await fsp.writeFile(tmp, lines.join('\n'), 'utf8')
-  await fsp.rename(tmp, file)
+  try {
+    await fsp.writeFile(tmp, lines.join('\n'), 'utf8')
+    await fsp.rename(tmp, file)
+  } catch (e) {
+    await fsp.unlink(tmp).catch(() => {})
+    throw new PlanError(`could not write the plan: ${e.message}`)
+  }
 }
 
 // --- picking the plan ------------------------------------------------------------------------------
