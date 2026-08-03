@@ -26,7 +26,7 @@ const { execFileSync } = require('node:child_process')
 
 const {
   VOCAB, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
-  encodeScalar, resolveEdits, applyEdits,
+  encodeScalar, resolveEdits, applyEdits, resolveAppend,
 } = require('../lib/plan')
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'plans')
@@ -426,6 +426,92 @@ test('applyEdits folds a multi-line span down to the one new line, shifting what
   assert.deepEqual(out.slice(147), doc.lines.slice(152))
 })
 
+// --- resolveAppend: the second write shape, an insertion instead of a replacement --------------
+
+test('resolveAppend converts an inline empty list into block form, on the key\'s own line', () => {
+  const doc = load('conforming.yaml')
+  const review = entryOf(doc.root, 'review').value
+  const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
+  assert.deepEqual(edit, { line: 50, endLine: 50, text: ['  fixes:', '    - abc1234'] })
+})
+
+test('resolveAppend keeps the trailing comment of the [] line it converts', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'review:',
+    '  status: pending',
+    '  fixes: []                   # up to two wrap-up fixer SHAs',
+  ].join('\n'), 'inline')
+  const review = entryOf(doc.root, 'review').value
+  const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
+  assert.deepEqual(edit, {
+    line: 9,
+    endLine: 9,
+    text: ['  fixes:                   # up to two wrap-up fixer SHAs', '    - abc1234'],
+  })
+})
+
+test('resolveAppend inserts after the last item of an already-populated block list', () => {
+  const doc = load('conforming.yaml')
+  const edit = resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "a new fact"`])
+  assert.deepEqual(edit, { line: 12, endLine: 11, text: ['  - "a new fact"'] })
+})
+
+test('resolveAppend finds the true end of a multi-line mapping item, not just its first line', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'parallel_evidence:',
+    '  - tasks: "3, 4"',
+    '    head: aaa1111',
+    '',
+    'review:',
+    '  status: pending',
+  ].join('\n'), 'inline')
+  const edit = resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', i => [`${' '.repeat(i)}- tasks: "5"`])
+  assert.deepEqual(edit, { line: 10, endLine: 9, text: ['  - tasks: "5"'] })
+})
+
+test('resolveAppend refuses once the list already holds the given limit', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'review:',
+    '  status: pending',
+    '  fixes:',
+    '    - abc1234',
+    '    - def5678',
+  ].join('\n'), 'inline')
+  const review = entryOf(doc.root, 'review').value
+  assert.throws(() => resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- deadbee`], 2), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /review\.fixes/)
+    return true
+  })
+})
+
+test('resolveAppend fails when the key is not in the object', () => {
+  const doc = load('missing-keys.yaml')
+  assert.throws(() => resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "x"`]), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /not found/)
+    return true
+  })
+})
+
 // --- writing: the byte-preservation property, on real plans ------------------------------------
 
 // Every line outside the addressed span must come back identical. That is the one property this
@@ -460,6 +546,17 @@ test('writing the folded note of task 9 in the 493-line plan preserves every oth
   assert.equal(code, 0)
   const after = fs.readFileSync(file, 'utf8')
   assertOnlySpanChanged(before, after, 147, 6, '    note: "Recut: superseded."')
+})
+
+test('appending a context fact in the 493-line plan changes nothing else, folded scalars included', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, '2026-08-01-dev-kit-evals.yaml'), 'utf8')
+  const cwd = project({ evals: '2026-08-01-dev-kit-evals.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'evals.yaml')
+  const { code, err } = await run(cwd, ['context', '--add', 'Recorded by task 3 of the plan-cli round', '--plan', 'evals'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 40, 0, '  - Recorded by task 3 of the plan-cli round')
 })
 
 test('writing verification.note at the very end of the 106-line plan preserves everything before it', async () => {
@@ -758,6 +855,133 @@ test('plan verification refuses an off-vocabulary status and writes nothing', as
   assert.equal(code, 1)
   assert.match(err, /dong/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan context --add appends one entry, leaving the rest of the file untouched', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['context', '--add', 'A second verified fact', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 12, 0, '  - A second verified fact')
+  const context = entryOf(parsePlan(after, 'live').root, 'context').value
+  assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'A second verified fact'])
+})
+
+test('plan context needs --add', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code, err } = await run(cwd, ['context', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /--add/)
+})
+
+test('plan review --fix converts the inline empty fixes: [] into block form', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, ['review', '--fix', 'abc1234', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234'])
+})
+
+test('plan review --status and --fix together write both, or neither', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, ['review', '--status', 'passed', '--fix', 'abc1234', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  assert.equal(entryOf(review, 'status').value.text, 'passed')
+  assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234'])
+})
+
+// Shared by the two tests below: a plan whose review.fixes is already at the two-fixer cap.
+function projectWithTwoFixes() {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'twofixes.yaml')
+  fs.writeFileSync(file, [
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: done',
+    '    deps: []',
+    '',
+    'review:',
+    '  status: pending',
+    '  fixes:',
+    '    - abc1234',
+    '    - def5678',
+    '',
+    'verification:',
+    '  status: pending',
+    '',
+  ].join('\n'))
+  return { cwd, file }
+}
+
+test('plan review --fix fails once two fixes already exist, and writes nothing', async () => {
+  const { cwd, file } = projectWithTwoFixes()
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['review', '--fix', 'deadbee', '--plan', 'twofixes'])
+  assert.equal(code, 1)
+  assert.match(err, /fixes/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('a --status and --fix combined where --fix is over the limit writes neither', async () => {
+  const { cwd, file } = projectWithTwoFixes()
+  const before = fs.readFileSync(file, 'utf8')
+  const { code } = await run(cwd, ['review', '--status', 'passed', '--fix', 'deadbee', '--plan', 'twofixes'])
+  assert.equal(code, 1)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan evidence appends one entry once all seven flags are given, converting parallel_evidence: []', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, [
+    'evidence',
+    '--tasks', '2, 3', '--head', 'f5401dc', '--source', 'plan facts',
+    '--writes', 'disjoint sets', '--dependencies', 'none', '--resources', 'none',
+    '--verification', 'each check independently meaningful',
+    '--plan', 'live',
+  ])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const evidence = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'parallel_evidence').value
+  assert.equal(evidence.items.length, 1)
+  const item = evidence.items[0]
+  assert.equal(entryOf(item, 'tasks').value.text, '2, 3')
+  assert.equal(entryOf(item, 'head').value.text, 'f5401dc')
+  assert.equal(entryOf(item, 'verification').value.text, 'each check independently meaningful')
+})
+
+test('plan evidence fails naming exactly the missing flags, and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['evidence', '--tasks', '2, 3', '--head', 'f5401dc', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /--source/)
+  assert.match(err, /--writes/)
+  assert.match(err, /--dependencies/)
+  assert.match(err, /--resources/)
+  assert.match(err, /--verification/)
+  assert.doesNotMatch(err, /--tasks/)
+  assert.doesNotMatch(err, /--head/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('bin/devkit plan context appends through the real CLI', () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  execFileSync(process.execPath, [BIN, 'plan', 'context', '--add', 'via the real CLI', '--plan', 'live'], { cwd, encoding: 'utf8' })
+  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'context').value
+  assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'via the real CLI'])
 })
 
 // --- the wiring in bin/devkit, for a write command ----------------------------------------------

@@ -180,11 +180,13 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
 }
 
 function parseInlineSeq(head, keyLine) {
-  const m = /^\[([^[\]{}]*)\](?:[ \t]+#.*)?$/.exec(head)
+  // Group 2, verbatim including its leading blanks, is what an append has to put back when it
+  // turns this one line into the key line of a block list (decision 11 extended to this shape).
+  const m = /^\[([^[\]{}]*)\]([ \t]+#.*)?$/.exec(head)
   if (!m) throw new PlanError('an inline list must open and close on one line, without nesting', keyLine)
   const inner = m[1].trim()
   const items = inner === '' ? [] : inner.split(',').map(s => scalar(keyLine, keyLine, decodeScalar(s.trim(), keyLine).value, 'inline'))
-  return { kind: 'seq', line: keyLine, indent: null, inline: true, items }
+  return { kind: 'seq', line: keyLine, indent: null, inline: true, items, comment: m[2] || '' }
 }
 
 // Returns the decoded value and, verbatim, whatever trails it on the line — '' or a run of blanks
@@ -440,13 +442,75 @@ function resolveEdits(doc, node, fields) {
   })
 }
 
-// Splices every edit's line..endLine span down to its one replacement line. Applied highest line
-// first so an earlier multi-line span (a folded scalar collapsing to one line) cannot shift the
-// still-pending addresses below it.
+// Splices every edit's line..endLine span down to its replacement — one line for a scalar write,
+// or several for an append (`text` as an array). Applied highest line first so an earlier
+// multi-line span (a folded scalar collapsing to one line, or a block appended below) cannot shift
+// the still-pending addresses below it.
 function applyEdits(lines, edits) {
   const out = lines.slice()
-  for (const e of [...edits].sort((a, b) => b.line - a.line)) out.splice(e.line - 1, e.endLine - e.line + 1, e.text)
+  for (const e of [...edits].sort((a, b) => b.line - a.line)) {
+    out.splice(e.line - 1, e.endLine - e.line + 1, ...(Array.isArray(e.text) ? e.text : [e.text]))
+  }
   return out
+}
+
+// --- appending: the second write shape, an insertion instead of a replacement -------------------
+//
+// Where resolveEdits lands on a scalar's own span, an append lands after the list's last existing
+// line (or, the first time, on the line an empty inline list occupies) and inserts rather than
+// replaces. Same edit shape either way — {line, endLine, text} — so applyEdits needs nothing extra
+// to carry it, and the caller's atomic temp-file-plus-rename write path is the only one there is.
+
+// The true last physical line of any parsed node, recursing to the last child: a mapping item in a
+// list (an evidence entry) spans several lines, and inserting after just its first line would land
+// the new item's dash in the middle of the old one.
+function nodeEndLine(node) {
+  if (node.kind === 'scalar') return node.endLine
+  if (node.kind === 'map') return node.entries.length ? nodeEndLine(node.entries[node.entries.length - 1].value) : node.line
+  if (node.kind === 'seq') return node.items.length ? nodeEndLine(node.items[node.items.length - 1]) : node.line
+  return node.line
+}
+
+// The step this file already uses from a mapping key to its block child, read off an existing
+// block list in the document instead of assumed — the one case with no sibling item of its own to
+// copy the indent from is the empty inline list an append is about to convert.
+function blockStep(doc) {
+  for (const e of doc.root.entries) {
+    if (e.value.kind === 'seq' && !e.value.inline && e.value.items.length) {
+      return indentOf(doc.lines[e.value.items[0].line - 1], e.value.items[0].line) - e.indent
+    }
+  }
+  return 2
+}
+
+// Appends one item to the list at `node[key]`, or fails and builds nothing. `render(itemIndent)`
+// returns the new item's line(s) at that indent, so a single SHA and a multi-key evidence mapping
+// share this one path. `limit` (default unbounded) is `review.fixes`'s cap of two.
+//
+// An inline empty list (`fixes: []`) is the one line an append may rewrite instead of purely
+// inserting after: it becomes the key alone, comment kept verbatim, with the new item below it. A
+// non-empty inline list has no defined conversion here and is refused rather than guessed at,
+// per decision 7 — the template never writes one of these fields that way.
+function resolveAppend(doc, node, key, label, render, limit = Infinity) {
+  const entry = entryOf(node, key)
+  if (!entry) throw new PlanError(`${label}: not found, so it cannot be written`, node.line)
+  const seq = entry.value
+  if (seq.kind !== 'seq' || (seq.inline && seq.items.length)) {
+    throw new PlanError(`${label}: is not a list this command can append to`, entry.line)
+  }
+  if (seq.items.length >= limit) {
+    throw new PlanError(`${label}: already has ${seq.items.length}, the limit is ${limit}`, entry.line)
+  }
+  if (seq.inline) {
+    const itemIndent = entry.indent + blockStep(doc)
+    const prefix = doc.lines[entry.line - 1].slice(0, entry.indent)
+    const keyLine = `${prefix}${key}:${seq.comment || ''}`
+    return { line: entry.line, endLine: entry.line, text: [keyLine, ...render(itemIndent)] }
+  }
+  const last = seq.items[seq.items.length - 1]
+  const lastLine = nodeEndLine(last)
+  const itemIndent = indentOf(doc.lines[last.line - 1], last.line)
+  return { line: lastLine + 1, endLine: lastLine, text: render(itemIndent) }
 }
 
 // Same-directory temp file plus rename (decision 8): a process killed mid-write leaves the plan
@@ -498,10 +562,27 @@ const SUBS = {
   check: { flags: ['--plan'] },
   set: { flags: ['--plan'], positional: ['field', 'value'] },
   task: { flags: ['--plan', '--status', '--commit', '--note'], positional: ['id'] },
-  review: { flags: ['--plan', '--status'] },
+  review: { flags: ['--plan', '--status', '--fix'] },
+  context: { flags: ['--plan', '--add'] },
+  evidence: { flags: ['--plan', '--tasks', '--head', '--source', '--writes', '--dependencies', '--resources', '--verification'] },
   verification: { flags: ['--plan', '--status', '--report', '--head', '--note'] },
 }
-const USAGE = `usage: devkit plan <next|show|check|set|task|review|verification> [--plan <slug>] ...`
+const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|evidence|verification> [--plan <slug>] ...`
+
+// review.fixes is capped at two per writing-plans/SKILL.md's "up to two wrap-up fixer SHAs"; past
+// that the static wrap-up limit (executing-plans/SKILL.md) is on review.status: stopped, not a
+// third fix.
+const FIXES_LIMIT = 2
+
+const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeScalar(value)}`]
+
+const EVIDENCE_FIELDS = ['tasks', 'head', 'source', 'writes', 'dependencies', 'resources', 'verification']
+
+const evidenceItem = flags => itemIndent => {
+  const dash = ' '.repeat(itemIndent)
+  const cont = ' '.repeat(itemIndent + 2)
+  return EVIDENCE_FIELDS.map((key, i) => `${i === 0 ? dash + '- ' : cont}${key}: ${encodeScalar(flags[key])}`)
+}
 
 function parseFlags(argv, allowed) {
   const flags = {}
@@ -623,16 +704,39 @@ async function cmdPlan(argv, io = {}) {
       await save(resolveEdits(doc, task, fields))
       return 0
     }
-    if (sub === 'review' || sub === 'verification') {
-      const entry = entryOf(doc.root, sub)
-      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: ${sub}: not found`); return 1 }
-      const vocabs = sub === 'review'
-        ? { status: VOCAB.reviewStatus }
-        : { status: VOCAB.verificationStatus, report: null, head: null, note: null }
+    if (sub === 'review') {
+      const entry = entryOf(doc.root, 'review')
+      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: review: not found`); return 1 }
+      const edits = []
+      if (flags.status !== undefined) {
+        edits.push(...resolveEdits(doc, entry.value, [{ key: 'status', value: flags.status, vocab: VOCAB.reviewStatus, label: 'review.status' }]))
+      }
+      if (flags.fix !== undefined) {
+        edits.push(resolveAppend(doc, entry.value, 'fixes', 'review.fixes', scalarItem(flags.fix), FIXES_LIMIT))
+      }
+      if (!edits.length) { err(`devkit: plan review needs --status or --fix\n${USAGE}`); return 1 }
+      await save(edits)
+      return 0
+    }
+    if (sub === 'context') {
+      if (flags.add === undefined) { err(`devkit: plan context needs --add\n${USAGE}`); return 1 }
+      await save([resolveAppend(doc, doc.root, 'context', 'context', scalarItem(flags.add))])
+      return 0
+    }
+    if (sub === 'evidence') {
+      const missing = EVIDENCE_FIELDS.filter(key => flags[key] === undefined)
+      if (missing.length) { err(`devkit: plan evidence needs ${missing.map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
+      await save([resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', evidenceItem(flags))])
+      return 0
+    }
+    if (sub === 'verification') {
+      const entry = entryOf(doc.root, 'verification')
+      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: verification: not found`); return 1 }
+      const vocabs = { status: VOCAB.verificationStatus, report: null, head: null, note: null }
       const fields = Object.keys(vocabs)
         .filter(key => flags[key] !== undefined)
-        .map(key => ({ key, value: flags[key], vocab: vocabs[key], label: `${sub}.${key}` }))
-      if (!fields.length) { err(`devkit: plan ${sub} needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
+        .map(key => ({ key, value: flags[key], vocab: vocabs[key], label: `verification.${key}` }))
+      if (!fields.length) { err(`devkit: plan verification needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
       await save(resolveEdits(doc, entry.value, fields))
       return 0
     }
@@ -668,5 +772,5 @@ function showPlan(doc, chosen, flags, out, err) {
 
 module.exports = {
   VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, findPlans, cmdPlan,
-  encodeScalar, resolveEdits, applyEdits,
+  encodeScalar, resolveEdits, applyEdits, resolveAppend,
 }
