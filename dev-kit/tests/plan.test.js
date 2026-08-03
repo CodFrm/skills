@@ -1291,14 +1291,20 @@ test('bin/devkit plan carries the exit code of an async command', () => {
   assert.match(devkit(['help']), /devkit plan/)
 })
 
-test('devkit help names every plan subcommand the CLI accepts', async () => {
-  // The list comes from lib/plan.js's own usage line rather than being written out again here: a
-  // subcommand added there and forgotten in HELP is the drift this catches.
+test('devkit help names every plan subcommand the CLI accepts, and no others', async () => {
+  // SUBS is what cmdPlan dispatches on, so it is the accepted set; the usage line and bin/devkit's
+  // HELP are two hand-written copies of it. Checking them against each other would pass a
+  // subcommand added to SUBS and written into neither, which is the drift that matters.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'plan.js'), 'utf8')
+  const block = /^const SUBS = \{$([\s\S]*?)^\}$/m.exec(src)
+  assert.ok(block, 'SUBS is no longer a top-level object literal in lib/plan.js')
+  const subs = [...block[1].matchAll(/^ {2}([a-z]+):/gm)].map(m => m[1]).sort()
+  assert.ok(subs.length > 3, block[1])
+
   let usage = ''
   await cmdPlan([], { err: s => { usage += s } })
-  const subs = /devkit plan <([a-z|]+)>/.exec(usage)[1].split('|')
-  assert.ok(subs.length > 3, usage)
+  assert.deepEqual(/devkit plan <([a-z|]+)>/.exec(usage)[1].split('|').sort(), subs)
 
   const help = execFileSync(process.execPath, [BIN, 'help'], { encoding: 'utf8' })
-  for (const sub of subs) assert.match(help, new RegExp(`devkit plan ${sub}\\b`), sub)
+  assert.deepEqual([...help.matchAll(/^ +devkit plan ([a-z]+)/gm)].map(m => m[1]).sort(), subs)
 })

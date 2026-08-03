@@ -12,12 +12,10 @@ Require a `ready` plan, or resume any plan not `done`. Read the entire plan and 
 
 The main session is the orchestrator:
 
-1. Only it writes the plan.
+1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
 2. It records and routes each return immediately; a task or batch finishing does not pause the loop.
 3. In `subagent` mode it never reviews source, commit content or diffs. It decides only from structured implementer/reviewer/verifier results and mechanical SHA/state checks. An insufficient report triggers a fresh reviewer or verifier; the main session never fills the review gap.
 4. Work is not complete in the context that produced it: task/batch review → two-axis static wrap-up → fresh runtime verification.
-
-When `devkit` is available, its `plan` subcommands read and write the plan; otherwise edit the YAML directly.
 
 ## Resume state
 

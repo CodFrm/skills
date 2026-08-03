@@ -5,9 +5,9 @@
 //
 // Zero dependencies, one project. The only thing it writes is the execution-time mutable fields of
 // .dev-kit/plans/*.yaml; every other path it touches it reads. Each command lives in its own module
-// under ../lib/: add one by adding a file and a line to the switch, never by growing this file. Any
-// path it serves to a browser or writes goes through ../lib/project.js's allow-list and traversal
-// check.
+// under ../lib/: add one by adding a file and a line to the switch, never by growing this file.
+// Every path it serves to a browser or writes is resolved by ../lib/project.js first, against
+// serve's browser allow-list or the plans root, which are separate boundaries there.
 
 const HELP = `dev-kit — optional local helper
 
