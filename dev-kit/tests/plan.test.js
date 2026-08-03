@@ -318,6 +318,57 @@ test('resolveEdits leaves no spurious comment when a quoted value containing # h
   assert.deepEqual(edits, [{ line: 5, endLine: 5, text: '    note: still open' }])
 })
 
+test('resolveEdits keeps the comment on a key whose value is empty', () => {
+  // `mode:` with nothing but a legend after it. The value's extent is empty, so everything past
+  // the colon is the comment — dropping it deletes the legend the write was supposed to leave alone.
+  const doc = parsePlan([
+    'status: running',
+    'mode:   # subagent | inline',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const edits = resolveEdits(doc, doc.root, [{ key: 'mode', value: 'subagent', vocab: VOCAB.mode, label: 'mode' }])
+  assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'mode: subagent   # subagent | inline' }])
+})
+
+test('resolveEdits keeps the comment on the block scalar header it collapses', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: >-  # filed by triage',
+    '      some folded prose',
+    '      over two lines',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const task = taskNodes(doc)[0]
+  const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
+  assert.deepEqual(edits, [{ line: 5, endLine: 7, text: '    note: still open  # filed by triage' }])
+})
+
+test('resolveEdits refuses a line whose comment has no blank before its #', () => {
+  // `"x"# keep` closes the quote straight into the `#`. Re-emitted after a value that needs no
+  // quotes the comment would read back as part of the value, so the boundary is not reproducible:
+  // fail without writing rather than silently swallow the comment into the note.
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: "issue 42"# filed by triage',
+    '    deps: []',
+  ].join('\n'), 'inline')
+  const task = taskNodes(doc)[0]
+  assert.throws(() => resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }]), err => {
+    assert.ok(err instanceof PlanError)
+    assert.equal(err.line, 5)
+    return true
+  })
+})
+
 test('resolveEdits addresses a folded block scalar by its whole span, in a real plan', () => {
   const doc = load('2026-08-01-dev-kit-evals.yaml')
   const nine = taskNodes(doc).find(t => textOf(t, 'id') === '9')
@@ -438,6 +489,18 @@ test('writing the key that sits on a task\'s dash line keeps the "- " that makes
   assert.equal(taskNodes(parsePlan(after, 'dashed')).length, 1)
 })
 
+test('writing the key on a task\'s dash line keeps both the "- " and that line\'s comment', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'dashed.yaml')
+  const before = 'status: running\ntasks:\n  - status: todo   # todo → doing → reviewing → done | blocked\n    id: 1\n    deps: []\n'
+  fs.writeFileSync(file, before)
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'dashed'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.equal(fs.readFileSync(file, 'utf8'), before.replace('- status: todo ', '- status: doing '))
+})
+
 test('a write lands through a temp file and rename, leaving no stray file behind', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const { code } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
@@ -503,6 +566,21 @@ test('a filesystem error while writing exits cleanly through cmdPlan, and the pl
     fs.chmodSync(dir, 0o700)
   }
   assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+// The other filesystem error a plan command can hit is enumerating the directory in the first
+// place, and decision 12 is about the exit path, not about which syscall failed.
+test('a plans directory that cannot be listed fails the same clean way', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const dir = path.join(cwd, '.dev-kit', 'plans')
+  fs.chmodSync(dir, 0o300)  // enterable and writable, but readdir gets EACCES
+  try {
+    const { code, err } = await run(cwd, ['next', '--plan', 'live'])
+    assert.equal(code, 1)
+    assert.match(err, /^devkit: /)
+  } finally {
+    fs.chmodSync(dir, 0o700)
+  }
 })
 
 test('a filesystem error while writing, through the real CLI, prints no stack trace', () => {

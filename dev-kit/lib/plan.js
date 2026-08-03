@@ -51,7 +51,9 @@ class PlanError extends Error {
 
 // --- the reader ---------------------------------------------------------------------------------
 
-const KEY_RE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+([\s\S]*))?$/
+// Group 2 keeps the blanks between the colon and what follows: when the value is empty they are
+// the only thing separating the key from its trailing comment, and a write has to put them back.
+const KEY_RE = /^([A-Za-z_][A-Za-z0-9_-]*):([ \t]+[\s\S]*)?$/
 const ITEM_RE = /^-(?:[ \t]+([\s\S]*))?$/
 const BLOCK_RE = /^[>|][-+]?\d*$/
 
@@ -136,7 +138,8 @@ function parseValue(st, rest, keyIndent, keyLine) {
         return item ? parseSeq(st, ind) : parseMap(st, ind)
       }
     }
-    return scalar(keyLine, keyLine, null, 'empty')
+    // An empty value has zero extent, so everything past the colon is the comment.
+    return scalar(keyLine, keyLine, null, 'empty', head.startsWith('#') ? rest : '')
   }
   if (head[0] === '>' || head[0] === '|') return parseBlockScalar(st, head, keyIndent, keyLine)
   if (head[0] === '[') return parseInlineSeq(head, keyLine)
@@ -148,6 +151,9 @@ function parseValue(st, rest, keyIndent, keyLine) {
 function parseBlockScalar(st, head, keyIndent, keyLine) {
   const style = head.split(/[ \t]+#/)[0].trim()
   if (!BLOCK_RE.test(style)) throw new PlanError(`"${style}" is not a block scalar header this reader knows`, keyLine)
+  // A write collapses the whole span onto the header line, so the header's own comment is the one
+  // that has to survive; the style's extent is where it starts.
+  const comment = head.slice(style.length)
   const body = []
   // The index just past the last content line, which is also that line's 1-based number.
   let endLine = keyLine
@@ -170,7 +176,7 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
     else if (l === '' || text[n - 1] === '') joined += '\n' + l
     else joined += (folded ? ' ' : '\n') + l
   }
-  return scalar(keyLine, endLine, joined.replace(/^\n+|\n+$/g, ''), style)
+  return scalar(keyLine, endLine, joined.replace(/^\n+|\n+$/g, ''), style, comment)
 }
 
 function parseInlineSeq(head, keyLine) {
@@ -416,6 +422,12 @@ function resolveEdits(doc, node, fields) {
     if (f.vocab && !f.vocab.includes(f.value)) {
       throw new PlanError(`${f.label}: "${f.value}" is not one of ${f.vocab.join(', ')}`, entry.value.line)
     }
+    // `note: "x"# keep` closes the quote straight into the comment. Put back after a value that
+    // needs no quotes, that comment reads as part of the value, so the boundary cannot be
+    // reproduced and the write stops here instead of swallowing the comment.
+    if (entry.value.comment !== '' && !/^[ \t]/.test(entry.value.comment)) {
+      throw new PlanError(`${f.label}: the trailing comment has no blank before its "#", so it cannot be told apart from the value`, entry.value.line)
+    }
     return entry
   })
   return fields.map((f, i) => {
@@ -540,7 +552,10 @@ async function cmdPlan(argv, io = {}) {
   const root = findRoot(cwd)
   if (!root) { err('devkit: no project root found (looked upwards for .git or .dev-kit)'); return 1 }
   const planDir = path.join(root, PLANS)
-  const plans = await findPlans(planDir)
+  // Listing the directory is the other place the filesystem can refuse (an unreadable plans/),
+  // and decision 12 is about the exit path, not about which syscall failed.
+  let plans
+  try { plans = await findPlans(planDir) } catch (e) { err(`devkit: could not read ${PLANS}/: ${e.message}`); return 1 }
   if (!plans) { err(`devkit: no ${PLANS}/ directory under ${root}`); return 1 }
 
   let chosen
