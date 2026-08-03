@@ -357,6 +357,77 @@ function checkPlan(doc) {
   return { errors: errors.sort(byLine), notes: notes.sort(byLine) }
 }
 
+// --- writing -----------------------------------------------------------------------------------
+//
+// A write replaces exactly the line(s) an existing scalar already occupies — line..endLine, both
+// 1-based and both equal for an inline value. There is no path that creates a key or touches a
+// mapping/sequence: the four commands below only ever hand resolveEdits the handful of scalar
+// fields the write command table allows, so a frozen field never reaches here for lack of a flag
+// that names it.
+
+// Whether `key: value` on one line reads back through decodeScalar/parseValue as this exact
+// string. Vocabulary words never need it; free text is quoted whenever leaving it bare would
+// change what a later read sees (a comment marker, a mapping colon, a leading list dash, the
+// literal words a bare `null` reads back as, or a value with a newline in it).
+function encodeScalar(value) {
+  if (value === null) return 'null'
+  const risky = value === ''
+    || /^\s|\s$/.test(value)
+    || /^(null|~|true|false)$/i.test(value)
+    || /^[-?:,[\]{}#&*!|>'"%@`]/.test(value)
+    || /:(\s|$)/.test(value)
+    || /\s#/.test(value)
+    || /\n/.test(value)
+  if (!risky) return value
+  const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+  return `"${escaped}"`
+}
+
+// The one address a write may land on: an existing scalar entry, found and unambiguous (entryOf
+// itself throws for a duplicate key). Anything else — missing, or a mapping/sequence — fails
+// before any edit is built, per decision 7: never guess, never invent the key.
+function addressOf(node, key, label) {
+  const entry = entryOf(node, key)
+  if (!entry) throw new PlanError(`${label}: not found, so it cannot be written`, node.line)
+  if (entry.value.kind !== 'scalar') throw new PlanError(`${label}: is not a single value, so it cannot be written`, entry.line)
+  return entry
+}
+
+// Resolves every {key, value, vocab, label} field on one object into a line edit. All addresses
+// are found and all vocabularies checked before any edit is returned, so one invalid flag among
+// several leaves the whole set unresolved — the caller never sees a partial result to write.
+function resolveEdits(node, fields) {
+  const entries = fields.map(f => {
+    const entry = addressOf(node, f.key, f.label)
+    if (f.vocab && !f.vocab.includes(f.value)) {
+      throw new PlanError(`${f.label}: "${f.value}" is not one of ${f.vocab.join(', ')}`, entry.value.line)
+    }
+    return entry
+  })
+  return fields.map((f, i) => {
+    const entry = entries[i]
+    return { line: entry.value.line, endLine: entry.value.endLine, text: `${' '.repeat(entry.indent)}${f.key}: ${encodeScalar(f.value)}` }
+  })
+}
+
+// Splices every edit's line..endLine span down to its one replacement line. Applied highest line
+// first so an earlier multi-line span (a folded scalar collapsing to one line) cannot shift the
+// still-pending addresses below it.
+function applyEdits(lines, edits) {
+  const out = lines.slice()
+  for (const e of [...edits].sort((a, b) => b.line - a.line)) out.splice(e.line - 1, e.endLine - e.line + 1, e.text)
+  return out
+}
+
+// Same-directory temp file plus rename (decision 8): a process killed mid-write leaves the plan
+// exactly as it was, never half-written.
+async function writePlanFile(file, lines) {
+  const dir = path.dirname(file)
+  const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}-${Date.now()}.tmp`)
+  await fsp.writeFile(tmp, lines.join('\n'), 'utf8')
+  await fsp.rename(tmp, file)
+}
+
 // --- picking the plan ------------------------------------------------------------------------------
 
 // planDir is the boundary root passed to resolveInside — see PLANS in ./project.js.
@@ -381,8 +452,18 @@ async function findPlans(planDir) {
 
 // --- the command -------------------------------------------------------------------------------
 
-const SUBS = { next: ['--plan'], show: ['--plan', '--task'], check: ['--plan'] }
-const USAGE = `usage: devkit plan <next|show|check> [--plan <slug>] [--task <id>]`
+// `positional` names the arguments that must appear, in order, before any `--flag` — so a write
+// command's id/field come first and `--plan` (or any other flag) trails them.
+const SUBS = {
+  next: { flags: ['--plan'] },
+  show: { flags: ['--plan', '--task'] },
+  check: { flags: ['--plan'] },
+  set: { flags: ['--plan'], positional: ['field', 'value'] },
+  task: { flags: ['--plan', '--status', '--commit', '--note'], positional: ['id'] },
+  review: { flags: ['--plan', '--status'] },
+  verification: { flags: ['--plan', '--status', '--report', '--head', '--note'] },
+}
+const USAGE = `usage: devkit plan <next|show|check|set|task|review|verification> [--plan <slug>] ...`
 
 function parseFlags(argv, allowed) {
   const flags = {}
@@ -392,6 +473,23 @@ function parseFlags(argv, allowed) {
     flags[argv[i].slice(2)] = argv[++i]
   }
   return { flags }
+}
+
+// Positional arguments first, then flags — same rule the write command table's examples follow
+// (`plan task <id> --status ...`). Returns before parseFlags ever sees a positional slot filled by
+// a `--something` that ran out of arguments.
+function parseArgs(argv, positionalNames, allowedFlags) {
+  const positional = []
+  let i = 0
+  for (; i < positionalNames.length; i++) {
+    if (i >= argv.length || argv[i].startsWith('--')) {
+      return { error: `needs ${positionalNames.length} argument${positionalNames.length === 1 ? '' : 's'}: ${positionalNames.join(' ')}` }
+    }
+    positional.push(argv[i])
+  }
+  const { flags, error } = parseFlags(argv.slice(i), allowedFlags)
+  if (error) return { error }
+  return { positional, flags }
 }
 
 const renderValue = node => {
@@ -410,7 +508,7 @@ async function cmdPlan(argv, io = {}) {
     err(`devkit: plan needs a subcommand${sub ? `, and "${sub}" is not one` : ''}\n${USAGE}`)
     return 1
   }
-  const { flags, error } = parseFlags(argv.slice(1), SUBS[sub])
+  const { positional, flags, error } = parseArgs(argv.slice(1), SUBS[sub].positional || [], SUBS[sub].flags)
   if (error) { err(`devkit: ${error}\n${USAGE}`); return 1 }
 
   const root = findRoot(cwd)
@@ -448,16 +546,55 @@ async function cmdPlan(argv, io = {}) {
     doc = parsePlan(await fsp.readFile(chosen.file, 'utf8'), name)
   } catch (e) { return fail(e) }
 
+  const save = async edits => writePlanFile(chosen.file, applyEdits(doc.lines, edits))
+
   try {
     if (sub === 'next') {
       for (const t of readyTasks(doc)) out(`${t.id}  ${t.goal === null ? '' : t.goal}`)
       return 0
     }
     if (sub === 'show') return showPlan(doc, chosen, flags, out, err)
-    const { errors, notes } = checkPlan(doc)
-    for (const n of notes) out(`${name}:${n.line}: note: ${n.message}`)
-    for (const e of errors) err(`${name}:${e.line}: ${e.message}`)
-    return errors.length ? 1 : 0
+    if (sub === 'check') {
+      const { errors, notes } = checkPlan(doc)
+      for (const n of notes) out(`${name}:${n.line}: note: ${n.message}`)
+      for (const e of errors) err(`${name}:${e.line}: ${e.message}`)
+      return errors.length ? 1 : 0
+    }
+    if (sub === 'set') {
+      const [field, value] = positional
+      const vocabs = { status: VOCAB.status, mode: VOCAB.mode }
+      if (!Object.prototype.hasOwnProperty.call(vocabs, field)) {
+        err(`devkit: plan set needs "status" or "mode", not "${field}"\n${USAGE}`)
+        return 1
+      }
+      await save(resolveEdits(doc.root, [{ key: field, value, vocab: vocabs[field], label: field }]))
+      return 0
+    }
+    if (sub === 'task') {
+      const [id] = positional
+      const task = taskNode(doc, id)
+      if (!task) { err(`devkit: ${name}: no task with id ${id}`); return 1 }
+      const fields = []
+      if (flags.status !== undefined) fields.push({ key: 'status', value: flags.status, vocab: VOCAB.taskStatus, label: `task ${id}: status` })
+      if (flags.commit !== undefined) fields.push({ key: 'commit', value: flags.commit, vocab: null, label: `task ${id}: commit` })
+      if (flags.note !== undefined) fields.push({ key: 'note', value: flags.note, vocab: null, label: `task ${id}: note` })
+      if (!fields.length) { err(`devkit: plan task needs --status, --commit or --note\n${USAGE}`); return 1 }
+      await save(resolveEdits(task, fields))
+      return 0
+    }
+    if (sub === 'review' || sub === 'verification') {
+      const entry = entryOf(doc.root, sub)
+      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: ${sub}: not found`); return 1 }
+      const vocabs = sub === 'review'
+        ? { status: VOCAB.reviewStatus }
+        : { status: VOCAB.verificationStatus, report: null, head: null, note: null }
+      const fields = Object.keys(vocabs)
+        .filter(key => flags[key] !== undefined)
+        .map(key => ({ key, value: flags[key], vocab: vocabs[key], label: `${sub}.${key}` }))
+      if (!fields.length) { err(`devkit: plan ${sub} needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
+      await save(resolveEdits(entry.value, fields))
+      return 0
+    }
   } catch (e) { return fail(e) }
 }
 
@@ -488,4 +625,7 @@ function showPlan(doc, chosen, flags, out, err) {
   return 0
 }
 
-module.exports = { VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, findPlans, cmdPlan }
+module.exports = {
+  VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, findPlans, cmdPlan,
+  encodeScalar, resolveEdits, applyEdits,
+}

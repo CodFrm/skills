@@ -25,7 +25,8 @@ const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 
 const {
-  VOCAB, PlanError, parsePlan, entryOf, taskNodes, readyTasks, checkPlan, cmdPlan,
+  VOCAB, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
+  encodeScalar, resolveEdits, applyEdits,
 } = require('../lib/plan')
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'plans')
@@ -254,6 +255,305 @@ test('one unaddressable task does not swallow the rest of the report', () => {
   assert.match(errors[0].message, /deps/)
   assert.match(errors[1].message, /deps/)
   assert.match(errors[3].message, /verification\.status/)
+})
+
+// --- writing: encode / address / splice, as pure functions -------------------------------------
+
+test('encodeScalar leaves a plain value unquoted and quotes what would misparse', () => {
+  assert.equal(encodeScalar('f5401dc'), 'f5401dc')
+  assert.equal(encodeScalar(null), 'null')
+  // A bare quote or backslash mid-string is not ambiguous to this reader (decodeScalar only takes
+  // the quoted path when the value *starts* with one), so it is left as-is.
+  assert.equal(encodeScalar('a "quote" and a \\ backslash, unquoted'), 'a "quote" and a \\ backslash, unquoted')
+  assert.equal(encodeScalar('done: yes'), '"done: yes"')
+  assert.equal(encodeScalar('- looks like a list item'), '"- looks like a list item"')
+  assert.equal(encodeScalar('null'), '"null"')
+  assert.equal(encodeScalar(''), '""')
+  // Quoting is triggered by the colon, and once quoted the embedded quote and backslash must be escaped.
+  assert.equal(encodeScalar('note: has a "quote" and a \\ backslash'), '"note: has a \\"quote\\" and a \\\\ backslash"')
+  assert.equal(encodeScalar('line one\nline two'), '"line one\\nline two"')
+})
+
+test('resolveEdits addresses an inline scalar by its one line', () => {
+  const doc = load('conforming.yaml')
+  const edits = resolveEdits(doc.root, [{ key: 'status', value: 'done', vocab: VOCAB.status, label: 'status' }])
+  assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'status: done' }])
+})
+
+test('resolveEdits addresses a folded block scalar by its whole span, in a real plan', () => {
+  const doc = load('2026-08-01-dev-kit-evals.yaml')
+  const nine = taskNodes(doc).find(t => textOf(t, 'id') === '9')
+  const edits = resolveEdits(nine, [{ key: 'note', value: 'Recut: superseding the prior note.', vocab: null, label: 'task 9: note' }])
+  assert.deepEqual(edits, [{ line: 147, endLine: 152, text: '    note: "Recut: superseding the prior note."' }])
+})
+
+test('resolveEdits fails on an off-vocabulary value and addresses nothing', () => {
+  const doc = load('conforming.yaml')
+  assert.throws(() => resolveEdits(doc.root, [{ key: 'status', value: 'dong', vocab: VOCAB.status, label: 'status' }]), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /status/)
+    assert.match(err.message, /dong/)
+    return true
+  })
+})
+
+test('resolveEdits fails when the key is not in the object', () => {
+  const doc = load('missing-keys.yaml')
+  assert.throws(() => resolveEdits(doc.root, [{ key: 'status', value: 'running', vocab: VOCAB.status, label: 'status' }]), err => {
+    assert.ok(err instanceof PlanError)
+    assert.match(err.message, /not found/)
+    return true
+  })
+})
+
+test('resolveEdits fails when the key is written twice, same as entryOf', () => {
+  const doc = load('duplicate-keys.yaml')
+  const task = taskNodes(doc)[0]
+  assert.throws(() => resolveEdits(task, [{ key: 'status', value: 'done', vocab: VOCAB.taskStatus, label: 'task 1: status' }]), PlanError)
+})
+
+test('resolveEdits validates every field before addressing any, so one bad value blocks the whole set', () => {
+  const doc = load('conforming.yaml')
+  const two = taskNodes(doc)[1]
+  assert.throws(() => resolveEdits(two, [
+    { key: 'status', value: 'bogus', vocab: VOCAB.taskStatus, label: 'task 2: status' },
+    { key: 'commit', value: 'deadbeef', vocab: null, label: 'task 2: commit' },
+  ]), PlanError)
+})
+
+test('applyEdits replaces only the addressed lines, leaving the rest untouched', () => {
+  const doc = load('conforming.yaml')
+  const out = applyEdits(doc.lines, [{ line: 2, endLine: 2, text: 'status: done' }])
+  assert.equal(out[1], 'status: done')
+  assert.deepEqual(out.slice(0, 1), doc.lines.slice(0, 1))
+  assert.deepEqual(out.slice(2), doc.lines.slice(2))
+})
+
+test('applyEdits folds a multi-line span down to the one new line, shifting what follows', () => {
+  const doc = load('2026-08-01-dev-kit-evals.yaml')
+  const out = applyEdits(doc.lines, [{ line: 147, endLine: 152, text: '    note: "short now"' }])
+  assert.equal(out[146], '    note: "short now"')
+  assert.deepEqual(out.slice(0, 146), doc.lines.slice(0, 146))
+  assert.deepEqual(out.slice(147), doc.lines.slice(152))
+})
+
+// --- writing: the byte-preservation property, on real plans ------------------------------------
+
+// Every line outside the addressed span must come back identical. That is the one property this
+// whole slice exists to prove, so it is asserted against the two real plans in this repo, not only
+// a small hand-made fixture.
+function assertOnlySpanChanged(before, after, fromLine, removedLines, newLine) {
+  const beforeLines = before.split('\n')
+  const afterLines = after.split('\n')
+  const start = fromLine - 1
+  assert.deepEqual(afterLines.slice(0, start), beforeLines.slice(0, start), 'a line before the write changed')
+  assert.equal(afterLines[start], newLine)
+  assert.deepEqual(afterLines.slice(start + 1), beforeLines.slice(start + removedLines), 'a line after the write changed')
+}
+
+test('writing an inline scalar in the 493-line plan changes only that line', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, '2026-08-01-dev-kit-evals.yaml'), 'utf8')
+  const cwd = project({ evals: '2026-08-01-dev-kit-evals.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'evals.yaml')
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'todo', '--plan', 'evals'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 50, 1, '    status: todo')
+})
+
+test('writing the folded note of task 9 in the 493-line plan preserves every other folded scalar', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, '2026-08-01-dev-kit-evals.yaml'), 'utf8')
+  const cwd = project({ evals: '2026-08-01-dev-kit-evals.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'evals.yaml')
+  const { code, err } = await run(cwd, ['task', '9', '--note', 'Recut: superseded.', '--plan', 'evals'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 147, 6, '    note: "Recut: superseded."')
+})
+
+test('writing verification.note at the very end of the 106-line plan preserves everything before it', async () => {
+  const before = fs.readFileSync(path.join(FIXTURES, '2026-07-31-pi-subagent-integration.yaml'), 'utf8')
+  const cwd = project({ pi: '2026-07-31-pi-subagent-integration.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'pi.yaml')
+  const { code, err } = await run(cwd, ['verification', '--note', 'Re-verified: after the recut.', '--plan', 'pi'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const after = fs.readFileSync(file, 'utf8')
+  assertOnlySpanChanged(before, after, 102, 4, '  note: "Re-verified: after the recut."')
+})
+
+test('a write lands through a temp file and rename, leaving no stray file behind', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
+  assert.equal(code, 0)
+  const names = fs.readdirSync(path.join(cwd, '.dev-kit', 'plans'))
+  assert.deepEqual(names, ['live.yaml'])
+})
+
+// --- writing: the commands ------------------------------------------------------------------
+
+test('plan set status writes the plan status, and nothing else', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, out, err } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'status').value.text, 'done')
+})
+
+test('plan set mode writes the plan mode', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code } = await run(cwd, ['set', 'mode', 'inline', '--plan', 'live'])
+  assert.equal(code, 0)
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'mode').value.text, 'inline')
+})
+
+test('plan set refuses an off-vocabulary value and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['set', 'status', 'dong', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /dong/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan set refuses a field it does not know, frozen fields included', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code, err } = await run(cwd, ['set', 'goal', 'a new goal', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /goal/)
+})
+
+test('plan task writes status, commit and note together', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, ['task', '2', '--status', 'reviewing', '--commit', 'f5401dc', '--note', 'looks good', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const task = taskNode(parsePlan(fs.readFileSync(file, 'utf8'), 'live'), '2')
+  assert.equal(textOf(task, 'status'), 'reviewing')
+  assert.equal(textOf(task, 'commit'), 'f5401dc')
+  assert.equal(textOf(task, 'note'), 'looks good')
+})
+
+test('plan task with one bad flag among several writes none of them', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['task', '2', '--status', 'bogus', '--commit', 'f5401dc', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /bogus/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan task fails on an id the plan does not have, and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code, err } = await run(cwd, ['task', '9', '--status', 'done', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /9/)
+})
+
+test('plan task fails when the id is claimed twice', async () => {
+  const cwd = project({ dup: 'duplicate-keys.yaml' })
+  const { code, err } = await run(cwd, ['task', '2', '--status', 'done', '--plan', 'dup'])
+  assert.equal(code, 1)
+  assert.match(err, /id 2/)
+})
+
+test('plan task fails when the field it targets is not in the object', async () => {
+  // task 1 in missing-keys.yaml has neither commit nor note.
+  const cwd = project({ mk: 'missing-keys.yaml' })
+  const { code, err } = await run(cwd, ['task', '1', '--commit', 'abc1234', '--plan', 'mk'])
+  assert.equal(code, 1)
+  assert.match(err, /not found/)
+})
+
+test('plan task succeeds even though the file has unrelated improvised keys elsewhere', async () => {
+  const cwd = project({ extra: 'extra-keys.yaml' })
+  const { code } = await run(cwd, ['task', '1', '--status', 'done', '--plan', 'extra'])
+  assert.equal(code, 0)
+})
+
+test('plan task needs at least one of --status, --commit or --note', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code, err } = await run(cwd, ['task', '1', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /--status/)
+})
+
+test('plan task refuses a flag for a frozen field', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['task', '1', '--goal', 'new goal', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /--goal/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan review writes review.status', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, ['review', '--status', 'passed', '--plan', 'live'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  assert.equal(entryOf(review, 'status').value.text, 'passed')
+})
+
+test('plan review refuses an off-vocabulary status', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const { code, err } = await run(cwd, ['review', '--status', 'dong', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /dong/)
+})
+
+test('plan review fails when the plan has no review section', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  fs.writeFileSync(path.join(cwd, '.dev-kit', 'plans', 'bare.yaml'), 'status: running\ntasks: []\n')
+  const { code, err } = await run(cwd, ['review', '--status', 'passed', '--plan', 'bare'])
+  assert.equal(code, 1)
+  assert.match(err, /review.*not found/)
+})
+
+test('plan verification writes status, report, head and note together', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, [
+    'verification', '--status', 'reported', '--report', 'e2e/scratch/report.md', '--head', 'f5401dc',
+    '--note', 'ran clean', '--plan', 'live',
+  ])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const verification = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'verification').value
+  assert.equal(entryOf(verification, 'status').value.text, 'reported')
+  assert.equal(entryOf(verification, 'report').value.text, 'e2e/scratch/report.md')
+  assert.equal(entryOf(verification, 'head').value.text, 'f5401dc')
+  assert.equal(entryOf(verification, 'note').value.text, 'ran clean')
+})
+
+test('plan verification refuses an off-vocabulary status and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['verification', '--status', 'dong', '--head', 'f5401dc', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /dong/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+// --- the wiring in bin/devkit, for a write command ----------------------------------------------
+
+test('bin/devkit plan set writes through the real CLI', () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  execFileSync(process.execPath, [BIN, 'plan', 'set', 'status', 'done', '--plan', 'live'], { cwd, encoding: 'utf8' })
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'status').value.text, 'done')
 })
 
 // --- commands ----------------------------------------------------------------------------------
