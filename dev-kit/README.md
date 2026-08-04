@@ -70,9 +70,9 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 ## 链路
 
-When design remains unsettled: `brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for independent task/batch review, two-axis static wrap-up and main-session runtime verification → `using-git-worktrees` for delivery. A settled small change starts at `test-driven-development` or the applicable project checks.
+When design remains unsettled: `brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for the serial task loop, two-axis static wrap-up and main-session runtime verification → `using-git-worktrees` for delivery. A settled small change starts at `test-driven-development` or the applicable project checks.
 
-Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns concurrency authorization and subagent review boundaries. `init` triggers independently.
+Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns the sole concurrency exception and subagent review boundaries. `init` triggers independently.
 
 ## 可选 CLI
 

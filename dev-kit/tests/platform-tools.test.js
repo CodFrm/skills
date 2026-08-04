@@ -85,13 +85,16 @@ test('Codex mapping uses the collaboration tools exposed by the current harness'
     assert.match(mapping, new RegExp(`\\b${tool}\\b`))
   }
   assert.doesNotMatch(mapping, /\bclose_agent\b/)
+  assert.match(mapping, /Dispatch is serial by default; only the wrap-up spec-verification and code-review axes use multiple `spawn_agent` calls, bounded by the available slots\./)
+  assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
 test('Claude mapping keeps native subagents and task tracking distinct', () => {
   const mapping = read('references/claude-tools.md')
   assert.match(mapping, /`Task`/)
   assert.match(mapping, /`TodoWrite`/)
-  assert.match(mapping, /parallel/i)
+  assert.match(mapping, /Dispatch is serial by default; the wrap-up spec-verification and code-review axes are the sole parallel exception, issuing multiple `Task` calls in one message\./)
+  assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
 test('Pi mapping translates the logical namespace and stays within the base tool set', () => {
