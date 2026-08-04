@@ -25,14 +25,14 @@ const path = require('node:path')
 const { execFileSync } = require('node:child_process')
 
 const {
-  VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
+  VOCAB, KEYS, SUBS, FIXES_LIMIT, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
   encodeScalar, resolveEdits, applyEdits, resolveAppend,
 } = require('../lib/plan')
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'plans')
 const BIN = path.join(__dirname, '..', 'bin', 'devkit')
 
-const load = name => parsePlan(fs.readFileSync(path.join(FIXTURES, name), 'utf8'), name)
+const load = name => parsePlan(fs.readFileSync(path.join(FIXTURES, name), 'utf8'))
 
 // macOS puts temp dirs behind /var -> /private/var and the path boundary compares realpaths, so the
 // fixture root has to be realpath'd too or every assertion fails for the wrong reason.
@@ -67,6 +67,23 @@ test('the vocabulary matches the plan template in writing-plans', () => {
   const found = [...skill.matchAll(/^\s*(?:status|mode):\s+\S+\s+#\s*(.+)$/gm)]
     .map(m => m[1].split(';')[0].split(/[→|]/).map(s => s.trim()).filter(s => /^[a-z]+$/.test(s)))
   assert.deepEqual(found, [VOCAB.status, VOCAB.mode, VOCAB.taskStatus, VOCAB.reviewStatus, VOCAB.verificationStatus])
+})
+
+test('the schema keys and the fixes cap match the plan template in writing-plans', () => {
+  // KEYS decides what `check` calls an improvised key and FIXES_LIMIT what `review --fix` refuses;
+  // both are copies of the same template, so a key added there and not here turns every freshly
+  // written conforming plan into a schema note.
+  const skill = fs.readFileSync(path.join(__dirname, '..', 'skills', 'writing-plans', 'SKILL.md'), 'utf8')
+  const template = /```yaml\n([\s\S]*?)```/.exec(skill)[1]
+  const doc = parsePlan(template)
+  assert.deepEqual(doc.root.entries.map(e => e.key), KEYS.plan)
+  assert.deepEqual(taskNodes(doc)[0].entries.map(e => e.key), KEYS.task)
+  assert.deepEqual(entryOf(doc.root, 'review').value.entries.map(e => e.key), KEYS.review)
+  assert.deepEqual(entryOf(doc.root, 'verification').value.entries.map(e => e.key), KEYS.verification)
+  // The template ships a parallel_evidence entry commented out, so its keys come off those lines.
+  const commented = template.slice(template.indexOf('parallel_evidence:')).split('\n\n')[0]
+  assert.deepEqual([...commented.matchAll(/^\s*#\s+-?\s*([a-z_]+):/gm)].map(m => m[1]), KEYS.evidence)
+  assert.equal({ one: 1, two: 2, three: 3 }[/fixes:.*#\s*up to (\w+) wrap-up fixer SHAs/.exec(skill)[1]], FIXES_LIMIT)
 })
 
 // --- addressing --------------------------------------------------------------------------------
@@ -120,6 +137,22 @@ test('a folded scalar body is prose, never a key', () => {
   assert.equal(entryOf(task, 'files').value.items.map(i => i.text).join(), 'src/a.js')
   // The folded goal reads back as one line, which is what `next` prints.
   assert.equal(entryOf(doc.root, 'goal').value.text, 'One observable finish condition, folded across two lines.')
+})
+
+test('a block scalar whose body opens with an empty line is not indented by it', () => {
+  // The body's indentation is stripped by the first content line's column; an empty first line has
+  // none, and reading it as the whole body's indent hands back prose that is still indented.
+  const doc = parsePlan([
+    'status: running',
+    'goal: |',
+    '',
+    '  line one',
+    '  line two',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+  ].join('\n'))
+  assert.equal(entryOf(doc.root, 'goal').value.text, 'line one\nline two')
 })
 
 test('a trailing comment is not part of the value', () => {
@@ -298,7 +331,7 @@ test('resolveEdits finds the comment boundary from the value\'s parsed extent, n
     '    status: todo',
     '    note: "issue #42 needs a fix"   # filed by triage',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const task = taskNodes(doc)[0]
   const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
   assert.deepEqual(edits, [{ line: 5, endLine: 5, text: '    note: still open   # filed by triage' }])
@@ -312,7 +345,7 @@ test('resolveEdits leaves no spurious comment when a quoted value containing # h
     '    status: todo',
     '    note: "issue #42 needs a fix"',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const task = taskNodes(doc)[0]
   const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
   assert.deepEqual(edits, [{ line: 5, endLine: 5, text: '    note: still open' }])
@@ -328,7 +361,7 @@ test('resolveEdits keeps the comment on a key whose value is empty', () => {
     '  - id: 1',
     '    status: todo',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const edits = resolveEdits(doc, doc.root, [{ key: 'mode', value: 'subagent', vocab: VOCAB.mode, label: 'mode' }])
   assert.deepEqual(edits, [{ line: 2, endLine: 2, text: 'mode: subagent   # subagent | inline' }])
 })
@@ -343,7 +376,7 @@ test('resolveEdits keeps the comment on the block scalar header it collapses', (
     '      some folded prose',
     '      over two lines',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const task = taskNodes(doc)[0]
   const edits = resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }])
   assert.deepEqual(edits, [{ line: 5, endLine: 7, text: '    note: still open  # filed by triage' }])
@@ -360,7 +393,7 @@ test('resolveEdits refuses a line whose comment has no blank before its #', () =
     '    status: todo',
     '    note: "issue 42"# filed by triage',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const task = taskNodes(doc)[0]
   assert.throws(() => resolveEdits(doc, task, [{ key: 'note', value: 'still open', vocab: null, label: 'task 1: note' }]), err => {
     assert.ok(err instanceof PlanError)
@@ -460,7 +493,7 @@ test('resolveAppend keeps the trailing comment of the [] line it converts', () =
     'review:',
     '  status: pending',
     '  fixes: []                   # up to two wrap-up fixer SHAs',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const review = entryOf(doc.root, 'review').value
   const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
   assert.deepEqual(edit, {
@@ -490,9 +523,29 @@ test('resolveAppend finds the true end of a multi-line mapping item, not just it
     '',
     'review:',
     '  status: pending',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const edit = resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', i => [`${' '.repeat(i)}- tasks: "5"`])
   assert.deepEqual(edit, { line: 10, endLine: 9, text: ['  - tasks: "5"'] })
+})
+
+// A `- ` carrying no key puts the item's first key on the next line, two columns in from the dash,
+// and that key's line is the item node's own line. An indent read off there writes a dash the list
+// does not own: the append still exits 0, and every later read of the plan fails on that line.
+test('resolveAppend indents a new item by its list, not by a bare-dash item\'s first key', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'parallel_evidence:',
+    '  -',
+    '    tasks: "3, 4"',
+    '    head: aaa1111',
+  ].join('\n'))
+  const edit = resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', i => [`${' '.repeat(i)}- tasks: "5"`])
+  assert.deepEqual(edit, { line: 11, endLine: 10, text: ['  - tasks: "5"'] })
 })
 
 test('resolveAppend refuses once the list already holds the given limit', () => {
@@ -508,7 +561,7 @@ test('resolveAppend refuses once the list already holds the given limit', () => 
     '  fixes:',
     '    - abc1234',
     '    - def5678',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const review = entryOf(doc.root, 'review').value
   assert.throws(() => resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- deadbee`], 2), err => {
     assert.ok(err instanceof PlanError)
@@ -539,13 +592,13 @@ test('resolveAppend inserts after the last line of a folded item, not after its 
     '  - id: 1',
     '    status: todo',
     '    deps: []',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const edit = resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "next"`])
   assert.deepEqual(edit, { line: 6, endLine: 5, text: ['  - "next"'] })
 })
 
 test('resolveAppend refuses a key that is present but is not a list', () => {
-  const doc = parsePlan(['status: running', 'context:', 'tasks:', '  - id: 1', '    status: todo'].join('\n'), 'inline')
+  const doc = parsePlan(['status: running', 'context:', 'tasks:', '  - id: 1', '    status: todo'].join('\n'))
   assert.throws(() => resolveAppend(doc, doc.root, 'context', 'context', i => [`${' '.repeat(i)}- "x"`]), err => {
     assert.ok(err instanceof PlanError)
     assert.match(err.message, /not a list/)
@@ -565,7 +618,7 @@ test('resolveAppend names the shape when it refuses a non-empty inline list', ()
     'review:',
     '  status: pending',
     '  fixes: [abc1234]',
-  ].join('\n'), 'inline')
+  ].join('\n'))
   const review = entryOf(doc.root, 'review').value
   assert.throws(() => resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- deadbee`], 2), err => {
     assert.ok(err instanceof PlanError)
@@ -646,7 +699,7 @@ test('writing the key that sits on a task\'s dash line keeps the "- " that makes
   assert.equal(code, 0)
   const after = fs.readFileSync(file, 'utf8')
   assert.equal(after, before.replace('- status: todo', '- status: doing'))
-  assert.equal(taskNodes(parsePlan(after, 'dashed')).length, 1)
+  assert.equal(taskNodes(parsePlan(after)).length, 1)
 })
 
 test('writing the key on a task\'s dash line keeps both the "- " and that line\'s comment', async () => {
@@ -663,10 +716,29 @@ test('writing the key on a task\'s dash line keeps both the "- " and that line\'
 
 test('a write lands through a temp file and rename, leaving no stray file behind', async () => {
   const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  // The rename swaps in a file created beside the old one, so the name points at a different inode
+  // afterwards. An in-place overwrite — the shape that can leave half a plan on disk — keeps it.
+  const before = fs.statSync(file).ino
   const { code } = await run(cwd, ['set', 'status', 'done', '--plan', 'live'])
   assert.equal(code, 0)
+  assert.notEqual(fs.statSync(file).ino, before)
   const names = fs.readdirSync(path.join(cwd, '.dev-kit', 'plans'))
   assert.deepEqual(names, ['live.yaml'])
+})
+
+// The reader keeps the line each value sits on, and a write hands those lines back verbatim, so a
+// CR at the end of one is part of the file this CLI must give back unchanged.
+test('a plan whose lines end in CRLF is read and written back with its line endings intact', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'crlf.yaml')
+  const before = ['status: running', 'tasks:', '  - id: 1', '    status: todo', '    deps: []', ''].join('\r\n')
+  fs.writeFileSync(file, before)
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'crlf'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.equal(fs.readFileSync(file, 'utf8'), before.replace('status: todo', 'status: doing'))
 })
 
 // commented.yaml copies writing-plans/SKILL.md's own template, whose four writable `status:`
@@ -773,7 +845,7 @@ test('plan set status writes the plan status, and nothing else', async () => {
   assert.equal(err, '')
   assert.equal(out, '')
   assert.equal(code, 0)
-  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'status').value.text, 'done')
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'status').value.text, 'done')
 })
 
 test('plan set mode writes the plan mode', async () => {
@@ -781,7 +853,7 @@ test('plan set mode writes the plan mode', async () => {
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   const { code } = await run(cwd, ['set', 'mode', 'inline', '--plan', 'live'])
   assert.equal(code, 0)
-  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'mode').value.text, 'inline')
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'mode').value.text, 'inline')
 })
 
 test('plan set refuses an off-vocabulary value and writes nothing', async () => {
@@ -807,7 +879,7 @@ test('plan task writes status, commit and note together', async () => {
   const { code, err } = await run(cwd, ['task', '2', '--status', 'reviewing', '--commit', 'f5401dc', '--note', 'looks good', '--plan', 'live'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const task = taskNode(parsePlan(fs.readFileSync(file, 'utf8'), 'live'), '2')
+  const task = taskNode(parsePlan(fs.readFileSync(file, 'utf8')), '2')
   assert.equal(textOf(task, 'status'), 'reviewing')
   assert.equal(textOf(task, 'commit'), 'f5401dc')
   assert.equal(textOf(task, 'note'), 'looks good')
@@ -874,7 +946,7 @@ test('plan review writes review.status', async () => {
   const { code, err } = await run(cwd, ['review', '--status', 'passed', '--plan', 'live'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
   assert.equal(entryOf(review, 'status').value.text, 'passed')
 })
 
@@ -903,7 +975,7 @@ test('plan verification writes status, report, head and note together', async ()
   ])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const verification = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'verification').value
+  const verification = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'verification').value
   assert.equal(entryOf(verification, 'status').value.text, 'reported')
   assert.equal(entryOf(verification, 'report').value.text, 'e2e/scratch/report.md')
   assert.equal(entryOf(verification, 'head').value.text, 'f5401dc')
@@ -929,7 +1001,7 @@ test('plan context --add appends one entry, leaving the rest of the file untouch
   assert.equal(code, 0)
   const after = fs.readFileSync(file, 'utf8')
   assertOnlySpanChanged(before, after, 12, 0, '  - A second verified fact')
-  const context = entryOf(parsePlan(after, 'live').root, 'context').value
+  const context = entryOf(parsePlan(after).root, 'context').value
   assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'A second verified fact'])
 })
 
@@ -947,7 +1019,7 @@ test('two appends in a row leave both entries, the second after the first', asyn
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   assert.equal((await run(cwd, ['context', '--add', 'first added', '--plan', 'live'])).code, 0)
   assert.equal((await run(cwd, ['context', '--add', 'second added', '--plan', 'live'])).code, 0)
-  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'context').value
+  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'context').value
   assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'first added', 'second added'])
 })
 
@@ -957,7 +1029,7 @@ test('plan review --fix converts the inline empty fixes: [] into block form', as
   const { code, err } = await run(cwd, ['review', '--fix', 'abc1234', '--plan', 'live'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
   assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234'])
 })
 
@@ -967,7 +1039,7 @@ test('plan review --status and --fix together write both, or neither', async () 
   const { code, err } = await run(cwd, ['review', '--status', 'passed', '--fix', 'abc1234', '--plan', 'live'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'review').value
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
   assert.equal(entryOf(review, 'status').value.text, 'passed')
   assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234'])
 })
@@ -982,7 +1054,7 @@ test('plan review --status and --fix land together when the fixes list ends righ
   const { code, err } = await run(cwd, ['review', '--status', 'passed', '--fix', 'def5678', '--plan', 'above'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'above').root, 'review').value
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
   assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234', 'def5678'])
   assert.equal(entryOf(review, 'status').value.text, 'passed')
 })
@@ -1058,12 +1130,61 @@ test('plan evidence appends one entry once all seven flags are given, converting
   ])
   assert.equal(err, '')
   assert.equal(code, 0)
-  const evidence = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'parallel_evidence').value
+  const after = fs.readFileSync(file, 'utf8')
+  const evidence = entryOf(parsePlan(after).root, 'parallel_evidence').value
   assert.equal(evidence.items.length, 1)
   const item = evidence.items[0]
-  assert.equal(entryOf(item, 'tasks').value.text, '2, 3')
+  // `tasks` is the one evidence field the template writes as a list (writing-plans/SKILL.md:41).
+  assert.match(after, /^ {2}- tasks: \[2, 3\]$/m)
+  assert.deepEqual(entryOf(item, 'tasks').value.items.map(i => i.text), ['2', '3'])
   assert.equal(entryOf(item, 'head').value.text, 'f5401dc')
   assert.equal(entryOf(item, 'verification').value.text, 'each check independently meaningful')
+})
+
+// An inline list has no escape for a bracket: the reader takes the whole `[...]` on one line and
+// refuses anything nested. Writing one anyway leaves a plan that no later command can read.
+test('plan evidence refuses a --tasks value an inline list cannot carry, and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const argv = ['evidence']
+  for (const key of KEYS.evidence) argv.push(`--${key}`, key === 'tasks' ? '3, stage [4]' : `a ${key} boundary`)
+  argv.push('--plan', 'live')
+  const { code, err } = await run(cwd, argv)
+  assert.equal(code, 1)
+  assert.match(err, /tasks/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+// The append lands after the last line of the last item, at the list's own indent. A bare `- ` puts
+// that item's first key a level deeper, and an indent read off there writes an item outside the
+// list: exit 0, nothing printed, and every later plan command on the file fails.
+test('plan evidence appends under a bare-dash entry and the plan still reads', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'dashed.yaml')
+  fs.writeFileSync(file, [
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'parallel_evidence:',
+    '  -',
+    '    tasks: [3, 4]',
+    '    head: aaa1111',
+    '',
+  ].join('\n'))
+  const argv = ['evidence']
+  for (const key of KEYS.evidence) argv.push(`--${key}`, key === 'tasks' ? '5, 6' : `a ${key} boundary`)
+  argv.push('--plan', 'dashed')
+  const { code, err } = await run(cwd, argv)
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const evidence = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'parallel_evidence').value
+  assert.equal(evidence.items.length, 2)
+  assert.deepEqual(entryOf(evidence.items[1], 'tasks').value.items.map(i => i.text), ['5', '6'])
 })
 
 test('plan evidence fails naming exactly the missing flags, and writes nothing', async () => {
@@ -1100,7 +1221,7 @@ test('bin/devkit plan context appends through the real CLI', () => {
   const cwd = project({ live: 'conforming.yaml' })
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   execFileSync(process.execPath, [BIN, 'plan', 'context', '--add', 'via the real CLI', '--plan', 'live'], { cwd, encoding: 'utf8' })
-  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'context').value
+  const context = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'context').value
   assert.deepEqual(context.items.map(i => i.text), ['A verified fact at src/a.js:12', 'via the real CLI'])
 })
 
@@ -1110,7 +1231,7 @@ test('bin/devkit plan set writes through the real CLI', () => {
   const cwd = project({ live: 'conforming.yaml' })
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   execFileSync(process.execPath, [BIN, 'plan', 'set', 'status', 'done', '--plan', 'live'], { cwd, encoding: 'utf8' })
-  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8'), 'live').root, 'status').value.text, 'done')
+  assert.equal(entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'status').value.text, 'done')
 })
 
 // --- commands ----------------------------------------------------------------------------------
@@ -1121,6 +1242,28 @@ test('plan next prints the id and goal of every ready task', async () => {
   assert.equal(err, '')
   assert.equal(code, 0)
   assert.equal(out, '2  Second slice')
+})
+
+// One line per ready task is what makes this output readable line by line. A folded goal with a
+// paragraph break in it reads back with a newline, and printed raw it turns one task into several.
+test('plan next keeps one line per task when a goal folds across paragraphs', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  fs.writeFileSync(path.join(cwd, '.dev-kit', 'plans', 'folded.yaml'), [
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    goal: >-',
+    '      first paragraph',
+    '',
+    '      second paragraph',
+    '    deps: []',
+    '    status: todo',
+    '',
+  ].join('\n'))
+  const { code, out } = await run(cwd, ['next'])
+  assert.equal(code, 0)
+  assert.deepEqual(out.split('\n'), ['1  first paragraph second paragraph'])
 })
 
 test('plan next prints nothing and succeeds when nothing is ready', async () => {
@@ -1243,6 +1386,23 @@ test('a directory whose name ends in .yaml is not a plan', async () => {
   assert.match(named.err, /adir/)
 })
 
+// Three things this CLI is supposed to tell apart: no project, no plans directory, no such plan. A
+// plan that is there but cannot be opened is a fourth, and answering it with the third sends the
+// reader looking for a file that exists.
+test('a plan file that cannot be read says so, instead of reporting the plan as absent', async () => {
+  const cwd = project({ live: 'conforming.yaml', locked: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'locked.yaml')
+  fs.chmodSync(file, 0o000)
+  try {
+    const { code, err } = await run(cwd, ['show', '--plan', 'locked'])
+    assert.equal(code, 1)
+    assert.match(err, /locked/)
+    assert.doesNotMatch(err, /no plan/)
+  } finally {
+    fs.chmodSync(file, 0o600)
+  }
+})
+
 test('a slug that is not there fails saying so', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const { code, err } = await run(cwd, ['show', '--plan', 'nope'])
@@ -1295,11 +1455,8 @@ test('devkit help names every plan subcommand the CLI accepts, and no others', a
   // SUBS is what cmdPlan dispatches on, so it is the accepted set; the usage line and bin/devkit's
   // HELP are two hand-written copies of it. Checking them against each other would pass a
   // subcommand added to SUBS and written into neither, which is the drift that matters.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'plan.js'), 'utf8')
-  const block = /^const SUBS = \{$([\s\S]*?)^\}$/m.exec(src)
-  assert.ok(block, 'SUBS is no longer a top-level object literal in lib/plan.js')
-  const subs = [...block[1].matchAll(/^ {2}([a-z]+):/gm)].map(m => m[1]).sort()
-  assert.ok(subs.length > 3, block[1])
+  const subs = Object.keys(SUBS).sort()
+  assert.ok(subs.length > 3, subs)
 
   let usage = ''
   await cmdPlan([], { err: s => { usage += s } })

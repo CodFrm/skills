@@ -59,7 +59,7 @@ const BLOCK_RE = /^[>|][-+]?\d*$/
 
 // `comment` is the trailing text after the value, verbatim (including its leading blanks), or ''
 // when there is none — a write reuses it untouched instead of rescanning the line for `#`.
-const scalar = (line, endLine, text, style, comment = '') => ({ kind: 'scalar', line, endLine, text, style, comment })
+const scalar = (line, endLine, text, comment = '') => ({ kind: 'scalar', line, endLine, text, comment })
 
 function indentOf(raw, lineNo) {
   const m = /^[ ]*/.exec(raw)[0].length
@@ -139,13 +139,13 @@ function parseValue(st, rest, keyIndent, keyLine) {
       }
     }
     // An empty value has zero extent, so everything past the colon is the comment.
-    return scalar(keyLine, keyLine, null, 'empty', head.startsWith('#') ? rest : '')
+    return scalar(keyLine, keyLine, null, head.startsWith('#') ? rest : '')
   }
   if (head[0] === '>' || head[0] === '|') return parseBlockScalar(st, head, keyIndent, keyLine)
   if (head[0] === '[') return parseInlineSeq(head, keyLine)
   if (head[0] === '{') throw new PlanError('a flow mapping is not part of the plan shape', keyLine)
   const { value, comment } = decodeScalar(head, keyLine)
-  return scalar(keyLine, keyLine, value, 'inline', comment)
+  return scalar(keyLine, keyLine, value, comment)
 }
 
 function parseBlockScalar(st, head, keyIndent, keyLine) {
@@ -167,7 +167,10 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
   // Trailing blank lines belong to whatever comes next, not to the scalar.
   while (body.length && body[body.length - 1].trim() === '') body.pop()
   st.i = endLine
-  const strip = body.length ? indentOf(body[0], keyLine + 1) : 0
+  // The body's indent is the first line that has content: an empty one has none to give, and
+  // stripping zero columns would hand back prose still carrying its indentation.
+  const first = body.findIndex(l => l.trim() !== '')
+  const strip = first < 0 ? 0 : indentOf(body[first], keyLine + 1 + first)
   const text = body.map(l => l.slice(strip).trimEnd())
   const folded = style[0] === '>'
   let joined = ''
@@ -176,7 +179,7 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
     else if (l === '' || text[n - 1] === '') joined += '\n' + l
     else joined += (folded ? ' ' : '\n') + l
   }
-  return scalar(keyLine, endLine, joined.replace(/^\n+|\n+$/g, ''), style, comment)
+  return scalar(keyLine, endLine, joined.replace(/^\n+|\n+$/g, ''), comment)
 }
 
 function parseInlineSeq(head, keyLine) {
@@ -185,7 +188,7 @@ function parseInlineSeq(head, keyLine) {
   const m = /^\[([^[\]{}]*)\]([ \t]+#.*)?$/.exec(head)
   if (!m) throw new PlanError('an inline list must open and close on one line, without nesting', keyLine)
   const inner = m[1].trim()
-  const items = inner === '' ? [] : inner.split(',').map(s => scalar(keyLine, keyLine, decodeScalar(s.trim(), keyLine).value, 'inline'))
+  const items = inner === '' ? [] : inner.split(',').map(s => scalar(keyLine, keyLine, decodeScalar(s.trim(), keyLine).value))
   return { kind: 'seq', line: keyLine, indent: null, inline: true, items, comment: m[2] || '' }
 }
 
@@ -193,8 +196,7 @@ function parseInlineSeq(head, keyLine) {
 // followed by `# ...`. The split is the boundary the value's own grammar already defines (a
 // quote's close, or the first run of blanks before `#`), so a write can reuse it exactly instead
 // of scanning the raw line for `#` again, which would be fooled by a `#` the value itself contains.
-function decodeScalar(raw, line) {
-  const s = raw.replace(/\r$/, '')
+function decodeScalar(s, line) {
   if (s[0] === '"' || s[0] === "'") {
     const q = s[0]
     let i = 1
@@ -219,11 +221,14 @@ function decodeScalar(raw, line) {
   return { value: plain === '' || plain === 'null' || plain === '~' ? null : plain, comment }
 }
 
-function parsePlan(text, file) {
-  const st = { lines: text.split('\n'), i: 0, file }
+// A CR is taken off each line here rather than tolerated in every pattern below — it belongs to the
+// line ending, not to the key or the value — and `eol` puts it back on write, so a plan saved with
+// CRLF reads and is written as one instead of failing on the first key.
+function parsePlan(text) {
+  const st = { lines: text.split('\n').map(l => l.replace(/\r$/, '')), i: 0 }
   const root = parseMap(st, 0)
   if (skipBlank(st)) throw new PlanError('neither a key nor a list item', st.i + 1)
-  return { file, text, lines: st.lines, root }
+  return { lines: st.lines, eol: text.includes('\r\n') ? '\r\n' : '\n', root }
 }
 
 // --- addressing ---------------------------------------------------------------------------------
@@ -401,6 +406,17 @@ function encodeScalar(value) {
   return `"${escaped}"`
 }
 
+// `[a, b]`, as parseInlineSeq reads one back: it takes the whole list off a single line and splits
+// the items on the commas before decoding them, so the comma is this shape's separator and a
+// bracket has no escape. An item carrying one is refused here instead of written as a line that
+// would leave the plan unreadable to every later command.
+function encodeInlineSeq(values, label) {
+  for (const v of values) {
+    if (/[[\]{}]/.test(v)) throw new PlanError(`${label}: "${v}" cannot be written as a list item, because a bracket has no escape in an inline list`)
+  }
+  return `[${values.map(encodeScalar).join(', ')}]`
+}
+
 // The one address a write may land on: an existing scalar entry, found and unambiguous (entryOf
 // itself throws for a duplicate key). Anything else — missing, or a mapping/sequence — fails
 // before any edit is built, per decision 7: never guess, never invent the key.
@@ -514,10 +530,10 @@ function resolveAppend(doc, node, key, label, render, limit = Infinity) {
     const keyLine = `${prefix}${key}:${seq.comment || ''}`
     return { line: entry.line, endLine: entry.line, text: [keyLine, ...render(itemIndent)] }
   }
-  const last = seq.items[seq.items.length - 1]
-  const lastLine = nodeEndLine(last)
-  const itemIndent = indentOf(doc.lines[last.line - 1], last.line)
-  return { line: lastLine + 1, endLine: lastLine, text: render(itemIndent) }
+  const lastLine = nodeEndLine(seq.items[seq.items.length - 1])
+  // The list's own column, not the last item's line: a `- ` carrying no key leaves that item's
+  // first key a level deeper, and an item written at that column belongs to no list at all.
+  return { line: lastLine + 1, endLine: lastLine, text: render(seq.indent) }
 }
 
 // Same-directory temp file plus rename (decision 8): a process killed mid-write leaves the plan
@@ -525,11 +541,11 @@ function resolveAppend(doc, node, key, label, render, limit = Infinity) {
 // that cannot land) is turned into a PlanError so it exits through the same clean path as every
 // other failure (decision 12) instead of an unhandled rejection — bin/devkit's promise chain has
 // no .catch, so anything else thrown here would surface as a crash with a stack trace.
-async function writePlanFile(file, lines) {
+async function writePlanFile(file, lines, eol) {
   const dir = path.dirname(file)
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}-${Date.now()}.tmp`)
   try {
-    await fsp.writeFile(tmp, lines.join('\n'), 'utf8')
+    await fsp.writeFile(tmp, lines.join(eol), 'utf8')
     await fsp.rename(tmp, file)
   } catch (e) {
     await fsp.unlink(tmp).catch(() => {})
@@ -548,12 +564,16 @@ async function findPlans(planDir) {
   for (const name of names) {
     const file = await resolveInside(planDir, name)
     if (!file) continue
-    // What cannot be read as a file is not a plan — a directory named *.yaml above all, which
-    // otherwise counts as a candidate here and then fails as EISDIR wherever it is opened.
+    // A directory named *.yaml is not a plan: it counts as a candidate here and then fails as
+    // EISDIR wherever it is opened. Every other read error is a plan that is there and cannot be
+    // read, which is a different answer from "no such plan" and is left for the caller to report.
     let text
-    try { text = await fsp.readFile(file, 'utf8') } catch { continue }
+    try { text = await fsp.readFile(file, 'utf8') } catch (e) {
+      if (e.code === 'EISDIR') continue
+      throw e
+    }
     let status = null
-    try { status = textOf(parsePlan(text, name).root, 'status') } catch { status = null }
+    try { status = textOf(parsePlan(text).root, 'status') } catch { status = null }
     plans.push({ slug: name.replace(/\.yaml$/, ''), name, file, status })
   }
   return plans
@@ -587,10 +607,16 @@ const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeS
 // a second copy would drift, and the entry it drifted on is the one this command wrote.
 const EVIDENCE_FIELDS = KEYS.evidence
 
+// `tasks` is the one evidence field the plan template writes as a list of ids or stage labels
+// (writing-plans/SKILL.md's template); the other six are prose, and a comma in them is prose too.
+const evidenceValue = (key, value) => (key === 'tasks'
+  ? encodeInlineSeq(value.split(',').map(s => s.trim()).filter(s => s !== ''), '--tasks')
+  : encodeScalar(value))
+
 const evidenceItem = flags => itemIndent => {
   const dash = ' '.repeat(itemIndent)
   const cont = ' '.repeat(itemIndent + 2)
-  return EVIDENCE_FIELDS.map((key, i) => `${i === 0 ? dash + '- ' : cont}${key}: ${encodeScalar(flags[key])}`)
+  return EVIDENCE_FIELDS.map((key, i) => `${i === 0 ? dash + '- ' : cont}${key}: ${evidenceValue(key, flags[key])}`)
 }
 
 function parseFlags(argv, allowed) {
@@ -674,14 +700,16 @@ async function cmdPlan(argv, io = {}) {
 
   let doc
   try {
-    doc = parsePlan(await fsp.readFile(chosen.file, 'utf8'), name)
+    doc = parsePlan(await fsp.readFile(chosen.file, 'utf8'))
   } catch (e) { return fail(e) }
 
-  const save = async edits => writePlanFile(chosen.file, applyEdits(doc.lines, edits))
+  const save = async edits => writePlanFile(chosen.file, applyEdits(doc.lines, edits), doc.eol)
 
   try {
     if (sub === 'next') {
-      for (const t of readyTasks(doc)) out(`${t.id}  ${t.goal === null ? '' : t.goal}`)
+      // One line per ready task: a goal folded across paragraphs reads back with those newlines in
+      // it, and printed as they are the second paragraph reads as another task id.
+      for (const t of readyTasks(doc)) out(`${t.id}  ${t.goal === null ? '' : t.goal.replace(/\s*\n\s*/g, ' ')}`)
       return 0
     }
     if (sub === 'show') return showPlan(doc, chosen, flags, out, err)
@@ -780,6 +808,6 @@ function showPlan(doc, chosen, flags, out, err) {
 }
 
 module.exports = {
-  VOCAB, KEYS, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, findPlans, cmdPlan,
+  VOCAB, KEYS, SUBS, FIXES_LIMIT, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
   encodeScalar, resolveEdits, applyEdits, resolveAppend,
 }

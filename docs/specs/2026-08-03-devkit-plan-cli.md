@@ -57,11 +57,11 @@
 
 **`devkit plan next`** 输出所有 ready 任务的 id 与 goal。ready 的定义取自 `executing-plans/SKILL.md:49`：`status: todo` 且 `deps` 列出的每个 id 都已 `done`。没有 ready 任务时输出为空并成功退出——「现在没有可跑的」是正常状态，不是错误。若某个 `deps` 指向不存在的任务 id，失败退出并指出是哪一条。
 
-**`devkit plan show`** 不带 `--task` 时输出 plan 的顶层状态摘要：`status`、`mode`、`worktree`、各任务的 id 与 status、`review.status`、`verification.status`。带 `--task <id>` 时输出该任务的全部字段。任务 id 不存在则失败退出。
+**`devkit plan show`** 不带 `--task` 时输出选定 plan 的 slug 与顶层状态摘要：`status`、`mode`、`worktree`、各任务的 id 与 status、`review.status`、`verification.status`。带 `--task <id>` 时输出该任务的全部字段。任务 id 不存在则失败退出。
 
 **`devkit plan check`** 全量校验并区分两级：
 
-- **错误**（失败退出）：状态字段的值不在其词汇表内；`deps` 指向不存在的任务 id；任务缺少 `id` 或 `status`；plan 缺少 `status` 或 `tasks`。
+- **错误**（失败退出）：状态字段的值不在其词汇表内（`mode` 为空除外，模板出厂就是 `mode: null`）；plan 缺少 `status` 或 `tasks`；`tasks` 不是列表，或列表里某一项不是 mapping；任务缺少 `id` 或 `status`；同一个 id 被两个任务认领；`deps` 写成值而不是列表，或指向不存在的任务 id；同一对象里同一个键写了两遍。这些都是寻址模型服务不了的形状而不是即兴扩展：重复的键与重复的 id 没有唯一地址，不是列表的 `tasks` 与写成值的 `deps` 没有可枚举的成员，读它们只会得到一个编出来的答案。
 - **提示**（成功退出）：出现约定 schema 之外的键。本仓两份 plan 里的 `delivery_caveats`、`wrapup_spec`、`status_note` 都是有意加的，判红会让校验变成噪音。
 
 两级都逐条打印，各自标明所在行。
@@ -92,7 +92,7 @@
 
 ## 文件保全
 
-一次写入只改动被寻址的那一行上的**值**（追加类命令则只插入新行）。该行的键、左边距与行尾注释原样保留：`status: running   # draft → ready → …` 被写成 `done` 之后，注释仍在。文件其余每一个字节同样保持原样，包括缩进、空行、键的顺序，以及 `goal: >-` 这类折叠标量的原始换行位置。
+一次写入只改动被寻址的那个**值**所占的行：行内标量是一行；折叠标量是它的整段，写入后收成一行。起始行的键、左边距与行尾注释原样保留：`status: running   # draft → ready → …` 被写成 `done` 之后，注释仍在。追加类命令插入新行；`review.fixes` 与 `parallel_evidence` 模板出厂是空的行内列表 `[]`，「写命令」一节要求向它们追加，所以第一次追加要把那一行改写成单独的键行（键与行尾注释同样保留），新项插在它下面。被寻址的值不占的行一个字节都不变，包括缩进、空行、键的顺序，以及别处 `goal: >-` 这类折叠标量的原始换行位置。
 
 值本身含 `#` 时不得被误判成注释起点——判定以被替换值的实际边界为准，不靠扫描字符。注释边界无法无歧义判定时失败退出，不写入。
 
@@ -128,7 +128,7 @@
 | Seam | What it verifies | Prior art |
 |---|---|---|
 | 定位/校验/替换三组纯函数 | ready 闭包计算、词汇表校验、错误与提示分级、行寻址的唯一性判定与失败路径 | `dev-kit/tests/project.test.js` 直接测 `lib/` 导出 |
-| 写入后的逐行比对 | 除目标行外每一行字节相同，且目标行上只有值发生变化——键、左边距与行尾注释都还在。这是「行级替换不毁文件」这个设计决定的唯一硬证据；fixture 用本仓两份真 plan 的副本，注释另用带图例的模板样本 | 无 |
+| 写入后的逐行比对 | 被寻址的值不占的行字节相同，且它所占的那段上只有值发生变化——键、左边距与行尾注释都还在。这是「行级替换不毁文件」这个设计决定的唯一硬证据；fixture 用本仓两份真 plan 的副本，注释另用带图例的模板样本 | 无 |
 | `bin/devkit plan ...` 端到端 | 退出码、stdout/stderr 内容、`--plan` 省略时的选定与歧义失败、原子写入 | `dev-kit/tests/serve.test.js` 用 `fs.mkdtempSync` 造临时项目并起真实进程 |
 | `serve` 现有断言 | 暴露路径集合不变 | `dev-kit/tests/serve.test.js` 现有用例 |
 
