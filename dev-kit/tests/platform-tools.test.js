@@ -16,6 +16,62 @@ function readRoot(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8')
 }
 
+function section(markdown, heading) {
+  const marker = `## ${heading}`
+  const start = markdown.indexOf(marker)
+  assert.notEqual(start, -1, `missing ${marker}`)
+  const bodyStart = start + marker.length
+  const next = markdown.indexOf('\n## ', bodyStart)
+  return markdown.slice(bodyStart, next === -1 ? undefined : next)
+}
+
+function assertPiSingleTaskMapping(mapping) {
+  const dispatch = section(mapping, 'Optional dev-kit subagent')
+  assert.match(dispatch, /actual tool list for the exact tool name `subagent`/)
+  assert.match(dispatch, /When `subagent` is absent, offer only `inline`/)
+  assert.match(dispatch, /When `subagent` is present, offer `subagent` and `inline`/)
+  assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
+  assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
+  assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
+  assert.match(dispatch, /\[`executing-plans`\]\(\.\.\/\.\.\/executing-plans\/SKILL\.md#parallel-is-proved-not-assumed\) approves parallel dispatch for the exact current HEAD/)
+  assert.match(dispatch, /multiple sibling `subagent` calls in one assistant message/)
+  assert.match(dispatch, /keeps no scheduler or queue/)
+  assert.match(dispatch, /does not cancel or retry sibling calls/)
+  assert.match(dispatch, /does not aggregate their results/)
+  assert.match(dispatch, /never writes `\.dev-kit\/plans\/\*\.yaml`/)
+
+  const profiles = section(mapping, 'Profiles and tool resolution')
+  assert.match(profiles, /`read-only` uses the fixed `read,bash,grep,find,ls` set/)
+  assert.match(profiles, /prompt forbidding file, repository-state, and external-system changes/)
+  assert.match(profiles, /bash is only for read-only inspection/)
+  assert.match(profiles, /`write` uses the fixed `read,bash,edit,write,grep,find,ls` set for tasks that need no project-custom tools/)
+  assert.match(profiles, /task prompt and project rules own the write boundary/)
+  assert.match(profiles, /`general` inherits the parent Pi active tools, deduplicated while preserving first occurrence, and excludes the exact name `subagent`/)
+  assert.match(profiles, /If filtering leaves no tools, the child starts with none instead of falling back to the base or registered sets/)
+  assert.match(profiles, /does not expand from all registered tools/)
+  assert.match(profiles, /unavailable inherited tool fails with Pi diagnostics rather than being silently removed or replaced/)
+  assert.match(profiles, /It is not an OS sandbox/)
+
+  const recursion = section(mapping, 'Recursion boundary')
+  assert.match(recursion, /resolved child tool set excludes `subagent`/)
+  assert.match(recursion, /child-registration marker prevents the extension from registering `subagent` in the child/)
+  assert.match(recursion, /child system prompt says it executes one dispatched task/)
+  assert.match(recursion, /must obey `using-dev-kit`'s `SUBAGENT-STOP`/)
+
+  const runtime = section(mapping, 'Model, working directory and trust')
+  assert.match(runtime, /Resolve `cheap`, `mid`, or `strong` plan tiers to a real `provider\/model` in the main session at dispatch/)
+  assert.match(runtime, /package does not infer or persist that mapping/)
+  assert.match(runtime, /Omitted `model` and `thinking` inherit the parent values/)
+  assert.match(runtime, /Omitted `cwd` uses the parent cwd; a supplied path is resolved from it and must be a directory/)
+  assert.match(runtime, /trusted in-tree cwd uses one-time approval; an untrusted or out-of-tree cwd uses one-time rejection/)
+  assert.match(runtime, /independent Pi JSON\/print process with no session persistence/)
+  assert.match(runtime, /JSONL progress continues to stream into the current call/)
+  assert.match(runtime, /failure evidence retain the task, progress, final output, usage, model, exit code, stop reason, error, stderr, signal, and abort details/)
+  assert.match(runtime, /A parent abort requests termination of only this call's child, then force-kills it after the timeout; it does not cancel or retry siblings/)
+  assert.match(runtime, /main session owns mechanical evidence checks, plan state, and review boundaries/)
+  assert.match(runtime, /child result is a report, not permission to change the plan/)
+}
+
 test('using-dev-kit routes platform-specific tool names to one owned reference each', () => {
   const skill = read('SKILL.md')
   for (const platform of ['codex', 'claude', 'pi']) {
@@ -50,37 +106,82 @@ test('Pi mapping translates the logical namespace and stays within the base tool
   assert.doesNotMatch(mapping, /`spawn_agent`|`Task` tool/)
 })
 
-test('Pi mapping and public guidance describe the single-task subagent contract', () => {
-  const mapping = read('references/pi-tools.md')
+test('Pi mapping asserts the single-task runtime contract rather than keyword coverage', () => {
+  assertPiSingleTaskMapping(read('references/pi-tools.md'))
+})
+
+test('Pi mapping contract rejects legacy batch guidance even when current keywords are present', () => {
+  const staleMapping = `
+## Optional dev-kit subagent
+Inspect the actual tool list for the exact tool name \`subagent\`. When \`subagent\` is absent, offer only \`inline\`. When \`subagent\` is present, offer \`subagent\` and \`inline\`.
+One task can be sent directly, or \`tasks\` can send a batch and \`chain\` can pass prior output. The main session owns serial work and may make multiple \`subagent\` calls. Invalid \`tasks\`, \`chain\`, and \`tools\` values reject. Fields include \`task\`, \`profile\`, \`model\`, \`thinking\`, and \`cwd\`.
+## Profiles and tool resolution
+Profiles are read-only, write, and general. Active tools are deduplicated. It is not an OS sandbox.
+## Recursion boundary
+Three layers prevent recursion.
+## Model, working directory and trust
+Model, cwd, trust, output, failure, and abort behavior are retained.
+`
+  assert.throws(() => assertPiSingleTaskMapping(staleMapping), /one fresh child/)
+})
+
+test('Pi public guidance preserves installation and attribution while rejecting the old contract', () => {
   const catalog = readRoot('README.md')
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
   const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
 
-  assert.match(mapping, /one task|single-task/i)
-  assert.match(mapping, /main session.*serial/is)
-  assert.match(mapping, /multiple.*`subagent`.*calls/is)
-  assert.match(mapping, /read-only.*write.*general/is)
-  assert.match(mapping, /active tools.*deduplicat|deduplicat.*active tools/is)
-  assert.match(mapping, /three-layer|three layers/i)
-  assert.match(mapping, /`task`.*`profile`.*`model`.*`thinking`.*`cwd`/s)
-  assert.match(mapping, /`tasks`.*`chain`.*`tools`.*reject|reject.*`tasks`.*`chain`.*`tools`/is)
-  assert.doesNotMatch(mapping, /parallel mode|chain mode|concurrency pool/i)
+  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话负责串行依赖和获准的并行 sibling calls.*基础 dev-kit 仍保持 inline/)
+  assert.doesNotMatch(catalog, /single、parallel 与 chain/)
 
-  assert.match(catalog, /单任务|one-task|single-task/i)
-  assert.doesNotMatch(catalog, /single、parallel 与 chain/i)
+  assert.match(packageReadme, /基础 `dev-kit\/package\.json` 不引用本包/)
+  assert.match(packageReadme, /pi install \/path\/to\/skills\/dev-kit\/\.pi\/extensions\/subagent/)
+  assert.match(packageReadme, /执行 `\/reload` 后检查当前工具列表/)
+  assert.match(packageReadme, /pi list\npi remove <pi list 中显示的本地 source>/)
+  assert.match(packageReadme, /未安装、禁用、移除或尚未 reload 时只提供 `inline`/)
 
-  assert.match(packageReadme, /task.*profile.*model.*thinking.*cwd/is)
-  assert.match(packageReadme, /read-only.*write.*general/is)
-  assert.match(packageReadme, /main session.*serial|主会话.*串行/is)
-  assert.match(packageReadme, /parallel.*multiple.*calls|并行.*sibling.*calls/is)
-  assert.match(packageReadme, /active tools.*subagent|subagent.*active tools/is)
-  assert.match(packageReadme, /three-layer|three layers|三层/i)
-  assert.match(packageReadme, /`tasks`.*`chain`.*`tools`.*(?:reject|拒绝)|(?:reject|拒绝).*`tasks`.*`chain`.*`tools`/is)
-  assert.doesNotMatch(packageReadme, /single\/parallel\/chain execution model/i)
-  assert.doesNotMatch(packageReadme, /concurrency limits?|concurrency cap/i)
+  const contract = section(packageReadme, '调用契约')
+  assert.match(contract, /```ts\nsubagent\(\{\n  task: string,\n  profile: "read-only" \| "write" \| "general",\n  model\?: string,\n  thinking\?: string,\n  cwd\?: string\n\}\)\n```/)
+  assert.match(contract, /`task` 和 `profile` 必填；每次成功调用对应一个新的子进程和一个任务结果/)
+  assert.match(contract, /`tasks`、`chain`、`tools` 以及其他未知字段都会在启动前拒绝，不做兼容转换/)
 
-  assert.match(notice, /Source:/)
+  const orchestration = section(packageReadme, '编排边界')
+  assert.match(orchestration, /主会话默认串行处理依赖/)
+  assert.match(orchestration, /\[`executing-plans`\]\(\.\.\/\.\.\/\.\.\/skills\/executing-plans\/SKILL\.md#parallel-is-proved-not-assumed\).*当前精确 HEAD.*同一 assistant message.*多个并行 sibling `subagent` calls/)
+  assert.match(orchestration, /不保留 scheduler 或 queue.*不聚合 sibling results.*不写 `\.dev-kit\/plans\/\*\.yaml`/)
+  assert.match(orchestration, /前一个调用返回后.*新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
+
+  const profiles = section(packageReadme, 'Profiles and tool resolution')
+  assert.match(profiles, /`write`.*不需要项目自定义工具的落盘任务/)
+  assert.match(profiles, /`general`.*父会话当前 active tools.*排除精确名称 `subagent`/)
+  assert.match(profiles, /过滤后为空时以无工具模式启动/)
+  assert.match(profiles, /不从 registered tools 扩大集合/)
+  assert.match(profiles, /不是 OS sandbox/)
+  assert.match(profiles, /父 active tool 在子进程中不可用.*返回 Pi 诊断.*不静默删除能力或 fallback/)
+
+  const recursion = section(packageReadme, 'Recursion boundary')
+  assert.match(recursion, /递归由三层共同阻断/)
+  assert.match(recursion, /child registration marker/)
+  assert.match(recursion, /system prompt/)
+
+  const runtime = section(packageReadme, 'Model, working directory and trust')
+  assert.match(runtime, /未提供 `model` 或 `thinking` 时继承父会话当前值/)
+  assert.match(runtime, /显式 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback/)
+  assert.match(runtime, /未提供 `cwd` 时使用父会话 cwd；提供时相对父 cwd 解析并在启动前确认是目录/)
+  assert.match(runtime, /父项目已信任.*一次性 approval.*否则.*一次性拒绝/)
+  assert.match(runtime, /独立的 Pi JSON\/print 子进程并关闭 session 持久化/)
+
+  const output = section(packageReadme, '输出与失败')
+  assert.match(output, /JSONL 事件继续流式进入当前工具调用/)
+  assert.match(output, /exit code、stop reason、错误消息、stderr、最后输出、signal 和 abort 证据/)
+  assert.match(output, /父调用 abort 只终止当前调用的子进程，超时后强制结束；不会取消或重试 sibling calls/)
+  assert.match(output, /父会话负责机械证据检查、plan 状态和 review 边界/)
+  assert.match(output, /子 agent 的结果是报告，不是状态转换许可/)
+
+  assert.doesNotMatch(packageReadme, /parallel 与 chain 把|最多八项|同时最多四个进程|显式 `tools`|`tools` 可以/)
+  assert.match(notice, /Source: https:\/\/github\.com\/earendil-works\/pi\/tree\/v0\.82\.1\/packages\/coding-agent\/examples\/extensions\/subagent/)
   assert.match(notice, /Author: Mario Zechner/)
-  assert.doesNotMatch(notice, /single\/parallel\/chain execution model/i)
-  assert.doesNotMatch(notice, /concurrency limits?|streaming result collection|output cap/i)
+  assert.match(notice, /License: MIT/)
+  assert.match(notice, /one fresh child process per call/)
+  assert.match(notice, /built-in `read-only`, `write`, and `general` profiles and runtime model selection/)
+  assert.doesNotMatch(notice, /single\/parallel\/chain execution model|concurrency limits?|streaming result collection|output cap/i)
 })

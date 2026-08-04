@@ -22,15 +22,15 @@ Before a plan ready gate, inspect the current session's actual tool list for the
 - When `subagent` is absent, offer only `inline`.
 - When `subagent` is present, offer `subagent` and `inline`; dispatch and wait through that tool rather than shell-launching Pi.
 
-Each `subagent` call is one fresh child and accepts exactly `task`, `profile`, `model`, `thinking`, and `cwd`; `task` and `profile` are required. The fields `tasks`, `chain`, and `tools` are rejected with no compatibility conversion. A task result is returned directly.
+Each `subagent` call starts one fresh child for one task. Its only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`; `tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion. The returned result belongs only to that task.
 
-The main session owns serial dependencies. After a call returns, it decides whether to send the next complete task. When the plan's gate has proved the four boundaries against the exact current HEAD, the main session may send multiple sibling `subagent` calls in one assistant message; Pi runs those independent calls concurrently. The extension has no scheduler or queue, and does not aggregate sibling results or write `.dev-kit/plans/*.yaml`.
+The main session owns serial dependencies: after a call returns, it decides whether to send the next complete task. Only when [`executing-plans`](../../executing-plans/SKILL.md#parallel-is-proved-not-assumed) approves parallel dispatch for the exact current HEAD may it send multiple sibling `subagent` calls in one assistant message; Pi runs them concurrently. The extension keeps no scheduler or queue, does not cancel or retry sibling calls, does not aggregate their results, and never writes `.dev-kit/plans/*.yaml`.
 
 ## Profiles and tool resolution
 
-- `read-only` uses the fixed `read,bash,grep,find,ls` set and a prompt forbidding file, repository-state, and external-system changes. It is not an OS sandbox.
-- `write` uses the fixed `read,bash,edit,write,grep,find,ls` set; the task prompt and project rules own the write boundary.
-- `general` inherits the parent Pi active tools, deduplicated while preserving first occurrence, and excludes the exact name `subagent`. It does not expand from all registered tools; an unavailable inherited tool fails with Pi diagnostics rather than being silently removed or replaced.
+- `read-only` uses the fixed `read,bash,grep,find,ls` set and a prompt forbidding file, repository-state, and external-system changes; bash is only for read-only inspection. It is not an OS sandbox.
+- `write` uses the fixed `read,bash,edit,write,grep,find,ls` set for tasks that need no project-custom tools; the task prompt and project rules own the write boundary.
+- `general` inherits the parent Pi active tools, deduplicated while preserving first occurrence, and excludes the exact name `subagent`. If filtering leaves no tools, the child starts with none instead of falling back to the base or registered sets. It does not expand from all registered tools; an unavailable inherited tool fails with Pi diagnostics rather than being silently removed or replaced.
 
 ## Recursion boundary
 
@@ -40,4 +40,4 @@ Recursion is blocked at three layers: the resolved child tool set excludes `suba
 
 Resolve `cheap`, `mid`, or `strong` plan tiers to a real `provider/model` in the main session at dispatch; the package does not infer or persist that mapping. Omitted `model` and `thinking` inherit the parent values. Omitted `cwd` uses the parent cwd; a supplied path is resolved from it and must be a directory. A trusted in-tree cwd uses one-time approval; an untrusted or out-of-tree cwd uses one-time rejection. Each task uses an independent Pi JSON/print process with no session persistence.
 
-JSONL progress continues to stream into the current call. Single-task output and failure evidence retain the task, progress, final output, usage, model, exit code, stop reason, error, stderr, signal, and abort details. The main session owns mechanical evidence checks, plan state, and review boundaries; a child result is a report, not permission to change the plan.
+JSONL progress continues to stream into the current call. Single-task output and failure evidence retain the task, progress, final output, usage, model, exit code, stop reason, error, stderr, signal, and abort details. A parent abort requests termination of only this call's child, then force-kills it after the timeout; it does not cancel or retry siblings. The main session owns mechanical evidence checks, plan state, and review boundaries; a child result is a report, not permission to change the plan.
