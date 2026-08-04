@@ -9,7 +9,7 @@ const { pathToFileURL } = require('node:url')
 
 const EXTENSION = path.join(__dirname, '..', '.pi', 'extensions', 'subagent', 'subagent.ts')
 const FAKE_PI = path.join(__dirname, 'fixtures', 'fake-pi.js')
-const BUILTIN_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'subagent']
+const ACTIVE_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'subagent']
 
 async function loadTool() {
   let tool
@@ -18,8 +18,11 @@ async function loadTool() {
       assert.equal(tool, undefined)
       tool = definition
     },
+    getActiveTools() {
+      return [...ACTIVE_TOOLS]
+    },
     getAllTools() {
-      return BUILTIN_TOOLS.map(name => ({ name }))
+      return ACTIVE_TOOLS.map(name => ({ name }))
     },
   }
   const mod = await import(`${pathToFileURL(EXTENSION).href}?test=${Date.now()}-${Math.random()}`)
@@ -62,173 +65,95 @@ function context(cwd) {
   }
 }
 
-function finalOutput(result) {
-  for (let index = result.messages.length - 1; index >= 0; index -= 1) {
-    const message = result.messages[index]
-    if (message.role !== 'assistant') continue
-    const text = message.content.find(part => part.type === 'text')
-    if (text) return text.text
-  }
-  return ''
-}
-
 function readJsonLines(file) {
   if (!fs.existsSync(file)) return []
   const content = fs.readFileSync(file, 'utf8').trim()
   return content ? content.split('\n').map(JSON.parse) : []
 }
 
+async function waitFor(predicate, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(`condition not met within ${timeoutMs}ms`)
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
 function maxConcurrent(events) {
   let active = 0
   let maximum = 0
-  for (const event of [...events].sort((a, b) => a.time - b.time || (a.event === 'start' ? 1 : -1))) {
+  for (const event of [...events].sort((a, b) => a.time - b.time)) {
     if (event.event === 'start') {
       active += 1
       maximum = Math.max(maximum, active)
-    } else {
+    } else if (event.event === 'end' || event.event === 'aborted' || event.event === 'signaled') {
       active -= 1
     }
   }
   return maximum
 }
 
-test('parallel ignores empty inactive modes, keeps input order, and runs at most four children', async t => {
-  const { root, timelinePath } = useFakePi(t, 'dev-kit-subagent-parallel-')
+test('two independent calls overlap and keep their results isolated', async t => {
+  const { root, capturePath, timelinePath } = useFakePi(t, 'dev-kit-subagent-reentrant-')
   const tool = await loadTool()
-  const updates = []
-  const tasks = Array.from({ length: 6 }, (_, index) => ({
-    task: `[delay=120] [output=task-${index}]${index === 2 ? ' [fail]' : ''}`,
-    profile: 'write',
-  }))
 
-  const result = await tool.execute(
-    'parallel',
-    {
-      task: '',
-      profile: 'read-only',
-      model: '',
-      thinking: '',
-      tools: [],
-      cwd: '',
-      tasks,
-      chain: [],
-    },
-    undefined,
-    update => updates.push(update),
-    context(root),
-  )
+  const [first, second] = await Promise.all([
+    tool.execute(
+      'first',
+      { task: '[delay=180] [output=alpha]', profile: 'write' },
+      undefined,
+      undefined,
+      context(root),
+    ),
+    tool.execute(
+      'second',
+      { task: '[delay=180] [output=beta] [fail]', profile: 'read-only' },
+      undefined,
+      undefined,
+      context(root),
+    ),
+  ])
 
-  assert.equal(result.isError, undefined)
-  assert.match(result.content[0].text, /Parallel: 5\/6 succeeded/)
-  assert.equal(result.details.mode, 'parallel')
-  assert.equal(result.details.results.length, 6)
-  assert.deepEqual(result.details.results.map(finalOutput), tasks.map((_, index) => `task-${index}`))
-  assert.equal(result.details.results[2].exitCode, 2)
-  assert.equal(result.details.results[2].stopReason, 'error')
-  assert.match(result.content[0].text, /marked fake failure/)
-  assert.ok(updates.some(update => update.details?.mode === 'parallel'))
-
-  const timeline = readJsonLines(timelinePath)
-  assert.equal(maxConcurrent(timeline), 4)
-})
-
-test('parallel limits and mode conflicts reject the whole request before spawning', async t => {
-  const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-preflight-')
-  const tool = await loadTool()
-  const nine = Array.from({ length: 9 }, (_, index) => ({ task: `task ${index}`, profile: 'write' }))
-  const cases = [
-    [{ tasks: nine }, /tasks.*at most 8/i],
-    [{ task: 'single', profile: 'write', tasks: [{ task: 'parallel', profile: 'write' }] }, /exactly one mode/i],
-    [{ tasks: [{ task: 'valid', profile: 'write' }, { task: 'invalid', profile: 'read-only', tools: ['write'] }] }, /tasks\[1\].*write/i],
-  ]
-
-  for (const [params, expected] of cases) {
-    await assert.rejects(
-      () => tool.execute('invalid-mode', params, undefined, undefined, context(root)),
-      expected,
-    )
-  }
-  assert.equal(fs.existsSync(capturePath), false)
-})
-
-test('chain substitutes successful output and stops at the first failed step', async t => {
-  const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-chain-')
-  const tool = await loadTool()
-  const result = await tool.execute(
-    'chain',
-    {
-      task: '',
-      profile: 'read-only',
-      model: '',
-      thinking: '',
-      tools: [],
-      cwd: '',
-      tasks: [],
-      chain: [
-        { task: 'first [output=alpha]', profile: 'read-only' },
-        { task: 'second received={previous} [output=beta]', profile: 'read-only' },
-        { task: 'third received={previous} [output=gamma] [fail]', profile: 'write' },
-        { task: 'must not run [output=delta]', profile: 'write' },
-      ],
-    },
-    undefined,
-    undefined,
-    context(root),
-  )
-
-  assert.equal(result.isError, true)
-  assert.match(result.content[0].text, /Chain stopped at step 3/i)
-  assert.equal(result.details.mode, 'chain')
-  assert.equal(result.details.results.length, 3)
-  assert.deepEqual(result.details.results.map(finalOutput), ['alpha', 'beta', 'gamma'])
-  assert.deepEqual(result.details.results.map(item => item.step), [1, 2, 3])
+  assert.equal(first.isError, undefined)
+  assert.equal(first.content[0].text, 'alpha')
+  assert.equal(first.details.results[0].task, '[delay=180] [output=alpha]')
+  assert.equal(second.isError, true)
+  assert.match(second.content[0].text, /marked fake failure/)
+  assert.equal(second.details.results[0].task, '[delay=180] [output=beta] [fail]')
+  assert.equal(second.details.results[0].messages.at(-1).content[0].text, 'beta')
 
   const captures = readJsonLines(capturePath)
-  assert.equal(captures.length, 3)
-  assert.match(captures[1].args.at(-1), /received=alpha/)
-  assert.match(captures[2].args.at(-1), /received=beta/)
-  assert.doesNotMatch(captures.map(item => item.args.at(-1)).join('\n'), /must not run/)
+  assert.equal(captures.length, 2)
+  assert.deepEqual(new Set(captures.map(item => item.args.at(-1))), new Set([
+    'Task: [delay=180] [output=alpha]',
+    'Task: [delay=180] [output=beta] [fail]',
+  ]))
+  assert.equal(maxConcurrent(readJsonLines(timelinePath)), 2)
 })
 
-test('aborting parallel work preserves completed results and marks every unfinished task aborted', async t => {
+test('aborting a call terminates its child and returns failure evidence', async t => {
   const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-abort-')
   const tool = await loadTool()
   const controller = new AbortController()
-  const tasks = [
-    { task: '[delay=20] [output=quick]', profile: 'read-only' },
-    ...Array.from({ length: 5 }, (_, index) => ({
-      task: `[delay=3000] [output=slow-${index}]`,
-      profile: 'read-only',
-    })),
-  ]
-
   const started = Date.now()
-  let sawCompletedQuickTask = false
   const execution = tool.execute(
     'abort',
-    { tasks },
+    { task: '[delay=3000] [output=too-late]', profile: 'read-only' },
     controller.signal,
-    update => {
-      const quick = update.details?.results[0]
-      if (!sawCompletedQuickTask && quick?.exitCode === 0 && finalOutput(quick) === 'quick') {
-        sawCompletedQuickTask = true
-        controller.abort()
-      }
-    },
+    undefined,
     context(root),
   )
+  await waitFor(() => readJsonLines(capturePath).length === 1)
+  controller.abort()
+
   const result = await execution
   const elapsed = Date.now() - started
 
-  assert.equal(sawCompletedQuickTask, true)
   assert.ok(elapsed < 1500, `abort took ${elapsed}ms`)
-  assert.equal(result.details.results.length, 6)
-  assert.equal(finalOutput(result.details.results[0]), 'quick')
-  assert.equal(result.details.results[0].stopReason, 'end')
-  assert.deepEqual(result.details.results.slice(1).map(item => item.stopReason), Array(5).fill('aborted'))
-  assert.match(result.content[0].text, /1\/6 succeeded/)
+  assert.equal(result.isError, true)
+  assert.equal(result.details.results[0].stopReason, 'aborted')
+  assert.equal(result.details.results[0].errorMessage, 'Subagent was aborted')
+  assert.ok(result.details.results[0].exitCode > 0)
   assert.match(result.content[0].text, /aborted/i)
-
-  const captures = readJsonLines(capturePath)
-  assert.ok(captures.length < tasks.length, 'queued tasks were spawned after abort')
+  assert.equal(readJsonLines(capturePath).length, 1)
 })

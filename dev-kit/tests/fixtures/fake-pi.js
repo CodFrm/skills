@@ -10,10 +10,15 @@ const outputMarker = task.match(/\[output=([^\]]*)\]/)
 const delayMarker = task.match(/\[delay=(\d+)\]/)
 const signalMarker = task.match(/\[signal=(SIG[A-Z]+)\]/)
 const markedFailure = task.includes('[fail]')
+const toolsIndex = args.indexOf('--tools')
+const selectedTools = toolsIndex === -1 ? [] : args[toolsIndex + 1].split(',').filter(Boolean)
+const unavailableTool = process.env.FAKE_PI_UNAVAILABLE_TOOL
+const unavailableSelectedTool = unavailableTool && selectedTools.includes(unavailableTool) ? unavailableTool : null
 const capture = {
   args,
   cwd: process.cwd(),
   systemPrompt: promptPath ? fs.readFileSync(promptPath, 'utf8') : null,
+  childMarker: process.env.DEV_KIT_PI_SUBAGENT_CHILD || null,
 }
 
 if (process.env.FAKE_PI_CAPTURE) {
@@ -35,7 +40,7 @@ setTimeout(() => {
     process.kill(process.pid, signalMarker[1])
     return
   }
-  const stopReason = process.env.FAKE_PI_STOP_REASON || (markedFailure ? 'error' : 'end')
+  const stopReason = process.env.FAKE_PI_STOP_REASON || (markedFailure || unavailableSelectedTool ? 'error' : 'end')
   const message = {
     role: 'assistant',
     content: [{ type: 'text', text: process.env.FAKE_PI_OUTPUT || outputMarker?.[1] || 'fake subagent completed' }],
@@ -51,14 +56,18 @@ setTimeout(() => {
     stopReason,
   }
 
-  const errorMessage = process.env.FAKE_PI_ERROR_MESSAGE || (markedFailure ? 'marked fake failure' : undefined)
+  const errorMessage = process.env.FAKE_PI_ERROR_MESSAGE
+    || (unavailableSelectedTool ? `active child tool ${unavailableSelectedTool} is unavailable` : undefined)
+    || (markedFailure ? 'marked fake failure' : undefined)
   if (errorMessage) message.errorMessage = errorMessage
   console.log(JSON.stringify({ type: 'message_end', message }))
-  const stderr = process.env.FAKE_PI_STDERR || (markedFailure ? 'marked fake stderr' : '')
+  const stderr = process.env.FAKE_PI_STDERR
+    || (unavailableSelectedTool ? `unknown tool: ${unavailableSelectedTool}` : '')
+    || (markedFailure ? 'marked fake stderr' : '')
   if (stderr) process.stderr.write(stderr)
   finished = true
   recordTimeline('end')
-  process.exit(Number(process.env.FAKE_PI_EXIT_CODE || (markedFailure ? 2 : 0)))
+  process.exit(Number(process.env.FAKE_PI_EXIT_CODE || (markedFailure || unavailableSelectedTool ? 2 : 0)))
 }, delay)
 
 function recordTimeline(event) {

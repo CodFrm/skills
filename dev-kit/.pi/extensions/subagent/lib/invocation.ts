@@ -6,6 +6,8 @@ import type { Message } from "@earendil-works/pi-ai";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { OnUpdate, ResolvedTaskRequest, SubagentDetails, TaskResult, UsageStats } from "./types.ts";
 
+export const SUBAGENT_CHILD_ENV = "DEV_KIT_PI_SUBAGENT_CHILD";
+
 export async function runSingleTask(
 	request: ResolvedTaskRequest,
 	ctx: ExtensionContext,
@@ -50,6 +52,7 @@ function spawnAndCollect(
 		try {
 			proc = spawn(invocation.command, invocation.args, {
 				cwd,
+				env: { ...process.env, [SUBAGENT_CHILD_ENV]: "1" },
 				shell: false,
 				stdio: ["ignore", "pipe", "pipe"],
 			});

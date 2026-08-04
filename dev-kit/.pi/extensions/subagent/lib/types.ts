@@ -1,21 +1,17 @@
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 
-export type Profile = "write" | "read-only";
+export type Profile = "read-only" | "write" | "general";
 
 export interface TaskRequest {
 	task: string;
 	profile: Profile;
 	model?: string;
 	thinking?: string;
-	tools?: string[];
 	cwd?: string;
 }
 
-export interface SubagentParams extends Partial<TaskRequest> {
-	tasks?: TaskRequest[];
-	chain?: TaskRequest[];
-}
+export type SubagentParams = TaskRequest;
 
 export interface ResolvedTaskRequest extends TaskRequest {
 	cwd: string;
