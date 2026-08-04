@@ -65,8 +65,8 @@ export function createRenderers(runtime?: RenderRuntime) {
 		},
 		renderResult(result: any, options: { expanded: boolean }, theme: Theme) {
 			const resolvedRuntime = getRuntime();
-			const details = resolveTaskResult(result?.details);
-			if (!details) return new resolvedRuntime.Text(modelVisibleContent(result), 0, 0);
+			const details = result?.details;
+			if (!isTaskResult(details)) return new resolvedRuntime.Text(modelVisibleContent(result), 0, 0);
 			return renderTask(details, options.expanded, theme, resolvedRuntime);
 		},
 	};
@@ -293,12 +293,6 @@ function formatCompactJson(value: unknown, maxLength: number): string {
 
 function preview(text: string, maxLength: number): string {
 	return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
-}
-
-function resolveTaskResult(details: unknown): TaskResult | undefined {
-	if (isTaskResult(details)) return details;
-	if (!isRecord(details) || details.mode !== "single" || !Array.isArray(details.results)) return undefined;
-	return isTaskResult(details.results[0]) ? details.results[0] : undefined;
 }
 
 function modelVisibleContent(result: any): string {

@@ -198,31 +198,6 @@ test('compact progress is bounded while expanded rendering and direct task detai
   assert.equal(toolResult.content[0].text, modelVisibleOutput)
 })
 
-test('legacy completed single results remain readable and malformed legacy details fall back to model-visible content', async () => {
-  const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
-  const renderers = createRenderers(fakeRuntime)
-  const storedResult = result()
-
-  for (const expanded of [false, true]) {
-    const rendered = render(renderers.renderResult(
-      { content: [{ type: 'text', text: 'legacy model-visible fallback' }], details: { mode: 'single', results: [storedResult] } },
-      { expanded, isPartial: false },
-      theme,
-      {},
-    ))
-    assert.match(rendered, /Inspect the branch/)
-    assert.match(rendered, /Final \*\*answer\*\*/)
-  }
-
-  const fallback = render(renderers.renderResult(
-    { content: [{ type: 'text', text: 'legacy model-visible fallback' }], details: { mode: 'single', results: [] } },
-    { expanded: false, isPartial: false },
-    theme,
-    {},
-  ))
-  assert.equal(fallback, 'legacy model-visible fallback')
-})
-
 test('compact and expanded renderers retain exact failure diagnostics', async () => {
   const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
   const renderers = createRenderers(fakeRuntime)
