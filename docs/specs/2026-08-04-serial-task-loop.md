@@ -37,8 +37,9 @@
 | 5 | wrap-up 一轮的全部 findings 交给一次 fixer，两轮上限不变 | 用户 2026-08-04 选择；fixer 拿到的是带 `file:line` 的 findings 清单、逐条以失败测试开场，工作量按条数而非分支大小计。Rejected：按任务/文件分组多派 fixer——重新引入扇出；Rejected：改成「直到无 blocking，最多四轮」——最贵的静态评审最多跑四遍，与压缩方向相反。取舍：30 任务规模上，一个 context 要吃下原先四个 context 分摊的修复量，可能修得浅 |
 | 6 | `task.status` 去掉 `reviewing`，成为 `todo → doing → done \| blocked` | 该态的定义是「implementer commit 已存在但独立评审未完」，随 batch reviewer 一同消失；四份现存 plan 无一使用它。Rejected：保留为「已提交、未评审」的中间标记——本轮之后没有任何流程分支会读它 |
 | 7 | resume 时 `doing` 任务能机械恢复 SHA 则置 `done`，恢复不出则回 `todo`。「已存在 commit 的实现者绝不重派」从被删除的 `reviewing` 恢复项换位到 `doing` 恢复项，逐字保留 | 结构化报告已随上一次会话消失，证据闸门无输入可用；wrap-up 是唯一独立审查层，由它判。本轮不为旧状态开任何兼容口子（用户 2026-08-04 决定）。Rejected：一律回 `todo`——会在已有 commit 上重做，正是该规则禁止的事，而该规则现位于 `executing-plans/SKILL.md:23`，与那一行一同被删，故必须换位 |
-| 8 | `AGENTS.md:44` 第 1 条替换而非删除；`:42` 的「独立静态审查」限定为 wrap-up 两轴 | 「默认串行」仍承重（仍有 implementer、两个 reviewer、verifier 要派），删净会让它在下一次精简时被当废话删掉；不限定则承重清单与决策 3 字面冲突，且可据以把闸门引回。Rejected：整条删除；Rejected：只删不限定 |
+| 8 | `AGENTS.md:44` 第 1 条替换而非删除；`:42` 的「独立静态审查」限定为 wrap-up 两轴 | 「默认串行」仍承重（仍有 implementer 与两个 reviewer 要派），删净会让它在下一次精简时被当废话删掉；不限定则承重清单与决策 3 字面冲突，且可据以把闸门引回。Rejected：整条删除；Rejected：只删不限定 |
 | 9 | 不修改 `docs/specs/2026-08-04-pi-subagent-single-dispatch.md` 决策 #2 对四边界闸门的引用 | spec 是历史记录，不为迎合实现而改写；该处依据被本 spec 取代，由本 spec 记录这一点。Rejected：就地改写那句——会让已获批的历史 spec 不再是当时的约定 |
+| 10 | implementer 返回 `complete` 但缺 goal 某部分的命令/退出码时，退回一次只要该部分的证据，与「自陈缺口」共用同一次退回额度；第二次仍不足则 `blocked` | 证据闸门是任务离开 `doing` 的唯一条件，而 batch reviewer 消失后，`AGENTS.md` 的「报告不足重派 reviewer」在任务层已无对象。退回给实现者最省：只有它知道哪条命令证明哪部分 goal。Rejected：主会话自己跑那条命令——它不读 source，无法建立命令与 goal 部分的对应；Rejected：另给一次独立额度——两种缺口都是「返回不完整」这一件事，分两份会让一个任务最多派四次 |
 
 ## 任务循环
 
@@ -48,7 +49,7 @@
 
 实现者返回后，主会话按返回的 `status` 路由：`complete` 与 `complete with concerns` 要求 SHA 能被 `git cat-file -e <sha>^{commit}` 解析；`missing context` 补入已验证的缺失事实后重派，出现矛盾交用户；`stuck` 必须先改变某个条件（补上下文、提档位、重切 plan、或标 `blocked`）再重试。
 
-**任务离开 `doing` 的唯一条件**：主会话从实现者的结构化返回中，为 goal 的每一部分记下一条命令、它的退出码与判定观察。满足则 `done`，随后跑全量测试，红则先诊断再选下一个任务。实现者自陈某部分未达成时退回一次，第二次自陈缺口标 `blocked`。主会话在任何情况下都不读 source、commit 或 diff 来补足这道闸门。
+**任务离开 `doing` 的唯一条件**：主会话从实现者的结构化返回中，为 goal 的每一部分记下一条命令、它的退出码与判定观察。满足则 `done`，随后跑全量测试，红则先诊断再选下一个任务。实现者自陈某部分未达成时退回一次，第二次自陈缺口标 `blocked`。返回里缺某部分 goal 的证据，与实现者自陈缺口同属退回情形，共用那一次退回额度；退回只要求补齐该部分的命令与退出码，第二次仍不足标 `blocked`。主会话在任何情况下都不读 source、commit 或 diff 来补足这道闸门。
 
 ## 收尾
 
@@ -56,7 +57,7 @@
 
 第一轮的全部 findings 交给一个全新 fixer，逐条以失败测试开场，记录其 SHA 并跑全量测试。随后重跑两轴。若仍有 blocking findings，只把这些交给最后一个全新 fixer，记录 SHA、跑全量测试，不再跑第三轮。红的测试套件或用尽额度后仍存在的 blocking finding 置 `review.status: stopped`；其余 findings 记入任务 `note`。
 
-runtime verification 不因本轮改变：静态收尾通过后派发全新 verifier，其后的报告核对、`.env` 缺失路由与交接一律保持现状。
+runtime verification 不因本轮改变：静态收尾通过后由主会话亲自驱动（`8e9cc34` 已将该步从派发改为主会话执行，本轮 rebase 到其上），其后的报告核对、`.env` 缺失路由与交接一律保持现状。
 
 ## 恢复
 
