@@ -6,7 +6,7 @@
 
 **Objective:** 把 dev-kit 的任务循环收敛为「串行、单一形状、逐任务只有实现者」——删除任务级并行与四边界闸门，删除 batch reviewer，让 `subagent` 与 `inline` 只在收尾阶段有区别。
 
-**Hard invariant:** 用户审批与破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、wrap-up 两轴独立静态审查、fresh runtime verification、证据真实性不变。`AGENTS.md:45` 第 2 条（`subagent` 模式主会话不审 source、commit 或 diff，只依据结构化报告决策）逐字保留。
+**Hard invariant:** 用户审批与破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、wrap-up 两轴独立静态审查、主会话亲自跑的 runtime verification、证据真实性不变。`AGENTS.md:45` 第 2 条除「重派 reviewer」改为「重新派发」外逐字保留：主会话不审 source、commit 或 diff，「不自行补审」，以及 runtime verification 例外，均不动。
 
 ## Problem
 
@@ -39,7 +39,8 @@
 | 7 | resume 时 `doing` 任务能机械恢复 SHA 则置 `done`，恢复不出则回 `todo`。「已存在 commit 的实现者绝不重派」从被删除的 `reviewing` 恢复项换位到 `doing` 恢复项，逐字保留 | 结构化报告已随上一次会话消失，证据闸门无输入可用；wrap-up 是唯一独立审查层，由它判。本轮不为旧状态开任何兼容口子（用户 2026-08-04 决定）。Rejected：一律回 `todo`——会在已有 commit 上重做，正是该规则禁止的事，而该规则现位于 `executing-plans/SKILL.md:23`，与那一行一同被删，故必须换位 |
 | 8 | `AGENTS.md:44` 第 1 条替换而非删除；`:42` 的「独立静态审查」限定为 wrap-up 两轴 | 「默认串行」仍承重（仍有 implementer 与两个 reviewer 要派），删净会让它在下一次精简时被当废话删掉；不限定则承重清单与决策 3 字面冲突，且可据以把闸门引回。Rejected：整条删除；Rejected：只删不限定 |
 | 9 | 不修改 `docs/specs/2026-08-04-pi-subagent-single-dispatch.md` 决策 #2 对四边界闸门的引用 | spec 是历史记录，不为迎合实现而改写；该处依据被本 spec 取代，由本 spec 记录这一点。Rejected：就地改写那句——会让已获批的历史 spec 不再是当时的约定 |
-| 10 | implementer 返回 `complete` 但缺 goal 某部分的命令/退出码时，退回一次只要该部分的证据，与「自陈缺口」共用同一次退回额度；第二次仍不足则 `blocked` | 证据闸门是任务离开 `doing` 的唯一条件，而 batch reviewer 消失后，`AGENTS.md` 的「报告不足重派 reviewer」在任务层已无对象。退回给实现者最省：只有它知道哪条命令证明哪部分 goal。Rejected：主会话自己跑那条命令——它不读 source，无法建立命令与 goal 部分的对应；Rejected：另给一次独立额度——两种缺口都是「返回不完整」这一件事，分两份会让一个任务最多派四次 |
+| 10 | implementer 返回 `complete` 但缺 goal 某部分的命令/退出码/判定观察时，退回一次只要该部分的证据，与「自陈缺口」共用同一次退回额度；第二次仍不足则 `blocked` | 证据闸门是任务离开 `doing` 的唯一条件，而 batch reviewer 消失后，`AGENTS.md` 的「报告不足重派 reviewer」在任务层已无对象。退回给实现者最省：只有它知道哪条命令证明哪部分 goal。三样缺任一都触发，否则只缺判定观察的返回既进不了 `done` 也退不回去。Rejected：主会话自己跑那条命令——它不读 source，无法建立命令与 goal 部分的对应；Rejected：另给一次独立额度——两种缺口都是「返回不完整」这一件事，分两份会让一个任务最多派四次 |
+| 11 | `AGENTS.md:45` 第 2 条的「重派 reviewer」改为「重新派发」，硬不变量随之放宽到这一个词 | 决策 3 之后任务层没有 reviewer，而不完整的 implementer 返回退回给实现者本人；保留原词等于让承重清单规定一个不存在的角色，正是本轮要清的那类句子。用户 2026-08-04 决定。Rejected：回滚该词、硬不变量不动——把矛盾留给下一轮，且它就在承重清单里最不该有矛盾的位置 |
 
 ## 任务循环
 
@@ -82,7 +83,7 @@ plan 模板不再有 `parallel_evidence` 段。`task.status` 的合法值为 `to
 
 已知站点，非穷举：`AGENTS.md`、根 `README.md`、`dev-kit/README.md`、`skills/using-dev-kit/SKILL.md`（注入每个会话的引导）、`skills/using-dev-kit/references/` 下的 `dispatching.md`、`claude-tools.md`、`codex-tools.md`、`pi-tools.md`、`skills/systematic-debugging/SKILL.md`、`skills/init/SKILL.md`、`skills/writing-plans/SKILL.md`、`skills/executing-plans/SKILL.md` 及其 `references/` 下的 `prompts.md`、`task-prompts.md`、`wrap-up-prompts.md`、`.pi/extensions/subagent/README.md`、`dev-kit/tests/platform-tools.test.js`。
 
-`AGENTS.md` 的两条编排硬约束改为：第 1 条声明派发默认串行、唯一例外是 wrap-up 两轴静态评审（只读、不写工作树/index/HEAD、不共享可变资源，可同时发出）；第 2 条逐字保留。承重清单中的「独立静态审查」明确指 wrap-up 两轴。
+`AGENTS.md` 的两条编排硬约束改为：第 1 条声明派发默认串行、唯一例外是 wrap-up 两轴静态评审（只读、不写工作树/index/HEAD、不共享可变资源，可同时发出）；第 2 条只改「重派 reviewer」为「重新派发」，其余逐字保留。承重清单中的「独立静态审查」明确指 wrap-up 两轴。
 
 ## Out of scope
 
