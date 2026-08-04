@@ -16,7 +16,7 @@ const FAKE_PI = path.join(__dirname, 'fixtures', 'fake-pi.js')
 const CHILD_MARKER = 'DEV_KIT_PI_SUBAGENT_CHILD'
 const DEFAULT_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'subagent']
 
-async function loadTool(activeToolNames = DEFAULT_TOOLS, allToolNames = activeToolNames) {
+async function loadTool(activeToolNames = DEFAULT_TOOLS, allToolNames = activeToolNames, { childInvocation = false } = {}) {
   let tool
   const pi = {
     registerTool(definition) {
@@ -30,10 +30,18 @@ async function loadTool(activeToolNames = DEFAULT_TOOLS, allToolNames = activeTo
       return allToolNames.map(name => ({ name }))
     },
   }
-  const url = `${pathToFileURL(EXTENSION).href}?test=${Date.now()}-${Math.random()}`
-  const mod = await import(url)
-  mod.default(pi)
-  return tool
+  const previousMarker = process.env[CHILD_MARKER]
+  if (childInvocation) process.env[CHILD_MARKER] = '1'
+  else delete process.env[CHILD_MARKER]
+  try {
+    const url = `${pathToFileURL(EXTENSION).href}?test=${Date.now()}-${Math.random()}`
+    const mod = await import(url)
+    mod.default(pi)
+    return tool
+  } finally {
+    if (previousMarker === undefined) delete process.env[CHILD_MARKER]
+    else process.env[CHILD_MARKER] = previousMarker
+  }
 }
 
 function useFakePi(t, prefix) {
@@ -129,15 +137,8 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.equal(tool.parameters.additionalProperties, false)
 })
 
-test('child invocations do not register subagent', async t => {
-  const previousMarker = process.env[CHILD_MARKER]
-  process.env[CHILD_MARKER] = '1'
-  t.after(() => {
-    if (previousMarker === undefined) delete process.env[CHILD_MARKER]
-    else process.env[CHILD_MARKER] = previousMarker
-  })
-
-  assert.equal(await loadTool(), undefined)
+test('child invocations do not register subagent', async () => {
+  assert.equal(await loadTool(DEFAULT_TOOLS, DEFAULT_TOOLS, { childInvocation: true }), undefined)
 })
 
 test('single write task launches with fixed tools and explicit runtime choices', async t => {
