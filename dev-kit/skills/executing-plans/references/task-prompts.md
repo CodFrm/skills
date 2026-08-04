@@ -37,3 +37,22 @@ Return at most 15 lines, no report file:
 - per goal part: one command, its exit code and the deciding observation, or the exact clause still false
 - concerns and any contradiction with plan context
 ```
+
+## Send-back
+
+```text
+Close one gap in task <id> from <plan path>, already committed at <sha>.
+
+Named gap: <the goal part declared incomplete, or the one left without a command, exit code and
+deciding observation>. Nothing else is open — do not revisit, refactor or re-commit the rest.
+
+If the gap needs code, use test-driven-development within <files> and commit that part alone by
+explicit path, using the project's message convention. If only its evidence is missing, change no
+file and run what proves that part.
+
+Return at most 8 lines, no report file:
+- status: complete | stuck
+- short commit SHA if you committed, else <sha>
+- for the named gap: one command, its exit code and the deciding observation, or the exact clause
+  still false
+```

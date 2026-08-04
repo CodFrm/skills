@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Dev Kit",
     "shortDescription": "Spec-driven development with TDD and independent verification",
-    "longDescription": "Turn an agreed design into an isolated, test-driven implementation with task review, static review, runtime verification, and reproducible evidence.",
+    "longDescription": "Turn an agreed design into an isolated, test-driven implementation with two-axis static review, runtime verification, and reproducible evidence.",
     "developerName": "CodFrm",
     "category": "Developer Tools",
     "capabilities": [

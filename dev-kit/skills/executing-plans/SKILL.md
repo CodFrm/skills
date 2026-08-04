@@ -50,7 +50,7 @@ Ready means `status: todo` and all `deps` are `done`.
 
 ### Dispatch implementation
 
-Before dispatch, write the selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan and commits only its task by path.
+Before dispatch, write the selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan and commits only its task by path. In `inline` mode the main session is the implementer, against the same prompt and the same structured return.
 
 A structured return is routing input:
 
@@ -63,9 +63,9 @@ A structured return is routing input:
 
 ### What makes a task `done`
 
-A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
+A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
 
-A return that declares a goal part incomplete, or leaves one without that record, goes back to that implementer once for the named part alone — both causes draw on that single send-back, and a second short return marks the task `blocked`.
+A return that declares a goal part incomplete, or leaves one without that record, goes back once for the named part alone through [the send-back prompt](references/task-prompts.md#send-back) — both causes draw on that single send-back, and a second short return marks the task `blocked`.
 
 ## When to stop, and when not to
 

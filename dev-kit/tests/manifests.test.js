@@ -53,6 +53,21 @@ test('each package listing advertises the description owned by its harness', () 
   assert.equal(piPackage.description, codexPlugin.description)
 })
 
+test('no published description advertises a review stage the workflow no longer runs', () => {
+  const piPackage = read(PLUGIN_ROOT, 'package.json')
+  const published = [
+    listing.description,
+    claudePlugin.description,
+    codexPlugin.description,
+    codexPlugin.interface.longDescription,
+    codexPlugin.interface.shortDescription,
+    piPackage.description,
+  ]
+  for (const description of published) {
+    assert.doesNotMatch(description, /reviewed by a subagent|each commit reviewed|task review/)
+  }
+})
+
 test('identity does not fork between install manifests', () => {
   const piPackage = read(PLUGIN_ROOT, 'package.json')
   assert.deepEqual(listing.author, claudePlugin.author)

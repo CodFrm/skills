@@ -140,6 +140,35 @@ test('executing-plans closes both incomplete-return causes with one shared send-
   assert.doesNotMatch(limits, /Implementer-declared shortfall/)
 })
 
+test('the loop names who implements in inline mode', () => {
+  const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
+  assert.match(loop, /In `inline` mode/)
+})
+
+test('the done gate is absolute except for the resume path it names', () => {
+  const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
+  assert.match(loop, /leaves `doing` only after/)
+  assert.match(loop, /\(#resume-state\)/)
+})
+
+test('an incomplete return re-dispatches against a prompt of its own', () => {
+  const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
+  assert.match(loop, /\(references\/task-prompts\.md#send-back\)/)
+
+  const sendBack = section(readRoot('dev-kit/skills/executing-plans/references/task-prompts.md'), 'Send-back')
+  assert.match(sendBack, /<plan path>/)
+  assert.match(sendBack, /already committed/)
+  assert.match(sendBack, /re-commit/)
+})
+
+test('AGENTS.md and executing-plans state the same sole serial exception', () => {
+  assert.match(readRoot('AGENTS.md'), /唯一例外是 wrap-up 的两轴静态评审/)
+  assert.match(
+    readRoot('dev-kit/skills/executing-plans/SKILL.md'),
+    /The sole exception is the two static wrap-up axes/,
+  )
+})
+
 test('Pi public guidance preserves installation and attribution while rejecting the old contract', () => {
   const catalog = readRoot('README.md')
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')

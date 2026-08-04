@@ -6,7 +6,7 @@ description: >-
 
 # Isolating a workspace with git worktree
 
-This skill owns two transitions: approved draft → isolated prepared branch, and verified branch → user-selected delivery. A worktree isolates the round, not concurrent sibling tasks.
+This skill owns two transitions: approved draft → isolated prepared branch, and verified branch → user-selected delivery.
 
 ## When to use / when not to
 
