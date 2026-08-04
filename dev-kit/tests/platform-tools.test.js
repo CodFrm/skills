@@ -33,8 +33,8 @@ function assertPiSingleTaskMapping(mapping) {
   assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
   assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
   assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
-  assert.match(dispatch, /\[`executing-plans`\]\(\.\.\/\.\.\/executing-plans\/SKILL\.md#parallel-is-proved-not-assumed\) approves parallel dispatch for the exact current HEAD/)
-  assert.match(dispatch, /multiple sibling `subagent` calls in one assistant message/)
+  assert.match(dispatch, /Only the wrap-up spec-verification and code-review axes send multiple sibling `subagent` calls in one assistant message; Pi runs them concurrently\./)
+  assert.doesNotMatch(dispatch, /parallel-is-proved-not-assumed|exact current HEAD|approves parallel dispatch|parallel_evidence/)
   assert.match(dispatch, /keeps no scheduler or queue/)
   assert.match(dispatch, /does not cancel or retry sibling calls/)
   assert.match(dispatch, /does not aggregate their results/)
@@ -146,7 +146,8 @@ test('Pi public guidance preserves installation and attribution while rejecting 
 
   const orchestration = section(packageReadme, '编排边界')
   assert.match(orchestration, /主会话默认串行处理依赖/)
-  assert.match(orchestration, /\[`executing-plans`\]\(\.\.\/\.\.\/\.\.\/skills\/executing-plans\/SKILL\.md#parallel-is-proved-not-assumed\).*当前精确 HEAD.*同一 assistant message.*多个并行 sibling `subagent` calls/)
+  assert.match(orchestration, /唯一例外是 wrap-up 的 spec 验证轴与 code review 轴，二者可在同一 assistant message 中发送多个并行 sibling `subagent` calls/)
+  assert.doesNotMatch(orchestration, /parallel-is-proved-not-assumed|当前精确 HEAD|批准并行派发/)
   assert.match(orchestration, /不保留 scheduler 或 queue.*不聚合 sibling results.*不写 `\.dev-kit\/plans\/\*\.yaml`/)
   assert.match(orchestration, /前一个调用返回后.*新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
 

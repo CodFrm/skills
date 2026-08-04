@@ -72,13 +72,13 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 When design remains unsettled: `brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for independent task/batch review, two-axis static wrap-up and main-session runtime verification → `using-git-worktrees` for delivery. A settled small change starts at `test-driven-development` or the applicable project checks.
 
-Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md#parallel-is-proved-not-assumed) exclusively owns concurrency authorization and subagent review boundaries. `init` triggers independently.
+Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns concurrency authorization and subagent review boundaries. `init` triggers independently.
 
 ## 可选 CLI
 
 `devkit serve [--port <n>]`——对 `docs/specs/` 和 `.dev-kit/artifacts/` 起一个只读静态服务器，让跑不起 dev server 的 mockup 也能在浏览器里打开。装成 plugin 后会话内直接可用，否则按路径 `node <plugin 根目录>/bin/devkit serve`。
 
-`devkit plan <子命令> [--plan <slug>]`——读写 `.dev-kit/plans/` 下的 plan：`next` 列 ready 任务，`show` 出状态摘要或单个任务，`check` 把坏状态值与悬空 deps 报为错误、schema 外的键报为提示；`set`、`task`、`review`、`context`、`evidence`、`verification` 写回执行期可变字段——替换只改被寻址那个值所占的行（折叠标量会收成一行），追加插入新行、并把模板出厂的空列表 `[]` 那一行改写成键行，其余字节不变。逐条 flag 见 `devkit help`。
+`devkit plan <子命令> [--plan <slug>]`——读写 `.dev-kit/plans/` 下的 plan：`next` 列 ready 任务，`show` 出状态摘要或单个任务，`check` 把坏状态值与悬空 deps 报为错误、schema 外的键报为提示；`set`、`task`、`review`、`context`、`verification` 写回执行期可变字段——替换只改被寻址那个值所占的行（折叠标量会收成一行），追加插入新行、并把模板出厂的空列表 `[]` 那一行改写成键行，其余字节不变。逐条 flag 见 `devkit help`。
 
 ## SessionStart hook
 

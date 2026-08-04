@@ -37,7 +37,7 @@ subagent({
 
 ## 编排边界
 
-主会话默认串行处理依赖；只有 [`executing-plans`](../../../skills/executing-plans/SKILL.md#parallel-is-proved-not-assumed) 针对当前精确 HEAD 批准并行派发时，主会话才在同一 assistant message 中发送多个并行 sibling `subagent` calls。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限、不聚合 sibling results，也不写 `.dev-kit/plans/*.yaml`。
+主会话默认串行处理依赖；唯一例外是 wrap-up 的 spec 验证轴与 code review 轴，二者可在同一 assistant message 中发送多个并行 sibling `subagent` calls。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限、不聚合 sibling results，也不写 `.dev-kit/plans/*.yaml`。
 
 前一个调用返回后，主会话负责判断是否继续，并为串行依赖形成新的完整 task；工具不会机械传递前序输出或自行选择后续步骤。
 

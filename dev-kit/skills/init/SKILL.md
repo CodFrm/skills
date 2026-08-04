@@ -42,7 +42,7 @@ Use `git grep`, `git ls-files` and `git ls-tree` for tracked facts. Use plain `l
 
 For an established repository, [scanning-existing-projects.md](references/scanning-existing-projects.md) owns the commands for project shape, constraint drift, duplicated concepts, recurring fixes, test value, e2e separation, merge gates and observability.
 
-Dispatch deep-scan items only as serial read-only tasks with a fixed return: count, first three `file:line` samples, and one conclusion. The main session compares and prioritizes the results. This standalone flow has no plan-bound `parallel_evidence`, so it does not authorize concurrency.
+Dispatch deep-scan items only as serial read-only tasks with a fixed return: count, first three `file:line` samples, and one conclusion. The main session compares and prioritizes the results.
 
 Choose one real command entry point per domain: package-manager script, then Make target, then bare command. Reuse it in docs, pre-commit and CI.
 

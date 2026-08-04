@@ -26,7 +26,7 @@ This process runs before TDD wherever a fault appears. Diagnostic work is read-o
 
 ## Disproving hypotheses with subagents
 
-Each hypothesis may be a bounded subagent task returning predicted vs observed and eliminated vs standing. Keep dispatches serial by default; production-code experiments are always serial. Read-only experiments may run concurrently only inside a plan with [`parallel_evidence`](../executing-plans/SKILL.md#parallel-is-proved-not-assumed) for the exact HEAD. Standalone debugging remains serial.
+Each hypothesis may be a bounded subagent task returning predicted vs observed and eliminated vs standing. Dispatch serially, including read-only experiments.
 
 The main session owns the reproduction, global attempt count and root-cause decision.
 

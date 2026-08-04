@@ -31,4 +31,4 @@ If any requirement or boundary is undecided, route to `brainstorming`. Implement
 
 Before dispatching, read exactly one current-harness mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). If it exposes no native subagent, choose "inline".
 
-[dispatching.md](references/dispatching.md) owns what to delegate. [`executing-plans`](../executing-plans/SKILL.md#parallel-is-proved-not-assumed) owns every parallel-dispatch gate.
+[dispatching.md](references/dispatching.md) owns what to delegate. Dispatch is serial by default; [`executing-plans`](../executing-plans/SKILL.md) owns the sole exception, the wrap-up two-axis static review.
