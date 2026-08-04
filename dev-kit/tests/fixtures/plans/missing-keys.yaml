@@ -1,0 +1,23 @@
+spec: docs/specs/2026-08-02-missing.md
+mode: inline
+worktree: .dev-kit/worktrees/missing
+
+goal: "A plan with no status, holding a task with no status and a task with no id"
+
+tasks:
+  - id: 1
+    goal: "No status on this one"
+    deps: []
+  - goal: "No id on this one"
+    deps: []
+    status: todo
+
+review:
+  status: pending
+  fixes: []
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null

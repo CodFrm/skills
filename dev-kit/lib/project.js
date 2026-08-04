@@ -16,6 +16,12 @@ const ROOTS = [
   { key: 'artifacts', rel: '.dev-kit/artifacts', label: '.dev-kit/artifacts' },
 ]
 
+// Where the plans live. Deliberately its own constant rather than a third ROOTS entry: ROOTS is
+// what `serve` hands to a browser, and a working plan is not for that. Pass it to resolveInside()
+// as the root, never as a path under the project root — inside a worktree .dev-kit is a symlink
+// back to the main repository, so the plan file's realpath is not under the worktree.
+const PLANS = '.dev-kit/plans'
+
 // A mockup may be a real package (see brainstorming's references/mockups.md), and installed
 // dependencies are tens of thousands of files. Also why a static bundle is built into mockups/
 // itself rather than a nested dist/.
@@ -46,4 +52,4 @@ async function resolveInside(rootDir, relPath) {
   return target
 }
 
-module.exports = { ROOTS, SKIP_DIRS, findRoot, resolveInside }
+module.exports = { ROOTS, PLANS, SKIP_DIRS, findRoot, resolveInside }

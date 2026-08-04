@@ -1,0 +1,18 @@
+spec: docs/specs/2026-08-02-unknown-shape.md
+status: running
+mode: inline
+worktree: .dev-kit/worktrees/unknown-shape
+
+goal: "A plan whose tasks were written as a flow mapping"
+
+tasks: {id: 1, status: todo}
+
+review:
+  status: pending
+  fixes: []
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null

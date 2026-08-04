@@ -12,7 +12,7 @@ const fsp = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 
-const { findRoot, resolveInside } = require('../lib/project')
+const { ROOTS, PLANS, findRoot, resolveInside } = require('../lib/project')
 
 // macOS puts temp dirs behind /var -> /private/var and resolveInside compares realpaths, so the
 // fixture root has to be realpath'd too or every assertion fails for the wrong reason.
@@ -73,6 +73,14 @@ test('resolveInside: a symlinked root still resolves (the worktree case)', async
 test('resolveInside: a path that does not exist is refused, not invented', async () => {
   assert.equal(await resolveInside(artifacts, 'demo/nope.html'), null)
   assert.equal(await resolveInside(path.join(root, 'no-such-root'), 'x'), null)
+})
+
+test('the served roots are those two, and the plan directory is not one of them', () => {
+  // ROOTS is the browser's allow-list; a working plan carries the state of a running round and has
+  // no business being reachable from http://127.0.0.1:<port>/.
+  assert.deepEqual(ROOTS.map(r => r.rel), ['docs/specs', '.dev-kit/artifacts'])
+  assert.equal(PLANS, '.dev-kit/plans')
+  assert.equal(ROOTS.some(r => r.rel === PLANS), false)
 })
 
 test('findRoot: walks up to the nearest ancestor holding .git or .dev-kit', () => {

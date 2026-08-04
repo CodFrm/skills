@@ -3,14 +3,29 @@
 
 // dev-kit's optional CLI — argument dispatch only.
 //
-// Read-only, zero dependencies, one project. Each command lives in its own module under ../lib/:
-// add one by adding a file and a line to the switch, never by growing this file. Anything that
-// *serves* a path to a browser goes through ../lib/project.js's allow-list and traversal check.
+// Zero dependencies, one project. The only thing it writes is the execution-time mutable fields of
+// .dev-kit/plans/*.yaml; every other path it touches it reads. Each command lives in its own module
+// under ../lib/: add one by adding a file and a line to the switch, never by growing this file.
+// Every path it serves to a browser or writes is resolved by ../lib/project.js first, against
+// serve's browser allow-list or the plans root, which are separate boundaries there.
 
 const HELP = `dev-kit — optional local helper
 
-  devkit serve [--port <n>]    Read-only static server over docs/specs/ and .dev-kit/artifacts/
-  devkit help                  This text
+  devkit serve [--port <n>]        Read-only static server over docs/specs/ and .dev-kit/artifacts/
+  devkit plan next                 Ready tasks of a plan under .dev-kit/plans/: todo, deps done
+  devkit plan show                 Its state summary, or with --task <id> one task's every field
+  devkit plan check                Off-vocabulary state values and dangling deps as errors, keys
+                                   outside the schema as notes
+  devkit plan set <field> <value>  Write the plan's own status or mode
+  devkit plan task <id>            Write that task's --status, --commit or --note
+  devkit plan review               Write --status, or append a --fix <sha> to fixes
+  devkit plan context              Append --add <text> as a context entry
+  devkit plan evidence             Append one parallel_evidence entry, from --tasks, --head,
+                                   --source, --writes, --dependencies, --resources, --verification
+  devkit plan verification         Write --status, --report, --head or --note
+  devkit help                      This text
+
+Every plan subcommand takes --plan <slug>; omitted, it needs exactly one plan that is not done.
 
 The project root is found by walking up from the working directory for .git or .dev-kit.
 The port defaults to a random one in 10000-20000, so several projects can be served side by side.`
@@ -18,6 +33,7 @@ The port defaults to a random one in 10000-20000, so several projects can be ser
 function main(argv) {
   switch (argv[0]) {
     case 'serve': return require('../lib/serve').cmdServe(argv.slice(1))
+    case 'plan': return require('../lib/plan').cmdPlan(argv.slice(1))
     case undefined: case 'help': case '-h': case '--help': console.log(HELP); return 0
     default:
       console.error(`devkit: unknown command "${argv[0]}"\n`)
@@ -26,4 +42,5 @@ function main(argv) {
   }
 }
 
-process.exitCode = main(process.argv.slice(2))
+// A command may be async, and `process.exitCode = <promise>` would exit 0 on every failure.
+Promise.resolve(main(process.argv.slice(2))).then(code => { process.exitCode = code })

@@ -1,0 +1,31 @@
+spec: docs/specs/2026-08-03-example.md
+status: draft                 # draft → ready → running → done | stopped
+mode: null                    # subagent | inline; user/available harness sets this at ready gate
+worktree: .dev-kit/worktrees/example
+
+goal: "<one observable finish condition>"
+context:
+  - "<verified fact with file:line or command>"
+
+tasks:
+  - id: 1
+    goal: "<one observable vertical slice>"
+    deps: []                  # only ordering source
+    files: [src/a.js]          # expected writes; evidence input, never parallel permission
+    model: null               # cheap | mid | strong | null; never a model id
+    interfaces: null          # consumed cross-task name/signature, on the consumer
+    status: todo              # todo → doing → reviewing → done | blocked
+    commit: null
+    note: null
+
+parallel_evidence: []         # executing-plans writes immediately before each parallel dispatch
+
+review:
+  status: pending             # pending → passed | stopped
+  fixes: []                   # up to two wrap-up fixer SHAs
+
+verification:
+  status: pending             # pending → running → reported → accepted | blocked
+  report: null
+  head: null
+  note: null

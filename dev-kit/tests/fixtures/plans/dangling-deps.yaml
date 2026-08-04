@@ -1,0 +1,40 @@
+spec: docs/specs/2026-08-02-dangling.md
+status: running
+mode: inline
+worktree: "none: one file, no isolation"
+
+goal: "A plan whose second task waits on a task nobody cut"
+
+context: []
+
+tasks:
+  - id: 1
+    goal: "Done already"
+    deps: []
+    files: [src/a.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: abc1234
+    note: null
+  - id: 2
+    goal: "Waits on 7, and there is no 7"
+    deps: [1, 7]
+    files: [src/b.js]
+    model: mid
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+
+parallel_evidence: []
+
+review:
+  status: pending
+  fixes: []
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null

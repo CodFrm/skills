@@ -1,0 +1,493 @@
+spec: docs/specs/2026-08-01-dev-kit-evals.md
+status: running
+mode: subagent
+worktree: .dev-kit/worktrees/dev-kit-evals
+
+goal: >-
+  在 Claude Code 上一条命令跑得起 dev-kit 的四个 eval 场景，逐检查点给出 verdict；
+  Pi 与 Codex 的 adapter 代码完整并由录制事件流覆盖映射，但不作为本轮跑通的条件。
+
+context:
+  - "测试风格：CommonJS + node:test + node:assert/strict，见 dev-kit/tests/platform-tools.test.js:1-6"
+  - "临时目录手法全仓统一：fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-...')))，见 dev-kit/tests/project.test.js:19 与 dev-kit/tests/hooks.test.js:21"
+  - "替身可执行文件的既有手法：dev-kit/tests/fixtures/fake-pi.js 把 argv/cwd/system prompt 写进 FAKE_PI_CAPTURE 指定的 jsonl，测试侧读它做断言，见 dev-kit/tests/pi-subagent-single.test.js:64-70"
+  - "跑测试必须带 glob：node --test dev-kit/tests/*.test.js；写成目录会以 MODULE_NOT_FOUND 失败，见 dev-kit/README.md 末节"
+  - "bin/devkit 是纯参数分发、零依赖、只读，每个命令一个 lib/ 模块，见 dev-kit/bin/devkit:4-8。eval runner 会起进程并写临时目录，不进这个 CLI，按 spec 落在 dev-kit/evals/ 下自成入口"
+  - "lib/project.js 的 resolveInside() 是 serve 命令给浏览器送文件时的路径边界，ROOTS 只有 docs/specs 与 .dev-kit/artifacts，见 dev-kit/lib/project.js:13-17。eval 不经由它"
+  - "本机三个 CLI 都在：claude --plugin-dir/--output-format stream-json/--effort/--session-id/-r；pi -p --mode json/-e/--skill/--thinking/--session-id/--session-dir；codex exec --json/-C/--ephemeral/resume，reasoning 走 -c model_reasoning_effort="
+  - "Codex 装插件是拷贝：codex plugin add dev-kit@codfrm-skills 输出 Installed plugin root: <CODEX_HOME>/plugins/cache/codfrm-skills/dev-kit/0.1.0"
+  - "本机已注册本地 marketplace codfrm-skills → /Users/codfrm/Code/skills，codex plugin list 里 dev-kit@codfrm-skills 可见"
+  - "产物目录：写进 .dev-kit/evals/ 之后，本工作区与主 checkout 的 git status --porcelain 都为空（已实测）"
+  - "但 git check-ignore 穿不过 .dev-kit 软链接：git check-ignore .dev-kit/evals/x 报 'fatal: pathspec ... is beyond a symbolic link'。所以「产物落在 gitignored 目录」这条只能用 git status --porcelain 为空来断言，不能用 check-ignore"
+  - "e2e/scratch/ 的 ignore 只在 .git/info/exclude:9，.gitignore 里没有——换台机器它不被 ignore。场景 ③ 的 fixture 要自己把这条 ignore 摆进去，不能依赖本机状态"
+  - "origin/main 上没有 dev-kit 目录（git ls-tree origin/main 无该项），本轮分支 feat/dev-kit-evals 从 refactor/dev-kit-plugin@3bf3f80 切出"
+  - "baseline：node --test dev-kit/tests/*.test.js 在本工作区 78 pass / 0 fail / exit 0"
+  - "终态清单以 spec「归一化 trace」一节的完整版为准（文件增改删、提交历史、分支、worktree），生命周期第 4 步的括号是简写。裁定依据：spec 点名的检查点 ②-10「spec 的 commit 在轮分支上而 baseline 分支上没有它」非分支信息不可判。批次审查交回、编排裁定，2026-08-01"
+  - "task 5 交付的 collectFinalState 目前不收分支与 worktree，所以 ②-10 现在从终态判不了——已记在 task 5 的 note 上，带到收尾"
+  - "trace.js 的 relativize 用 path.resolve，而 buildFixture 返回 realpath 过的目录；harness 若报 /var/folders/... 而 root 是 /private/var/folders/...，所有路径检查点会静默读成「写到 fixture 外」。dev-kit/lib/project.js:41 两边都 realpath 正是为此。task 6 接线时要一并处理"
+  - "canonical 工具名里有 subagent，但还没有对应的事件选择器；task 10 的派发检查点要用到它"
+  - "推翻本 context 更早一条：codex exec 的 --ephemeral 会让后续 codex exec resume 报 no rollout found for thread id。task 4 实测后去掉了它，隔离改由临时 CODEX_HOME 单独承担"
+  - "派发出去的子上下文里的工具调用不冒泡到父 trace（据 tests/fixtures/recorded/claude/subagent-dispatch.jsonl 实测）。所以「审查者每条 finding 一轮 TDD」在父会话里只有派发 prompt 与提交历史两样证据"
+  - "能力声明的第三层：判官检查点绕过工具闸门（requiredTools 对没有 assert 的检查点返回 []，见 lib/assert.js:135）。③-11/③-12 的判据明写要读 write 的 content，而 Codex 结构性不带 content——判官只看到 {path} 会答 does not hold，又是一次假红。工具轴修不了，因为 Codex 确实观测得到 write；缺的是「字段级」可观测声明"
+  - "round 收窄后 writes() 不再看 shell 创建的文件。对 task 8 那三条否定检查点安全，但按轮限定的**肯定**型 pathWritten 可能假红——task 9 的场景里有这种形状"
+  - "harness 能力差异目前会变成红叉而不是被声明，三处同族：Codex 无派发映射故 task 15 的派发检查点会读红而非未运行；codex.js 不产 read 条目故 ①-r1「读过仓库」在 Codex 上结构性红；判官子进程失败会抛出 runScenario 杀掉进程、report.json 不落盘。spec 明写 harness 差异由 adapter 声明、且把环境问题记成行为回退是最坏的失败方式"
+  - "spec ④ 一节说「五次交接」却列了六个短语（进门到定需求、定需求到隔离、隔离回到 spec 提交、spec 到计划、计划到执行、执行到交付）——spec 自身的数目错，要修"
+  - "assert.js 只把 skill/path/command 三类选择器包成了操作符，subagent 只能经 happensBefore 触达，没有 subagentDispatched 之类的算子"
+  - "证据契约比检查点薄，两处同源：三个 adapter 把 write/edit 入参归一成只有 path，finalState.files 也不带内容，故判官在 ③-11/③-12 上无内容可判；assert.js 的 writes() 并读 trace 与 finalState，而 sliceTo 不收窄 finalState，故 ①-r1「零写入」、①-r2「只动一个文件」、①-r5「源码零写入」按轮判不成立。spec「归一化 trace」要求 trace 带工具入参，写文件的入参含内容——是 adapter 丢了，属缺陷不属 spec 缺口"
+  - "report.js:57 的非判官分支把完整证据传给 evaluate，只有判官分支 :64 调 sliceTo；checkpoint.round 在 :45 仅用于判 observedness。与 task 6 自己的契约「round = 它读的那一轮」相悖，任何「第 N 轮里 X 没发生」的检查点在多轮场景里都会误红。已核实，2026-08-01"
+  - "主 checkout /Users/codfrm/Code/skills 上有另一份并行工作：HEAD 已到 05a8686，且有 7 个 dev-kit/skills 下的未提交改动（e2e 与验证模板的散文）。与本轮无关，交付时合并目标比分支点 3bf3f80 多出这些"
+  - "Codex 的会话 id 由它自己在 round 1 的 thread.started 事件里给，不像 Claude 可以用 --session-id 指定；runner 要从 round 1 的原始输出里读，trace 里没有它的位置"
+
+tasks:
+  - id: 1
+    goal: >-
+      给定一段归一化 trace 与一份 fixture 终态，每种断言都能判：唤起/未唤起某 skill、
+      写了/没写某路径、除给定路径外无写入、跑过某命令（可带退出码要求）、A 早于 B。
+    deps: []
+    files: [dev-kit/evals/lib/trace.js, dev-kit/evals/lib/assert.js, dev-kit/tests/eval-assert.test.js]
+    model: strong
+    interfaces: null
+    status: done
+    commit: 8e7221c
+    note: null
+
+  - id: 2
+    goal: >-
+      给定一份 Claude Code 的录制事件流，adapter 产出的归一化 trace 含正确的 skill 唤起、
+      工具调用与文本；给定一份运行配置，它拼出的 CLI 参数含 --plugin-dir、stream-json 与会话续接。
+    deps: [1]
+    files: [dev-kit/evals/harness/claude.js, dev-kit/tests/eval-harness-claude.test.js, dev-kit/tests/fixtures/recorded/claude/]
+    model: mid
+    interfaces: "消费 task 1 的归一 trace 条目结构与 adapter 接口"
+    status: done
+    commit: cda5388
+    note: null
+
+  - id: 3
+    goal: >-
+      给定一份 Pi 的录制事件流，adapter 产出的归一化 trace 正确；给定一份运行配置，
+      它拼出的 CLI 参数含 -e/--skill 加载、--mode json 与会话续接。
+    deps: [2]
+    files: [dev-kit/evals/harness/pi.js, dev-kit/tests/eval-harness-pi.test.js, dev-kit/tests/fixtures/recorded/pi/]
+    model: mid
+    interfaces: "消费 task 1 的归一 trace 条目结构，以及 task 2 确立的 adapter 接口"
+    status: done
+    commit: 6d69c2d
+    note: "Pi 在本机把 --skill 指向的 worktree 路径盖成了主 checkout（本机注册了指向主 checkout 的 marketplace）；不影响 adapter 正确性，但「会话级加载读得到未提交改动」这条对 Pi 是否成立，真跑时要重看"
+
+  - id: 4
+    goal: >-
+      给定一份 Codex 的录制事件流，adapter 产出的归一化 trace 正确；给定一份运行配置，
+      它拼出的安装步骤含临时 CODEX_HOME 与每次重装，CLI 参数含 --json 与会话续接。
+    deps: [2]
+    files: [dev-kit/evals/harness/codex.js, dev-kit/tests/eval-harness-codex.test.js, dev-kit/tests/fixtures/recorded/codex/]
+    model: mid
+    interfaces: "消费 task 1 的归一 trace 条目结构，以及 task 2 确立的 adapter 接口"
+    status: done
+    commit: b4acd62
+    note: "write-tool.jsonl 结尾缺 turn.completed，被裁过了声明的裁剪范围；本轮不重录（minor，批次审查交回）"
+
+  - id: 5
+    goal: >-
+      给定一份场景定义，造出的 fixture 是 $TMPDIR 下一个初始状态干净的 git 仓库，
+      收得到它的终态；一次造-跑-收之后本仓库 git status --porcelain 仍为空。
+    deps: []
+    files: [dev-kit/evals/lib/fixture.js, dev-kit/tests/eval-fixture.test.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: 9066d1b
+    note: "collectFinalState 不收分支与 worktree，检查点 ②-10 暂时从终态判不了；批次审查提出、编排裁定完整清单为准，留给收尾"
+
+  - id: 6
+    goal: >-
+      一条命令带 harness、模型、思考力度、场景与重复次数跑起来，逐检查点输出 verdict，
+      未运行 / not observed / 失败三者在报告里互不顶替，产物按运行落进 .dev-kit/evals/。
+    deps: [1, 2, 5]
+    files: [dev-kit/evals/run.js, dev-kit/evals/lib/config.js, dev-kit/evals/lib/report.js, dev-kit/tests/eval-run.test.js]
+    model: strong
+    interfaces: "消费 task 1 的断言 API、task 2 的 adapter 接口、task 5 的 fixture 与终态收集"
+    status: done
+    commit: 2dd836b
+    note: "三条交回：逐轮超时未实现（run() 没有取消句柄，要改 harness/*.js）；报告记的是配置的模型而非 spec「目录与入口」要的实际 id；「写到 fixture 外即整场作废」目前只是一条红检查点——spec 明写整体作废，编排裁定以 spec 为准，留给收尾修"
+
+  - id: 7
+    goal: >-
+      四条判官检查点各自拿到所需的 trace 片段与判据后返回 verdict，且报告里标明它由判官所给。
+    deps: [6]
+    files: [dev-kit/evals/lib/judge.js, dev-kit/tests/eval-judge.test.js]
+    model: mid
+    interfaces: "消费 task 6 的报告结构与 verdict 类型"
+    status: done
+    commit: 4caef92
+    note: "判官的 CLI 参数按 Claude Code 的 flag 形状拼，未按 harness 分族；判官子进程非零退出或答非 JSON 时 judge() 抛出，没有 not run 通道；判官子进程非零退出或答非 JSON 时抛出 runScenario，main() 不接，整个进程死掉且 report.json 不落盘，一次付费运行的 verdict 全丢"
+
+  - id: 8
+    goal: >-
+      场景 intake 的 fixture、五轮脚本与 14 条检查点全部用已定义的断言词汇表达，
+      对一段录制的 trace 判出预期的红与绿。
+    deps: [6]
+    files: [dev-kit/evals/scenarios/intake/, dev-kit/tests/eval-scenario-intake.test.js]
+    model: mid
+    interfaces: "消费 task 6 的场景定义结构"
+    status: done
+    commit: 63859f0
+    note: "14 条里 11 条完整表达；r1 零写入、r2 只动一个文件、r5 源码零写入三条卡在证据契约（见 context），不是 report.js 那个已修的问题；①-r1「读过仓库」在 Codex 上结构性红：codex.js 不产 read 条目；另 r1 零写入 / r2 只动一个文件 / r5 源码零写入三条等 task 16"
+
+  - id: 9
+    goal: >-
+      场景 spec-to-plan 的 fixture、脚本轮次与 15 条检查点全部用已定义的断言词汇表达，
+      对一段录制的 trace 判出预期的红与绿。
+    deps: [6, 7]
+    files: [dev-kit/evals/scenarios/spec-to-plan/, dev-kit/tests/eval-scenario-spec-to-plan.test.js]
+    model: mid
+    interfaces: "消费 task 6 的场景定义结构与 task 7 的判官接口"
+    status: done
+    commit: b7830b0
+    note: >-
+      批次互审 598a5ff 修掉两条：检查点 15 禁 executing-plans 会把正确运行判红
+      （writing-plans 规定要交接、full-chain handover-4 专门验它）；baseline 测试命令漏 npm test。
+      遗留一条查不实的怀疑：spec-not-under-devkit 的模式在隔离之后可能把写在
+      .dev-kit/worktrees/<slug>/ 里的 .md 误判——审查者做不出反例，靠 throughSymlinks 解析躲过，
+      留给真跑 ② 的那一轮settle。
+
+  - id: 10
+    goal: >-
+      场景 execute 及其 subagent 变体的 fixture、脚本轮次与 14 条检查点全部用已定义的
+      断言词汇表达，对一段录制的 trace 判出预期的红与绿。
+    deps: [6]
+    files: [dev-kit/evals/scenarios/execute/, dev-kit/tests/eval-scenario-execute.test.js]
+    model: mid
+    interfaces: "消费 task 6 的场景定义结构"
+    status: done
+    commit: c8875b9
+    note: "14 条全表达，其中 9/11/12 为判官检查点；但 11/12 目前拿不到文件内容可判，卡在同一处证据契约"
+
+  - id: 11
+    goal: >-
+      场景 full-chain 默认不跑、加上开关才跑，它的检查点验的是五次交接各自发生过。
+    deps: [6]
+    files: [dev-kit/evals/scenarios/full-chain/, dev-kit/tests/eval-scenario-full-chain.test.js]
+    model: mid
+    interfaces: "消费 task 6 的场景定义结构与场景开关"
+    status: done
+    commit: a7d15e8
+    note: "同一处词汇缺口：handover 2/5 回到已唤起过的 skill，无「第 n 次出现」断言，改以该次返回执行的动作（spec 提交、merge）为键绕开；已在场景文件头注明；spec ④ 说五次交接却列了六个短语，「进门到定需求」没有独立检查点——spec 层面的问题，随收尾一起交"
+
+  - id: 12
+    goal: >-
+      在 Claude Code 上真跑一次场景 intake，检查点既亮过红也亮过绿，
+      README 写清怎么跑、每个场景验什么，以及 Pi/Codex 单测全绿只代表拼对了参数而非跑得起来。
+    deps: [2, 8]
+    files: [dev-kit/evals/README.md, dev-kit/README.md]
+    model: mid
+    interfaces: "消费 task 2 的 Claude adapter 与 task 8 的 intake 场景"
+    status: done
+    commit: af6440b
+    note: >-
+      真跑通：intake 五轮全 exit 0，20/21 pass，判官检查点真调用并通过；运行期间 git status 只有两份
+      README，硬不变量成立。唯一的 fail r2-tdd-invoked 起初被我误判成期望有误——实为真发现：本工作区
+      那份 using-dev-kit 的路由表逐字列了「Fix that typo」→ test-driven-development，haiku/low 在一条
+      点名了该请求形状的规则上仍未路由过去。后续 eb84da9 修 README 里跟着错的那句与一个漂移的计数。
+
+  - id: 13
+    goal: >-
+      每一条检查点——不只判官那支——只看它 round 指定的那一轮的证据；
+      多轮场景里「第 N 轮 X 没发生」不再被 X 在后续轮次的合法出现误判成红。
+    deps: []
+    files: [dev-kit/evals/lib/report.js, dev-kit/evals/run.js, dev-kit/tests/eval-run.test.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: 6e5a349
+    note: "report.js:47 的 violationStands 未经 sliceTo；目前没有检查点同时带 round 与 violationStands，审查者做不出失败用例，记为疑点"
+
+  - id: 14
+    goal: >-
+      归一化 trace 认得出「派发子任务」这类事件，Claude Code 与 Codex 各自的派发工具
+      映射到规范名 subagent，各有一份真实录制的派发事件流为证。
+    deps: []
+    files: [dev-kit/evals/lib/trace.js, dev-kit/evals/harness/claude.js, dev-kit/evals/harness/codex.js, dev-kit/tests/eval-assert.test.js, dev-kit/tests/eval-harness-claude.test.js, dev-kit/tests/eval-harness-codex.test.js, dev-kit/tests/fixtures/recorded/claude/, dev-kit/tests/fixtures/recorded/codex/]
+    model: mid
+    interfaces: null
+    status: done
+    commit: d445271
+    note: "Codex 的 spawn_agent 在 codex exec 下 6 次真实尝试都没真派发，故未加映射也未写 fixture；codex-tools.md 却当它能用来写——是 dev-kit 本体的问题，带到收尾；Codex 那一半没到：无派发映射也无录制流。后果超出该 task——Codex 上 task 15 的派发检查点会读红而非未运行，正是 spec 点名最坏的失败方式"
+
+  - id: 15
+    goal: >-
+      ③ 的 subagent 变体自成场景目录、只在显式指定 subagent 模式时才跑，
+      其检查点验逐 task 派发、批次互审在整批离开「进行中」之后才发出、审查者不是实现者。
+    deps: [13, 14, 10]
+    files: [dev-kit/evals/scenarios/execute-subagent/, dev-kit/tests/eval-scenario-execute-subagent.test.js]
+    model: mid
+    interfaces: "消费 task 13 修好的按 round 收窄、task 14 的 subagent 选择器与派发映射、task 10 的 execute fixture 形状"
+    status: done
+    commit: bb25487
+    note: "批次互审 598a5ff 修掉两条：派发描述会被批次互审顺带满足（只审不实现的运行本该红却绿）、fixture 形状测试只复述自己的字面量。两条判官检查点绕过能力闸门的问题确认存在，留作已知缺口。"
+
+  - id: 16
+    goal: >-
+      归一化 trace 的 write/edit 条目带上被写入的内容；按轮限定的写入断言只看该轮 trace 里的
+      写入，不并入跑完才有的 finalState 快照。
+    deps: []
+    files: [dev-kit/evals/lib/trace.js, dev-kit/evals/lib/assert.js, dev-kit/evals/harness/claude.js, dev-kit/evals/harness/pi.js, dev-kit/evals/harness/codex.js, dev-kit/tests/eval-assert.test.js, dev-kit/tests/eval-harness-claude.test.js, dev-kit/tests/eval-harness-pi.test.js, dev-kit/tests/eval-harness-codex.test.js]
+    model: mid
+    interfaces: null
+    status: done
+    commit: dc50791
+    note: "Codex 的 file_change 在任何录制流里都不带内容，是真实的 harness 限制，未补；另 16 的修正翻掉了两个把旧限制当期望钉住的 canary（eval-run.test.js:489、eval-scenario-intake.test.js:323），交给 task 17 与重派的 task 8"
+
+  - id: 17
+    goal: >-
+      adapter 声明它观测得到哪些规范工具；依赖观测不到的工具的检查点在该 harness 上判为未运行
+      而非红；判官子进程失败同样是未运行且 report.json 照常落盘；subagent 有自己的断言算子。
+    deps: [16]
+    files: [dev-kit/evals/lib/assert.js, dev-kit/evals/lib/report.js, dev-kit/evals/lib/judge.js, dev-kit/evals/run.js, dev-kit/evals/harness/claude.js, dev-kit/evals/harness/pi.js, dev-kit/evals/harness/codex.js, dev-kit/tests/eval-assert.test.js, dev-kit/tests/eval-run.test.js, dev-kit/tests/eval-judge.test.js, dev-kit/tests/eval-harness-claude.test.js, dev-kit/tests/eval-harness-pi.test.js, dev-kit/tests/eval-harness-codex.test.js]
+    model: mid
+    interfaces: "消费 task 16 的按轮写入收窄与 write/edit 内容字段"
+    status: done
+    commit: c765ca4
+    note: null
+
+  - id: 18
+    goal: >-
+      ②-8、②-10、②-12 从代理变成原命题：断言词汇能读写入内容、能跨条目关联，
+      fixture 终态带上分支，三条检查点各自验它 spec 里写的那件事而不是必要不充分的替身。
+    deps: []
+    files: [dev-kit/evals/lib/assert.js, dev-kit/evals/lib/fixture.js, dev-kit/evals/scenarios/spec-to-plan/, dev-kit/tests/eval-assert.test.js, dev-kit/tests/eval-fixture.test.js, dev-kit/tests/eval-scenario-spec-to-plan.test.js]
+    model: mid
+    interfaces: "消费 task 16 的 write/edit content 字段与按轮写入收窄、task 17 的 requiredTools 形状"
+    status: done
+    commit:  18ed6c0
+    note: null
+
+  - id: 19
+    goal: >-
+      轮 2 的 TDD 期望改成「未唤起」：using-dev-kit 的表把 test-driven-development 限定在 behaviour，
+      一处 README 拼写修正走的是「否则跑项目自带检查」那一支，spec 与场景两处同时改。
+    deps: [8, 12]
+    files: [docs/specs/2026-08-01-dev-kit-evals.md, dev-kit/evals/scenarios/intake/index.js, dev-kit/tests/eval-scenario-intake.test.js]
+    model: mid
+    interfaces: "改 task 8 的 intake 场景与它的单测；spec 第 114 行同步"
+    status: done
+    commit: ec23d33
+    note: >-
+      断言方向对——但理由错了。当时以为 spec 期望本来就写错，实为交付目标 c2b00b0 把路由表里的
+      「Fix that typo」→ TDD 改成了「TDD 只管 behaviour」。ec23d33 与即将合入的新散文一致，与本工作区
+      当时那份不一致。理由要在 task 25 里改对。
+
+  - id: 20
+    goal: >-
+      spec 的「判定与报告」补上 subagent 变体的两条判官检查点及其让步代价，
+      并让判官条数不再以一个会漂移的总数出现——它已经漂了一次。
+    deps: [15, 19]
+    files: [docs/specs/2026-08-01-dev-kit-evals.md]
+    model: mid
+    interfaces: "记录 task 15 落地的两条判官检查点"
+    status: done
+    commit: f311b75
+    note: "批次互审 598a5ff 的回答：spec 记七条、套件实为九条，差的正是变体那两条；判定为 spec 过时而非提交越界"
+
+  - id: 21
+    goal: >-
+      agent 在 fixture 之外写过文件时，那次运行整体作废，而不是在一堆检查点里多一条红——
+      报告要能读出「整场作废」与「某条检查点失败」是两回事。
+    deps: [6]
+    files: [dev-kit/evals/run.js, dev-kit/evals/lib/report.js, dev-kit/tests/eval-run.test.js]
+    model: mid
+    interfaces: "改 task 6 的报告结构，新增一种整场级结局"
+    status: done
+    commit: 2f5158d
+    note: >-
+      顺带修掉一个反向的同类错：main() 的退出码原本硬判 status==='ran'，一次只有 void 的运行会报
+      exit 1「什么都没观察到」——正是 spec 最警惕的那种顶替，方向反过来而已。遗留 spec 缺口：
+      「整场作废」之后其余检查点怎么算，spec 没写，实现按非顶替原则推的，已并入 task 23。
+
+  - id: 22
+    goal: >-
+      某一轮超时或进程异常退出时，该轮就地终止、已产出的事件流照常落盘、之后所有轮次不再发出，
+      依赖后续轮次的检查点标为 not observed——而不是无限等下去。
+    deps: [21]
+    files: [dev-kit/evals/run.js, dev-kit/evals/harness/claude.js, dev-kit/evals/harness/pi.js, dev-kit/evals/harness/codex.js, dev-kit/tests/eval-run.test.js]
+    model: mid
+    interfaces: "给三份 adapter 的 run() 加取消句柄；消费 task 21 的整场级结局"
+    status: done
+    commit: 4b1048e
+    note: >-
+      默认 30 分钟，取自 execute 那种一轮跑完整个 plan 的最慢合法轮次；走 EVAL_ROUND_TIMEOUT_MS 环境变量
+      而非 CLI flag（config.js 的 parseArgs 在它文件边界外，且 spec「目录与入口」只点名四个维度，
+      环境变量与 EVAL_JUDGE_* 同族，判定为合理）。新增 'timed out' 状态，与 not run / void / ran 都不同。
+      两处遗留：SIGKILL 只到 harness 自己的直接子进程，它再 spawn 的孙进程杀不到（已写进 README）；
+      顺手改了 tests/fixtures/fake-eval-claude.js，超出了它声明的文件清单，无人竞争故未冲突。
+
+  - id: 23
+    goal: >-
+      spec 补两处实现已经落地、文字还没跟上的语义：一是 task 18 扩过词汇之后第 182 行那句让步理由
+      不再成立（词汇已能读内容、能跨条目比对），要逐条重判三条判官检查点还该不该在判官手里；
+      二是「整场作废」之后其余检查点的 verdict 保留但降级从属，spec 只说了作废没说这个。
+    deps: [18, 21, 25]
+    files: [docs/specs/2026-08-01-dev-kit-evals.md]
+    model: mid
+    interfaces: "消费 task 18 最终落地的算子清单"
+    status: done
+    commit: 88ce18b
+    note: >-
+      已核实：task 18 的读内容是 operator（pathContentMatches）不是 selector，SELECTORS 里没有内容项，
+      所以 happensBefore 仍排不了内容顺序，③-12 依然表达不了、判官该留。所以本 task 是纯文字精确化，
+      不含裁定：要改的是「不读内容」这句已经不成立（单条写入能读了，跨条目排序不能），以及「封闭的八项」
+      实为十四个 operator。
+
+  - id: 24
+    goal: >-
+      把交付目标 refactor/dev-kit-plugin 的 8 个提交合进本分支，工作区与套件在合入后仍是干净全绿的，
+      冲突按「skill 散文以目标为准、evals 以本分支为准」解。
+    deps: [18]
+    files: []
+    model: inline
+    interfaces: "编排自持，合入后 task 25 才能开始"
+    status: done
+    commit: df0216f
+    note: >-
+      39 份 skill 被重写（−3522/+1149）。已用 git merge-tree --write-tree 干跑：零冲突，exit 0，
+      所以这条是机械合入，编排自己做，不派实现者。合入后要重跑全套——manifests.test.js 断言两份
+      plugin.json 与 Pi package.json 的 version/description 相等，那 8 个提交可能动过它们。
+
+  - id: 25
+    goal: >-
+      合入交付目标之后，场景 ① 对新散文重新校准：逐条核每个检查点在新路由表下还成不成立，
+      对新散文真跑一次，并把 spec 与场景注释里「期望本来就写错」的说法改成「路由规则在 c2b00b0 变了」。
+    deps: [24]
+    files: [docs/specs/2026-08-01-dev-kit-evals.md, dev-kit/evals/scenarios/intake/index.js, dev-kit/tests/eval-scenario-intake.test.js]
+    model: mid
+    interfaces: "消费 task 24 合入后的 skill 散文"
+    status: done
+    commit: b195156
+    note: >-
+      对新散文 sonnet/medium 真跑：19/21 绿。两条红已逐条核过 trace。r3-reproduce-before-fix 是
+      真发现——轮 3 的顺序是 read test → read lib → edit lib → 才 node --test，systematic-debugging
+      唤起了但「先复现再修」被跳过；trace 里那条测试命令在，不是观测缺陷。r1-read-before-answer 是
+      检查点太窄——agent 用 bash cat 读的仓库，选择器只认 read 工具，命题「回答之前读过仓库」其实成立。
+      另：fixture 初始分支就是 main，agent 三轮都直接在 main 上改，新散文的「Implementation never runs
+      directly on main or master」没有任何检查点在看。
+
+  - id: 26
+    goal: >-
+      ①-r1「回答之前读过仓库」不再只认 read 工具——agent 用 bash cat/ls 读仓库同样成立，
+      检查点判的是命题本身而不是它碰巧用了哪个工具。
+    deps: [25]
+    files: [dev-kit/evals/lib/trace.js, dev-kit/evals/lib/assert.js, dev-kit/evals/scenarios/intake/index.js, dev-kit/tests/eval-assert.test.js, dev-kit/tests/eval-scenario-intake.test.js]
+    model: mid
+    interfaces: "可能要给 happensBefore 的选择器加「或」，属词汇层改动"
+    status: done
+    commit: 5ad6161
+    note: >-
+      加的是通用 or 组合子，不是给 ① 开的小灶；两条反例都证过（完全不读→红、只跑 npm test→红）。
+      遗留一处结构性隐患：or 的 requiredTools 取的是各分支的交集，对当前三个 harness 是对的
+      （三家都观测得到 bash），但一个两条通道都观测不到的 harness 会得到 [] 从而假红——正确语义
+      是「至少有一支完全可观测」，而这要改 report.js 闸门的形状。与判官绕过闸门同族，一并留给真开
+      Codex/Pi 的那一轮。
+
+  - id: 27
+    goal: >-
+      spec 里最后两处会漂移的数字改成不会漂的说法：「三者合计 43 条检查点」（第 77、103 行，实为 56）
+      与问题 1 的「七个测试文件」（第 13 行，实为 22）。
+    deps: [23]
+    files: [docs/specs/2026-08-01-dev-kit-evals.md]
+    model: mid
+    interfaces: null
+    status: done
+    commit: e142045
+    note: >-
+      编排自己扫出来的，同一缺陷本轮已第五、六次出现。43 是 spec 自己表格的行数（14+15+14），
+      而实现按行拆成多条检查点，跑出来 report.json 里是 20+19+17=56——两个数都不算错，但读者会拿
+      43 去对 56。第 13 行那句在「问题」一节里描述的是改动之前的状态，性质弱一些，要不要动由实现者
+      按 AGENTS.md 的判据自己定，定了要说理由。
+
+  - id: 28
+    goal: >-
+      Claude Code 的会话记录不再落进用户的 ~/.claude——每次运行用一次性的 CLAUDE_CONFIG_DIR，
+      像 Codex 那样把登录态带进去，跑完用户的会话历史里不多出任何东西。
+    deps: [2]
+    files: [dev-kit/evals/harness/claude.js, dev-kit/evals/run.js, dev-kit/tests/eval-harness-claude.test.js, dev-kit/tests/eval-run.test.js]
+    model: mid
+    interfaces: "run.js 已经给每个 adapter 备了 sessionDir，claude.js 从不解构它"
+    status: doing
+    commit: null
+    note: >-
+      静态核验发现 4，已实证：~/.claude/projects/ 下已有三个 -private-var-folders-...-devkit-eval-fixture-*。
+      我已验过 CLAUDE_CONFIG_DIR 确实能把 transcript 挪走（jsonl 落在临时 config dir，用户目录计数不变），
+      但裸用会「Not logged in」——凭据在 macOS Keychain，引导态在 ~/.claude.json（在 ~/.claude 之外）。
+      决策 11 给 Codex 的解法是把登录态拷进一次性目录，这条照做。
+
+  - id: 29
+    goal: >-
+      ③ 与 ③-subagent 的 fixture 真的是一条已隔离的轮分支，baseline 分支另在——
+      收尾那几条用 git merge-base HEAD <baseline> 算整支 diff 的检查点因此有非空范围可算。
+    deps: [5, 11]
+    files: [dev-kit/evals/lib/fixture.js, dev-kit/evals/scenarios/execute/index.js, dev-kit/evals/scenarios/execute-subagent/index.js, dev-kit/tests/eval-fixture.test.js, dev-kit/tests/eval-scenario-execute.test.js, dev-kit/tests/eval-scenario-execute-subagent.test.js]
+    model: mid
+    interfaces: "buildFixture 现在只收 {files}，要能收分支形状"
+    status: doing
+    commit: null
+    note: >-
+      静态核验发现 6，已实证：buildFixture 永远 git init --initial-branch=main，两个场景都只传 {files}，
+      所以轮分支 == baseline，整支 diff 是空的。spec:145 明写 fixture 是「一个已经隔离好的轮分支」。
+
+  - id: 30
+    goal: >-
+      spec 不再声称本轮交付了没交付的东西：Codex 那一半派发映射与录制移进 Out of scope 并写明
+      原因是能力不存在，其余经核验的未交付项各记一条已知缺口。
+    deps: []
+    files: [docs/specs/2026-08-01-dev-kit-evals.md]
+    model: mid
+    interfaces: null
+    status: done
+    commit: a3c16e6
+    note: >-
+      Out of scope 加了「Codex 的派发工具映射与录制」，理由写成「缺的是能力，不是时间」并带上六次实测证据；
+      决策 14 与 ③-subagent 一节同步改成只认 Claude。其余缺口按文件既有的「已知缺口」样式就地记在各自那句旁边。
+      spec:73 判定为「说错了」而不是「没做」，直接改正：机制其实是 ① 的检查点两个方向都不点名 using-dev-kit。
+      断言词汇一节从五个 bullet 重写为九个、覆盖全部十四个算子且只讲形状与限制。已复核未引入新的硬编码计数。
+
+delivery_caveats:
+  - "本轮真跑过的只有场景 ①，只在 Claude Code 上。②③④ 从未对活 agent 跑过，它们的检查点只被录制 trace 验过——单测全绿只证明拼对了参数、认得出事件。"
+  - "真发现（dev-kit 行为）：sonnet/medium 下 ①-r3 顺序为 read → read → edit lib/count.js → node --test，systematic-debugging 唤起了但「先复现再修」被跳过。trace 里那条测试命令在，不是观测缺陷。"
+  - "真发现（dev-kit 散文张力）：合入后的 using-dev-kit 无条件写「Implementation never runs directly on main or master」，而同表上一行把已定案的改动送去「不走链路」。一处 README 错别字该不该开分支，两行给不出一致答案。用户裁定本轮只记不测。"
+  - "真发现（dev-kit 文档与现实不符）：codex-tools.md 把 spawn_agent 写成可用，实测六次在 codex exec 下不派发（无 collab 事件，或 collab_tool_call 的 tool 为 wait、receiver thread ids 为空）。归下一轮 brainstorming。"
+  - "能力闸门三处同族缺口，都只在 Codex/Pi 上咬人，本轮无法验证故未修：判官检查点绕过闸门（requiredTools 只读 checkpoint.assert）；字段级不可观测（Codex 有 write 无 content，task 18 的算子据此判红）；or 分支的 requiredTools 取交集，两条通道都观测不到的 harness 会假红而非未运行。"
+  - "e2e/scratch/ 只在 .git/info/exclude 里被忽略，不在 .gitignore。换台机器，运行时验证报告会变成未跟踪文件。属 dev-kit 约定问题，不属本轮。"
+  - "eval 曾往用户 ~/.claude/projects/ 写会话记录（三个 -private-var-folders-...-devkit-eval-fixture-* 目录）。task 28 修的是以后不再写；已存在那三个是用户数据，未删，交付时问。"
+  - "静态 spec 核验 12 条里只修了 2 条（用户裁定），其余由 task 30 记进 spec 的 Out of scope 与已知缺口。"
+  - "wrapup-code 的代码审查两次未送达报告，若最终丢失需重跑——四轮批次互审已覆盖同一批提交，但跨批次那张网没有。"
+
+review:
+  status: findings
+  wrapup_spec:
+    verified_by_orchestrator:
+      - "发现 4 属实且已发生：~/.claude/projects/ 下有三个 -private-var-folders-...-devkit-eval-fixture-* 目录，每跑一次 eval 就往用户会话历史里加一个。claude.js 既不用 run.js 备好的 sessionDir，也不设 CLAUDE_CONFIG_DIR。违反 spec:192。本轮唯一真跑的 harness 就是它"
+      - "发现 6 属实：buildFixture 永远 git init --initial-branch=main 且只收 {files}，execute 与 execute-subagent 都只传 files，所以 ③ 的 fixture 不是「已经隔离好的轮分支」而是 main；收尾用 git merge-base HEAD <baseline> 算的整支 diff 因此是空的"
+    needs_user_decision: [1, 2, 7]
+    clear_fixes: [3, 4, 5, 6, 8, 12]
+    minor: [9, 10, 11]
+    also: "spec:182 的让步理由是照着 assert.js 写回去的（我批准的），assert.js 一变它就悄悄失真；spec:91-97「断言词汇」整轮没被碰过，五个 bullet 已不是现在的十四个算子——第七处漂移；spec:77「一视同仁」现在只对「定义」成立，判不判由 OBSERVABLE_TOOLS 闸门按 harness 决定"
+  status_note: pending
+  fixes:
+    - batch: [20, 23]
+      commit: f492d19
+      note: "三条让步理由与代码对不上：「数量不定的条目」其实被 fixture 钉死在两条；「没有算次数的算子」读起来像加个算子就能收回，可 inline 下两道审查落在 agent 自己输出里；「SELECTORS 没有内容项」不对，它有 text，缺的是写入按内容选。另扫出第四处过时计数（「不自动化的部分」还写着七条）。"
+    - batch: [12, 21, 22]
+      commit: 9844281
+      note: "本轮最重的一条：超时根本没生效。harness.run() 只在 close 上落定，而 close 要等子进程的 stdio 也关闭；SIGKILL 只到 harness 自己的子进程，agent 的 Bash 工具留下的命令仍握着继承来的 stdout，于是杀完照样无限等——task 22 用 ESRCH 证明了子进程死了，却没证明 promise 落定，验的是另一半。其二是我自己划边界划出来的：'timed out' 只存在于 run.js，report.js 不认识，截断的一次跑与健康的一次跑打印得一模一样（停在后面的检查点都读 not observed，干净的短跑也读这个）。其三 main() 退出码并非不可测，只是缺个缝——它不给 adapter 传 env，PATH 上的 claude 就能端到端驱动它。另修 README 又一处四对五的场景计数。"
+    - batch: [18, 19, 25, 26]
+      commit: 23a0163
+      note: "四条，两条要紧：select() 的形状检查被挪进逐条过滤，于是拼错的选择器在空 trace（正是按轮收窄那一片）上不再抛错，静默判成「那件事没发生过」；READ_LIKE_COMMAND_PATTERN 两个方向都被攻破——漏掉 rg/sed/git show/jq，又把 npm test 2>&1 | tail -20 算成读仓库。另两条是 pathsShareCapture 遇到无捕获组的 pattern 谎报「没写过」、pathContentMatches 把只有终态看得见的写入赖到 harness 头上。"
+    - batch: [9, 15]
+      commit: 598a5ff
+      note: "检查点 15 原本禁 executing-plans，而 writing-plans 恰恰规定要交接给它、full-chain 的 handover-4 还专门验它——正确的一次运行会被判红；改成禁实现写入并收窄到轮 5。另修 subagent 派发描述会被批次互审顺带满足、baseline 测试命令漏了 npm test。实现者报告未送达，已回问。"
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null
