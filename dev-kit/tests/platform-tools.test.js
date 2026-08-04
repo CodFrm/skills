@@ -5,10 +5,15 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 
+const ROOT = path.join(__dirname, '..', '..')
 const USING_DEV_KIT = path.join(__dirname, '..', 'skills', 'using-dev-kit')
 
 function read(relativePath) {
   return fs.readFileSync(path.join(USING_DEV_KIT, relativePath), 'utf8')
+}
+
+function readRoot(relativePath) {
+  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8')
 }
 
 test('using-dev-kit routes platform-specific tool names to one owned reference each', () => {
@@ -45,13 +50,37 @@ test('Pi mapping translates the logical namespace and stays within the base tool
   assert.doesNotMatch(mapping, /`spawn_agent`|`Task` tool/)
 })
 
-test('Pi mapping offers the optional subagent only when that exact tool is loaded', () => {
+test('Pi mapping and public guidance describe the single-task subagent contract', () => {
   const mapping = read('references/pi-tools.md')
-  assert.match(mapping, /actual tool list.*`subagent`/is)
-  assert.match(mapping, /absent.*only.*`inline`/is)
-  assert.match(mapping, /present.*offer.*`subagent`.*`inline`/is)
-  assert.match(mapping, /`profile`.*`write`.*`read-only`/is)
-  assert.match(mapping, /real `provider\/model`/)
-  assert.match(mapping, /single.*parallel.*chain/is)
-  assert.match(mapping, /must not include `subagent`/i)
+  const catalog = readRoot('README.md')
+  const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
+  const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
+
+  assert.match(mapping, /one task|single-task/i)
+  assert.match(mapping, /main session.*serial/is)
+  assert.match(mapping, /multiple.*`subagent`.*calls/is)
+  assert.match(mapping, /read-only.*write.*general/is)
+  assert.match(mapping, /active tools.*deduplicat|deduplicat.*active tools/is)
+  assert.match(mapping, /three-layer|three layers/i)
+  assert.match(mapping, /`task`.*`profile`.*`model`.*`thinking`.*`cwd`/s)
+  assert.match(mapping, /`tasks`.*`chain`.*`tools`.*reject|reject.*`tasks`.*`chain`.*`tools`/is)
+  assert.doesNotMatch(mapping, /parallel mode|chain mode|concurrency pool/i)
+
+  assert.match(catalog, /单任务|one-task|single-task/i)
+  assert.doesNotMatch(catalog, /single、parallel 与 chain/i)
+
+  assert.match(packageReadme, /task.*profile.*model.*thinking.*cwd/is)
+  assert.match(packageReadme, /read-only.*write.*general/is)
+  assert.match(packageReadme, /main session.*serial|主会话.*串行/is)
+  assert.match(packageReadme, /parallel.*multiple.*calls|并行.*sibling.*calls/is)
+  assert.match(packageReadme, /active tools.*subagent|subagent.*active tools/is)
+  assert.match(packageReadme, /three-layer|three layers|三层/i)
+  assert.match(packageReadme, /`tasks`.*`chain`.*`tools`.*(?:reject|拒绝)|(?:reject|拒绝).*`tasks`.*`chain`.*`tools`/is)
+  assert.doesNotMatch(packageReadme, /single\/parallel\/chain execution model/i)
+  assert.doesNotMatch(packageReadme, /concurrency limits?|concurrency cap/i)
+
+  assert.match(notice, /Source:/)
+  assert.match(notice, /Author: Mario Zechner/)
+  assert.doesNotMatch(notice, /single\/parallel\/chain execution model/i)
+  assert.doesNotMatch(notice, /concurrency limits?|streaming result collection|output cap/i)
 })

@@ -1,6 +1,6 @@
 # dev-kit Pi subagent
 
-给 dev-kit 单独安装的 Pi package。它注册 `subagent` 工具，每个任务启动一个无 session 持久化的 Pi JSON 子进程；基础 `dev-kit/package.json` 不引用本包。
+给 dev-kit 单独安装的 Pi package。它注册 `subagent` 工具，每次调用启动一个新的、无 session 持久化的 Pi JSON 子进程；基础 `dev-kit/package.json` 不引用本包。
 
 ## 安装与移除
 
@@ -21,52 +21,47 @@ pi remove <pi list 中显示的本地 source>
 
 ## 调用契约
 
-每次调用只能选择一种模式：
+每次调用只接受以下字段：
 
-- single：直接传一个任务的字段；
-- parallel：传 `tasks`，最多八项、同时最多四个进程；
-- chain：传 `chain`，后一步可在 `task` 中用 `{previous}` 接收前一步的成功输出，首个失败会停止链。
-
-这些是传输模式，不是并发授权。dev-kit 默认 single/串行；使用 parallel 前，调用方必须按 [`executing-plans`](../../../skills/executing-plans/SKILL.md#parallel-is-proved-not-assumed) 记录绑定当前精确 HEAD 的四边界证据，读操作也不例外。
-
-每个任务都需要：
-
-| 字段 | 用法 |
-|---|---|
-| `task` | 完整、可独立执行的 prompt |
-| `profile` | 必填：`write` 或 `read-only` |
-| `model` | 可选的真实 `provider/model`；省略时继承父会话 |
-| `thinking` | 可选 Pi thinking level；省略时继承父会话 |
-| `tools` | 可选 allowlist；不能包含 `subagent` |
-| `cwd` | 可选绝对路径，或相对父会话 cwd 的目录 |
-
-single 示例：
-
-```json
-{
-  "task": "Implement task 2 from the approved plan and return commit plus test evidence.",
-  "profile": "write",
-  "model": "provider/model",
-  "thinking": "high",
-  "cwd": "/path/to/worktree"
-}
+```ts
+subagent({
+  task: string,
+  profile: "read-only" | "write" | "general",
+  model?: string,
+  thinking?: string,
+  cwd?: string
+})
 ```
 
-parallel 与 chain 把同样的任务对象放进对应数组。plan 继续只保存 `cheap / mid / strong`；主会话必须在派发前根据当前环境选择实际模型，本包不推断强弱、不静默 fallback，也不保存跨会话配置。
+`task` 和 `profile` 必填；每次成功调用对应一个新的子进程和一个任务结果。`tasks`、`chain`、`tools` 以及其他未知字段都会在启动前拒绝，不做兼容转换。`model` 必须是调用时解析出的真实 `provider/model`；plan 里的 `cheap`、`mid`、`strong` 由主会话在派发时解析。
 
-## 权限与 trust
+## 编排边界
 
-`write` 默认开放 `read,bash,edit,write,grep,find,ls`，显式 `tools` 可以使用当前 Pi 已加载的其他工具，但不能使用 `subagent`。`read-only` 默认开放 `read,bash,grep,find,ls`，显式列表只能删减；追加 system prompt 要求 bash 只做 `git diff`、`git show`、`git log` 等只读检查。
+主会话默认串行处理依赖；只有计划闸门已针对当前精确 HEAD 证明写集、语义依赖、共享可变资源和独立验证边界时，主会话才在同一 assistant message 中发送多个并行 sibling `subagent` calls。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限、不聚合 sibling results，也不写 `.dev-kit/plans/*.yaml`。
 
-这些 profile 是模型的工具边界与行为约束，不是 OS sandbox。extension 与子进程仍以当前用户权限运行。
+前一个调用返回后，主会话负责判断是否继续，并为串行依赖形成新的完整 task；工具不会机械传递前序输出或自行选择后续步骤。
 
-父会话已信任项目、且任务 cwd 等于父 cwd 或位于其下时，子进程使用本次运行的 `--approve`；父会话未信任，或 cwd 位于父 cwd 外时使用 `--no-approve`。用户级 extension 仍按 Pi 规则加载，任何子任务都不得再次派发 `subagent`。
+## Profiles and tool resolution
+
+| Profile | 子进程工具 | 用途与约束 |
+|---|---|---|
+| `read-only` | 固定 `read,bash,grep,find,ls` | 调查、静态审查和验证；prompt 要求不得修改文件、仓库状态或外部系统，bash 只做只读检查 |
+| `write` | 固定 `read,bash,edit,write,grep,find,ls` | 实现、review-and-fix 和运行时验证；修改范围由 task prompt 与项目规则决定 |
+| `general` | 父会话当前 active tools 去重后所得集合，并无条件排除精确名称 `subagent` | 需要父会话已加载的 browser、artifact 或其他 extension 工具时使用；不从 registered tools 扩大集合 |
+
+这些 profile 是工具边界与行为约束，不是 OS sandbox；子进程仍以当前用户权限运行。若父 active tool 在子进程中不可用，调用失败并返回 Pi 诊断，不静默删除能力或 fallback 到更宽集合。
+
+## Recursion boundary
+
+递归由三层共同阻断：任何解析出的子工具集合都排除精确名称 `subagent`；带有包内部 child registration marker 的子 Pi 不注册 `subagent`；子进程 system prompt 明确它只执行一个已派发 task，不得调用或委派 `subagent`、向用户提问或接管整份 plan，并服从 `using-dev-kit` 的 `SUBAGENT-STOP`。
+
+## Model, working directory and trust
+
+未提供 `model` 或 `thinking` 时继承父会话当前值；显式 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback。未提供 `cwd` 时使用父会话 cwd；提供时相对父 cwd 解析并在启动前确认是目录。父项目已信任且 cwd 等于父 cwd 或位于其下时使用一次性 approval，否则使用一次性拒绝。每个任务都启动独立的 Pi JSON/print 子进程并关闭 session 持久化。
 
 ## 输出与失败
 
-JSONL 消息会流式送入工具更新。折叠与 Ctrl+O 展开视图显示任务、工具调用、turns、token/cache、cost、context 和模型；parallel 逐项保留成功或失败结果。每项送回父模型的文本最多 50KB，完整消息保留在 tool details。
-
-非零退出、`stopReason: error`、abort 与启动失败会保留 exit code、stop reason、错误消息、stderr 和最后输出。父会话负责编排、机械证据检查和 plan 状态；在 `subagent` mode 下按 [`executing-plans` 的审查边界](../../../skills/executing-plans/SKILL.md#executing-a-plan) 从结构化结果决策，不自行审查源码、commit 或 diff。
+子进程 JSONL 事件继续流式进入当前工具调用。结果只对应一个 task，保留 progress、最终输出、turns、token/cache、cost、context、model、exit code、stop reason、错误消息、stderr、最后输出、signal 和 abort 证据。父会话负责机械证据检查、plan 状态和 review 边界；子 agent 的结果是报告，不是状态转换许可。
 
 ## 测试
 

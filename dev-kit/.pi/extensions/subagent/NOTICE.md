@@ -6,7 +6,7 @@ Portions of this package are adapted from the `subagent` extension example in `@
 - Author: Mario Zechner
 - License: MIT
 
-The adaptation retains the upstream subprocess protocol, single/parallel/chain execution model, concurrency limits, streaming result collection, usage accounting, abort propagation, output cap, and TUI presentation. It replaces external agent-file discovery with built-in `write` and `read-only` profiles and runtime model selection.
+The adaptation retains the upstream subprocess protocol and attribution while exposing one fresh child process per call. It replaces external agent-file discovery with built-in `read-only`, `write`, and `general` profiles and runtime model selection.
 
 ## MIT License
 
