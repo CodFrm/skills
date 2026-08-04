@@ -51,6 +51,7 @@ export async function runSingleTask(
 
 	try {
 		result.exitCode = await spawnAndCollect(args, request.cwd, result, signal, onUpdate);
+		finalizeFailureEvidence(result);
 		return result;
 	} finally {
 		fs.rmSync(promptDir, { recursive: true, force: true });
@@ -218,11 +219,21 @@ function markAborted(result: TaskResult): void {
 	result.errorMessage = "Subagent was aborted";
 }
 
+function finalizeFailureEvidence(result: TaskResult): void {
+	if (result.stopReason === "aborted") return;
+	if (result.exitCode === 0 && result.stopReason !== "error") return;
+	result.stopReason = "error";
+	result.errorMessage ||= result.exitCode === 0
+		? "Subagent reported an error"
+		: `Subagent exited with code ${result.exitCode}`;
+}
+
 export function getFinalOutput(messages: Message[]): string {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const message = messages[index];
 		if (message.role !== "assistant") continue;
-		for (const part of message.content) {
+		for (let partIndex = message.content.length - 1; partIndex >= 0; partIndex -= 1) {
+			const part = message.content[partIndex];
 			if (part.type === "text") return part.text;
 		}
 	}
@@ -231,13 +242,6 @@ export function getFinalOutput(messages: Message[]): string {
 
 export function isFailedResult(result: TaskResult): boolean {
 	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
-}
-
-export function getResultOutput(result: TaskResult): string {
-	if (isFailedResult(result)) {
-		return result.errorMessage || result.stderr.trim() || getFinalOutput(result.messages) || "(no output)";
-	}
-	return getFinalOutput(result.messages) || "(no output)";
 }
 
 export function formatFailure(result: TaskResult): string {

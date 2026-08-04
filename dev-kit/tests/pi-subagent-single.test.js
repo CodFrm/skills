@@ -12,6 +12,7 @@ const BASE_MANIFEST = path.join(DEV_KIT_ROOT, 'package.json')
 const PACKAGE_ROOT = path.join(DEV_KIT_ROOT, '.pi', 'extensions', 'subagent')
 const PACKAGE_MANIFEST = path.join(PACKAGE_ROOT, 'package.json')
 const EXTENSION = path.join(PACKAGE_ROOT, 'subagent.ts')
+const INVOCATION = path.join(PACKAGE_ROOT, 'lib', 'invocation.ts')
 const FAKE_PI = path.join(__dirname, 'fixtures', 'fake-pi.js')
 const CHILD_MARKER = 'DEV_KIT_PI_SUBAGENT_CHILD'
 const DEFAULT_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'subagent']
@@ -126,6 +127,11 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.equal(tool.parameters.additionalProperties, false)
 })
 
+test('single-task invocation exports no deleted mode output adapter', async () => {
+  const mod = await import(`${pathToFileURL(INVOCATION).href}?test=${Date.now()}-${Math.random()}`)
+  assert.equal('getResultOutput' in mod, false)
+})
+
 test('child invocations do not register subagent', async t => {
   const previousMarker = process.env[CHILD_MARKER]
   process.env[CHILD_MARKER] = '1'
@@ -232,6 +238,7 @@ test('JSONL updates and final details preserve the task tool call, output, usage
   const message = {
     role: 'assistant',
     content: [
+      { type: 'text', text: 'I will inspect the file.' },
       { type: 'toolCall', id: 'call-1', name: 'read', arguments: { path: '/tmp/project/file.ts' } },
       { type: 'text', text: 'inspected the file' },
     ],
@@ -647,6 +654,35 @@ test('aborting a call terminates its child and returns failure evidence', async 
   assert.equal(readJsonLines(capturePath).length, 1)
 })
 
+test('a nonzero child exit returns a stop reason and diagnostic without JSONL output', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-empty-failure-'))
+  const fakePi = path.join(root, 'fake-pi-empty-failure.js')
+  fs.writeFileSync(fakePi, `'use strict'\nprocess.exitCode = 2\n`)
+
+  const previousArgv1 = process.argv[1]
+  process.argv[1] = fakePi
+  t.after(() => {
+    process.argv[1] = previousArgv1
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const tool = await loadTool()
+  const result = await tool.execute(
+    'empty-failure',
+    { task: 'Fail without JSONL', profile: 'read-only' },
+    undefined,
+    undefined,
+    context(root),
+  )
+
+  assert.equal(result.isError, true)
+  assert.equal(result.details.exitCode, 2)
+  assert.equal(result.details.stopReason, 'error')
+  assert.match(result.details.errorMessage, /exited with code 2/i)
+  assert.match(result.content[0].text, /stop reason: error/i)
+  assert.match(result.content[0].text, /exited with code 2/i)
+})
+
 test('a child launch failure retains the spawn diagnostic', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-launch-'))
   const previousArgv1 = process.argv[1]
@@ -671,6 +707,7 @@ test('a child launch failure retains the spawn diagnostic', async t => {
 
   assert.equal(result.isError, true)
   assert.equal(result.details.exitCode, 1)
+  assert.equal(result.details.stopReason, 'error')
   assert.match(result.details.errorMessage, /spawn pi ENOENT/)
   assert.match(result.content[0].text, /spawn pi ENOENT/)
 })

@@ -156,6 +156,40 @@ test('renderers show exactly one task call, progress, output, usage, and model',
   assert.match(running, /fake-provider\/fake-model/)
 })
 
+test('single-task renderers do not truncate the prompt, progress, output, or tool details', async () => {
+  const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
+  const renderers = createRenderers(fakeRuntime)
+  const longPrompt = `Inspect ${'the complete task '.repeat(6)}END`
+  const longArgument = 'x'.repeat(80)
+  const messages = Array.from({ length: 12 }, (_, index) => ({
+    role: 'assistant',
+    content: [{ type: 'toolCall', name: `custom-${index}`, arguments: { value: index === 0 ? longArgument : `value-${index}` } }],
+    usage: {},
+  }))
+  messages.push({
+    role: 'assistant',
+    content: [{ type: 'text', text: 'line 1\nline 2\nline 3\nline 4\nline 5' }],
+    usage: {},
+  })
+
+  const call = render(renderers.renderCall({ task: longPrompt, profile: 'read-only' }, theme, {}))
+  assert.match(call, new RegExp(longPrompt))
+  assert.doesNotMatch(call, /\.\.\./)
+
+  for (const expanded of [false, true]) {
+    const rendered = render(renderers.renderResult(
+      { content: [{ type: 'text', text: 'line 1\nline 2\nline 3\nline 4\nline 5' }], details: result({ task: longPrompt, messages }) },
+      { expanded, isPartial: false },
+      theme,
+      {},
+    ))
+    assert.match(rendered, /custom-0/)
+    assert.match(rendered, new RegExp(longArgument))
+    assert.match(rendered, /line 5/)
+    assert.doesNotMatch(rendered, /earlier items|Ctrl\+O to expand/)
+  }
+})
+
 test('compact and expanded renderers retain exact failure diagnostics', async () => {
   const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
   const renderers = createRenderers(fakeRuntime)

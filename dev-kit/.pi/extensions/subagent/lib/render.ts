@@ -4,8 +4,6 @@ import type { Message } from "@earendil-works/pi-ai";
 import { getFinalOutput, isFailedResult } from "./invocation.ts";
 import type { TaskResult, UsageStats } from "./types.ts";
 
-const COLLAPSED_ITEM_COUNT = 10;
-
 interface Component {
 	render(width: number): string[];
 	invalidate(): void;
@@ -71,7 +69,7 @@ export function createRenderers(runtime?: RenderRuntime) {
 }
 
 function formatCall(args: any, theme: Theme): string {
-	return `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.profile ?? "...")}\n  ${theme.fg("dim", preview(args.task ?? "...", 60))}`;
+	return `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.profile ?? "...")}\n  ${theme.fg("dim", args.task ?? "...")}`;
 }
 
 function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
@@ -86,12 +84,11 @@ function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime
 	if (!expanded) {
 		let text = `${header}\n${theme.fg("dim", result.task)}`;
 		if (items.length === 0) text += `\n${theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)")}`;
-		else text += `\n${renderDisplayItems(items, theme, COLLAPSED_ITEM_COUNT)}`;
+		else text += `\n${renderDisplayItems(items, theme)}`;
 		const diagnostics = formatDiagnostics(result);
 		if (diagnostics.length > 0) text += `\n${theme.fg("error", diagnostics.join("\n"))}`;
 		const usage = formatUsage(result.usage, result.model);
 		if (usage) text += `\n${theme.fg("dim", usage)}`;
-		if (items.length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
 		return new runtime.Text(text, 0, 0);
 	}
 
@@ -103,7 +100,7 @@ function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime
 	container.addChild(new runtime.Spacer(1));
 	container.addChild(new runtime.Text(theme.fg("muted", "─── Output ───"), 0, 0));
 	addToolCalls(container, items, theme, runtime);
-	if (output) container.addChild(new runtime.Markdown(output.trim(), 0, 0, markdownTheme(theme)));
+	if (output) container.addChild(new runtime.Markdown(output, 0, 0, markdownTheme(theme)));
 	else container.addChild(new runtime.Text(theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)"), 0, 0));
 	const diagnostics = formatDiagnostics(result);
 	if (diagnostics.length > 0) {
@@ -140,13 +137,11 @@ function getDisplayItems(messages: Message[]): DisplayItem[] {
 	return items;
 }
 
-function renderDisplayItems(items: DisplayItem[], theme: Theme, limit: number): string {
-	const shown = items.slice(-limit);
+function renderDisplayItems(items: DisplayItem[], theme: Theme): string {
 	const lines: string[] = [];
-	if (items.length > limit) lines.push(theme.fg("muted", `... ${items.length - limit} earlier items`));
-	for (const item of shown) {
+	for (const item of items) {
 		if (item.type === "toolCall") lines.push(`→ ${formatToolCall(item.name, item.args)}`);
-		else lines.push(theme.fg("toolOutput", item.text.split("\n").slice(0, 3).join("\n")));
+		else lines.push(theme.fg("toolOutput", item.text));
 	}
 	return lines.join("\n");
 }
@@ -167,7 +162,7 @@ function formatToolCall(name: string, args: Record<string, unknown>): string {
 	if (name === "grep") return `grep /${String(args.pattern ?? "")}/ in ${String(args.path ?? ".")}`;
 	if (name === "find") return `find ${String(args.pattern ?? "*")} in ${String(args.path ?? ".")}`;
 	if (name === "ls") return `ls ${String(args.path ?? ".")}`;
-	return `${name} ${preview(JSON.stringify(args), 50)}`;
+	return `${name} ${JSON.stringify(args)}`;
 }
 
 function formatUsage(usage: UsageStats, model?: string): string {
@@ -208,10 +203,6 @@ function markdownTheme(theme: Theme): MarkdownTheme {
 		strikethrough: text => text,
 		highlightCode: code => code.split("\n").map(line => theme.fg("mdCodeBlock", line)),
 	};
-}
-
-function preview(text: string, max: number): string {
-	return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
 function loadRuntime(): RenderRuntime {
