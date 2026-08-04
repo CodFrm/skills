@@ -156,6 +156,23 @@ test('renderers show exactly one task call, progress, output, usage, and model',
   assert.match(running, /fake-provider\/fake-model/)
 })
 
+test('rendering shows text for unrecognized details', async () => {
+  const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
+  const renderers = createRenderers(fakeRuntime)
+  const output = {
+    content: [{ type: 'text', text: 'Readable response' }],
+    details: { unexpected: true },
+  }
+
+  const rendered = render(renderers.renderResult(
+    output,
+    { expanded: false, isPartial: false },
+    theme,
+    {},
+  ))
+  assert.match(rendered, /Readable response/)
+})
+
 test('compact progress is bounded while expanded rendering and direct task details stay complete', async () => {
   const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
   const renderers = createRenderers(fakeRuntime)
