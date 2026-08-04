@@ -155,6 +155,58 @@ test('a block scalar whose body opens with an empty line is not indented by it',
   assert.equal(entryOf(doc.root, 'goal').value.text, 'line one\nline two')
 })
 
+// A tab past a body line's indentation is text the scalar carries, and a YAML parser reads it back
+// as part of the value. Refusing it makes a plan uncommandable by every subcommand, the read-only
+// ones included, and this CLI has nothing that could repair it.
+test('a tab inside a block scalar body is content, not indentation', () => {
+  const doc = parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: |-',
+    '      a command:',
+    '      \tdevkit plan next',
+    '    deps: []',
+  ].join('\n'))
+  const task = taskNodes(doc)[0]
+  assert.equal(entryOf(task, 'note').value.text, 'a command:\n\tdevkit plan next')
+  // The body ended where the indentation says it did, so the key after it keeps its own line.
+  assert.equal(entryOf(task, 'deps').line, 8)
+})
+
+test('a tab in the columns that carry the structure is still refused, on its line', () => {
+  for (const [lines, at] of [
+    [['status: running', 'tasks:', '\t- id: 1'], 3],
+    [['status: running', 'tasks:', '  - id: 1', '    note: |-', '      body', '\tstatus: todo'], 6],
+  ]) {
+    assert.throws(() => parsePlan(lines.join('\n')), err => {
+      assert.ok(err instanceof PlanError)
+      assert.equal(err.line, at)
+      return true
+    })
+  }
+})
+
+// A body line left of the block's own indentation ends the scalar and then belongs to nothing, which
+// a YAML parser rejects outright. Slicing it by the block's indent hands back text nobody wrote.
+test('a block scalar body line indented less than the block itself is refused, not cut short', () => {
+  assert.throws(() => parsePlan([
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    note: >-',
+    '        deep line',
+    '      shallow line',
+    '    deps: []',
+  ].join('\n')), err => {
+    assert.ok(err instanceof PlanError)
+    assert.equal(err.line, 7)
+    return true
+  })
+})
+
 test('a trailing comment is not part of the value', () => {
   const doc = load('conforming.yaml')
   assert.equal(entryOf(doc.root, 'status').value.text, 'running')
@@ -741,6 +793,33 @@ test('a plan whose lines end in CRLF is read and written back with its line endi
   assert.equal(fs.readFileSync(file, 'utf8'), before.replace('status: todo', 'status: doing'))
 })
 
+// One CRLF line in an otherwise LF file is part of that file. Picking one ending for the whole plan
+// and rejoining with it rewrites every line the command never addressed — the byte-preservation
+// invariant read the other way round.
+test('a plan whose line endings are mixed keeps each line\'s own ending', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'mixed.yaml')
+  const before = 'status: running\ntasks:\r\n  - id: 1\n    status: todo\n    deps: []\n'
+  fs.writeFileSync(file, before)
+  const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'mixed'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.equal(fs.readFileSync(file, 'utf8'), before.replace('status: todo', 'status: doing'))
+})
+
+test('an appended line takes the ending of the line it lands after', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'mixed.yaml')
+  const before = 'status: running\r\ncontext:\r\n  - one\ntasks:\n  - id: 1\n    status: todo\n    deps: []\n'
+  fs.writeFileSync(file, before)
+  const { code, err } = await run(cwd, ['context', '--add', 'two', '--plan', 'mixed'])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  assert.equal(fs.readFileSync(file, 'utf8'), before.replace('  - one\n', '  - one\n  - two\n'))
+})
+
 // commented.yaml copies writing-plans/SKILL.md's own template, whose four writable `status:`
 // lines all carry a state legend as a trailing comment. Neither real plan fixture has one.
 test('writing the plan status in a plan shaped like the template keeps its state legend', async () => {
@@ -964,6 +1043,32 @@ test('plan review fails when the plan has no review section', async () => {
   const { code, err } = await run(cwd, ['review', '--status', 'passed', '--plan', 'bare'])
   assert.equal(code, 1)
   assert.match(err, /review.*not found/)
+})
+
+// "not found" sends the reader looking for a key that is right there. What is wrong is its shape,
+// and the line it is on is the only thing that leads to the fix.
+test('plan review and verification report a key that is a value, not a missing one', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  fs.writeFileSync(path.join(cwd, '.dev-kit', 'plans', 'flat.yaml'), [
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    status: todo',
+    '    deps: []',
+    '',
+    'review: pending',
+    'verification: pending',
+    '',
+  ].join('\n'))
+  const review = await run(cwd, ['review', '--status', 'passed', '--plan', 'flat'])
+  assert.equal(review.code, 1)
+  assert.doesNotMatch(review.err, /not found/)
+  assert.match(review.err, /^devkit: flat\.yaml:7: review: /)
+  const verification = await run(cwd, ['verification', '--status', 'running', '--plan', 'flat'])
+  assert.equal(verification.code, 1)
+  assert.doesNotMatch(verification.err, /not found/)
+  assert.match(verification.err, /^devkit: flat\.yaml:8: verification: /)
 })
 
 test('plan verification writes status, report, head and note together', async () => {
@@ -1344,6 +1449,31 @@ test('plan check exits zero when only improvised keys are left', async () => {
   assert.match(out, /extra\.yaml:29/)
 })
 
+// A note that pastes a tab-indented command is legal YAML, and no plan subcommand repairs a plan,
+// so refusing it would leave the file readable by hand only.
+test('a plan carrying a tab inside a block scalar is still readable and writable', async () => {
+  const cwd = project(null)
+  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'tabbed.yaml')
+  fs.writeFileSync(file, [
+    'status: running',
+    'tasks:',
+    '  - id: 1',
+    '    goal: Only slice',
+    '    deps: []',
+    '    status: todo',
+    '    note: |-',
+    '      the harness prints:',
+    '      \tok 1 - passes',
+    '',
+  ].join('\n'))
+  assert.deepEqual(await run(cwd, ['next']), { code: 0, out: '1  Only slice', err: '' })
+  assert.equal((await run(cwd, ['show'])).code, 0)
+  assert.equal((await run(cwd, ['check'])).code, 0)
+  assert.equal((await run(cwd, ['task', '1', '--status', 'doing'])).code, 0)
+  assert.match(fs.readFileSync(file, 'utf8'), /\n {6}\tok 1 - passes$/m)
+})
+
 // --- picking the plan ---------------------------------------------------------------------------
 
 test('--plan may be omitted when exactly one plan is not done', async () => {
@@ -1396,10 +1526,33 @@ test('a plan file that cannot be read says so, instead of reporting the plan as 
   try {
     const { code, err } = await run(cwd, ['show', '--plan', 'locked'])
     assert.equal(code, 1)
-    assert.match(err, /locked/)
+    // The file it could not read, named. The message that names the directory instead is the one
+    // every other plan in that directory would fail with too, which is a different fault.
+    assert.match(err, /^devkit: could not read locked\.yaml: /)
     assert.doesNotMatch(err, /no plan/)
   } finally {
     fs.chmodSync(file, 0o600)
+  }
+})
+
+// Enumerating the directory is how `--plan` is resolved, so a sibling that cannot be opened is met
+// on the way to every plan. Reading its status is worth exactly one plan's answer, never the run.
+test('one unreadable plan does not stop a command that named a readable one', async () => {
+  const cwd = project({ live: 'conforming.yaml', locked: 'conforming.yaml' })
+  const locked = path.join(cwd, '.dev-kit', 'plans', 'locked.yaml')
+  fs.chmodSync(locked, 0o000)
+  try {
+    const { code, out, err } = await run(cwd, ['show', '--plan', 'live'])
+    assert.equal(err, '')
+    assert.equal(code, 0)
+    assert.match(out, /^plan: live$/m)
+    // And it is still a candidate: with no --plan, an unknown status counts as not done, so the
+    // two of them are an ambiguity rather than a silent pick.
+    const ambiguous = await run(cwd, ['show'])
+    assert.equal(ambiguous.code, 1)
+    assert.match(ambiguous.err, /locked/)
+  } finally {
+    fs.chmodSync(locked, 0o600)
   }
 })
 
@@ -1429,6 +1582,21 @@ test('a project with no plan directory, and no project at all, each say which', 
   const nowhere = await run(fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-noproject-'))), ['next'])
   assert.equal(nowhere.code, 1)
   assert.match(nowhere.err, /project root/)
+})
+
+// parseArgs accepts every subcommand in SUBS, and the dispatch below it is a chain of ifs. One
+// added to the table and to no branch falls out of that chain returning undefined, which bin/devkit
+// assigns to process.exitCode: a command that did nothing at all exits like one that worked.
+test('a subcommand the dispatch has no branch for fails instead of exiting zero', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  SUBS.archive = { flags: ['--plan'] }
+  try {
+    const { code, err } = await run(cwd, ['archive', '--plan', 'live'])
+    assert.equal(code, 1)
+    assert.match(err, /archive/)
+  } finally {
+    delete SUBS.archive
+  }
 })
 
 test('an unknown subcommand or flag fails rather than being ignored', async () => {

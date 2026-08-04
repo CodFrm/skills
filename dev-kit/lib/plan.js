@@ -61,8 +61,12 @@ const BLOCK_RE = /^[>|][-+]?\d*$/
 // when there is none — a write reuses it untouched instead of rescanning the line for `#`.
 const scalar = (line, endLine, text, comment = '') => ({ kind: 'scalar', line, endLine, text, comment })
 
+const spaceIndent = raw => /^[ ]*/.exec(raw)[0].length
+
+// For a line whose columns carry structure. A tab there is refused; inside a block scalar's body it
+// is text the scalar carries, so those lines are measured with spaceIndent instead.
 function indentOf(raw, lineNo) {
-  const m = /^[ ]*/.exec(raw)[0].length
+  const m = spaceIndent(raw)
   if (raw[m] === '\t') throw new PlanError('a tab indents this line; plans are indented with spaces', lineNo)
   return m
 }
@@ -159,7 +163,8 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
   let endLine = keyLine
   while (st.i < st.lines.length) {
     const raw = st.lines[st.i]
-    if (raw.trim() !== '' && indentOf(raw, st.i + 1) <= keyIndent) break
+    // A line at or left of the key's column ends the body; whoever reads it next grades its tab.
+    if (raw.trim() !== '' && spaceIndent(raw) <= keyIndent) break
     body.push(raw)
     st.i++
     if (raw.trim() !== '') endLine = st.i
@@ -170,8 +175,16 @@ function parseBlockScalar(st, head, keyIndent, keyLine) {
   // The body's indent is the first line that has content: an empty one has none to give, and
   // stripping zero columns would hand back prose still carrying its indentation.
   const first = body.findIndex(l => l.trim() !== '')
-  const strip = first < 0 ? 0 : indentOf(body[first], keyLine + 1 + first)
-  const text = body.map(l => l.slice(strip).trimEnd())
+  const strip = first < 0 ? 0 : spaceIndent(body[first])
+  // A content line left of that indent is not this scalar's line and not a key either — YAML rejects
+  // the file. Slicing it by the block's indent would cut its first columns off and hand back text
+  // nobody wrote.
+  const text = body.map((l, n) => {
+    if (l.trim() !== '' && spaceIndent(l) < strip) {
+      throw new PlanError('this line is indented less than the block scalar it is inside', keyLine + 1 + n)
+    }
+    return l.slice(strip).trimEnd()
+  })
   const folded = style[0] === '>'
   let joined = ''
   for (const [n, l] of text.entries()) {
@@ -222,13 +235,17 @@ function decodeScalar(s, line) {
 }
 
 // A CR is taken off each line here rather than tolerated in every pattern below — it belongs to the
-// line ending, not to the key or the value — and `eol` puts it back on write, so a plan saved with
-// CRLF reads and is written as one instead of failing on the first key.
+// line ending, not to the key or the value — and `eols` keeps each line's own ending so the write
+// path can put back the one that line had. A plan that is LF except for one CRLF line is that file:
+// rejoining it with a single ending would rewrite every line no command addressed. `eol` is the
+// prevailing one, used only for a line that has to gain an ending it never had.
 function parsePlan(text) {
-  const st = { lines: text.split('\n').map(l => l.replace(/\r$/, '')), i: 0 }
+  const raw = text.split('\n')
+  const st = { lines: raw.map(l => l.replace(/\r$/, '')), i: 0 }
   const root = parseMap(st, 0)
   if (skipBlank(st)) throw new PlanError('neither a key nor a list item', st.i + 1)
-  return { lines: st.lines, eol: text.includes('\r\n') ? '\r\n' : '\n', root }
+  const eols = raw.map((l, i) => (i === raw.length - 1 ? '' : (l.endsWith('\r') ? '\r\n' : '\n')))
+  return { lines: st.lines, eols, eol: text.includes('\r\n') ? '\r\n' : '\n', root }
 }
 
 // --- addressing ---------------------------------------------------------------------------------
@@ -536,16 +553,32 @@ function resolveAppend(doc, node, key, label, render, limit = Infinity) {
   return { line: lastLine + 1, endLine: lastLine, text: render(seq.indent) }
 }
 
+// The whole file as it will be on disk: the edits spliced in, every line carrying back the ending
+// it was read with. The endings splice exactly as the lines do, so the same edit set is replayed
+// over them — a new line takes the ending of the last line it replaces, or of the line above an
+// insertion, and all sources are read off the original array, which the bottom-up order keeps valid.
+// The one line with no ending of its own is the last, when the file did not end in a newline; it
+// gains the prevailing one only once an append has put something after it.
+function renderPlan(doc, edits) {
+  const lines = applyEdits(doc.lines, edits)
+  const eols = applyEdits(doc.eols, edits.map(e => {
+    const count = Array.isArray(e.text) ? e.text.length : 1
+    const source = e.endLine >= e.line ? doc.eols[e.endLine - 1] : doc.eols[e.line - 2]
+    return { line: e.line, endLine: e.endLine, text: new Array(count).fill(source ?? doc.eol) }
+  }))
+  return lines.map((l, i) => l + (i === lines.length - 1 ? eols[i] : eols[i] || doc.eol)).join('')
+}
+
 // Same-directory temp file plus rename (decision 8): a process killed mid-write leaves the plan
 // exactly as it was, never half-written. A filesystem error here (permission, disk full, a rename
 // that cannot land) is turned into a PlanError so it exits through the same clean path as every
 // other failure (decision 12) instead of an unhandled rejection — bin/devkit's promise chain has
 // no .catch, so anything else thrown here would surface as a crash with a stack trace.
-async function writePlanFile(file, lines, eol) {
+async function writePlanFile(file, text) {
   const dir = path.dirname(file)
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}-${Date.now()}.tmp`)
   try {
-    await fsp.writeFile(tmp, lines.join(eol), 'utf8')
+    await fsp.writeFile(tmp, text, 'utf8')
     await fsp.rename(tmp, file)
   } catch (e) {
     await fsp.unlink(tmp).catch(() => {})
@@ -565,15 +598,16 @@ async function findPlans(planDir) {
     const file = await resolveInside(planDir, name)
     if (!file) continue
     // A directory named *.yaml is not a plan: it counts as a candidate here and then fails as
-    // EISDIR wherever it is opened. Every other read error is a plan that is there and cannot be
-    // read, which is a different answer from "no such plan" and is left for the caller to report.
-    let text
-    try { text = await fsp.readFile(file, 'utf8') } catch (e) {
-      if (e.code === 'EISDIR') continue
-      throw e
-    }
+    // EISDIR wherever it is opened. Every other failure leaves the plan on the list with an unknown
+    // status — dropping it would answer an explicit `--plan` with "no such plan", and raising it
+    // here would make one unreadable file fail every command on every other plan in the directory.
+    // The one command that goes on to need this file reads it again and reports what it hits.
     let status = null
-    try { status = textOf(parsePlan(text).root, 'status') } catch { status = null }
+    try {
+      status = textOf(parsePlan(await fsp.readFile(file, 'utf8')).root, 'status')
+    } catch (e) {
+      if (e.code === 'EISDIR') continue
+    }
     plans.push({ slug: name.replace(/\.yaml$/, ''), name, file, status })
   }
   return plans
@@ -701,9 +735,15 @@ async function cmdPlan(argv, io = {}) {
   let doc
   try {
     doc = parsePlan(await fsp.readFile(chosen.file, 'utf8'))
-  } catch (e) { return fail(e) }
+  } catch (e) {
+    if (e instanceof PlanError) return fail(e)
+    // The chosen plan is the one file whose read has to be reported: it may have been unreadable
+    // when it was listed, or gone since (decision 12's exit path, whichever syscall failed).
+    err(`devkit: could not read ${name}: ${e.message}`)
+    return 1
+  }
 
-  const save = async edits => writePlanFile(chosen.file, applyEdits(doc.lines, edits), doc.eol)
+  const save = async edits => writePlanFile(chosen.file, renderPlan(doc, edits))
 
   try {
     if (sub === 'next') {
@@ -743,7 +783,8 @@ async function cmdPlan(argv, io = {}) {
     }
     if (sub === 'review') {
       const entry = entryOf(doc.root, 'review')
-      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: review: not found`); return 1 }
+      if (!entry) { err(`devkit: ${name}: review: not found`); return 1 }
+      if (entry.value.kind !== 'map') throw new PlanError('review: is not an object, so its fields cannot be written', entry.line)
       const edits = []
       if (flags.status !== undefined) {
         edits.push(...resolveEdits(doc, entry.value, [{ key: 'status', value: flags.status, vocab: VOCAB.reviewStatus, label: 'review.status' }]))
@@ -768,7 +809,8 @@ async function cmdPlan(argv, io = {}) {
     }
     if (sub === 'verification') {
       const entry = entryOf(doc.root, 'verification')
-      if (!entry || entry.value.kind !== 'map') { err(`devkit: ${name}: verification: not found`); return 1 }
+      if (!entry) { err(`devkit: ${name}: verification: not found`); return 1 }
+      if (entry.value.kind !== 'map') throw new PlanError('verification: is not an object, so its fields cannot be written', entry.line)
       const vocabs = { status: VOCAB.verificationStatus, report: null, head: null, note: null }
       const fields = Object.keys(vocabs)
         .filter(key => flags[key] !== undefined)
@@ -777,6 +819,10 @@ async function cmdPlan(argv, io = {}) {
       await save(resolveEdits(doc, entry.value, fields))
       return 0
     }
+    // SUBS is what the arguments were accepted against, so a subcommand listed there and dispatched
+    // nowhere reaches this line. Returning nothing would make bin/devkit exit 0 on a command that
+    // did not run.
+    throw new PlanError(`plan ${sub}: no handler for this subcommand`)
   } catch (e) { return fail(e) }
 }
 
