@@ -15,7 +15,7 @@ The main session is the orchestrator:
 1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
 2. It records and routes each return immediately; a finished task does not pause the loop.
 3. Dispatch is serial — one subagent, its return recorded, then the next. The sole exception is the two static wrap-up axes, which are read-only and go out together.
-4. In `subagent` mode it never reviews source, commit content or diffs. It decides from structured implementer/reviewer results, its own runtime observations and mechanical SHA/state checks. An insufficient report triggers a fresh reviewer; the main session never fills the review gap.
+4. In `subagent` mode it never reviews source, commit content or diffs. It decides from structured implementer/reviewer results, its own runtime observations and mechanical SHA/state checks. An insufficient return is closed by another dispatch, never by the main session's own inspection.
 5. Work is not complete in the context that produced it: two-axis static wrap-up → runtime verification.
 
 ## Resume state
@@ -61,11 +61,11 @@ A structured return is routing input:
 | `missing context` | Add verified missing context and re-dispatch; contradiction goes to the user |
 | `stuck` | Change something before retry: add context, raise tier, recut plan, or mark blocked |
 
-If the implementer declares part of its goal incomplete, send it back once for that named shortfall. A second declared shortfall marks the task `blocked`. Do not inspect code or infer additional shortfalls in the main session.
-
 ### What makes a task `done`
 
 A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
+
+A return that declares a goal part incomplete, or that carries no command and exit code for one, goes back to that implementer once for the named part alone — both causes draw on that single send-back, and a second short return marks the task `blocked`.
 
 ## When to stop, and when not to
 
@@ -80,7 +80,7 @@ Limits:
 
 | Scope | Limit | Exhausted state |
 |---|---|---|
-| Implementer-declared shortfall | one send-back | task `blocked` |
+| Incomplete implementer return | one send-back | task `blocked` |
 | Static wrap-up | two review passes and at most two fixer dispatches | blocking → plan `stopped`; others noted |
 
 ## Wrap-up: two static reviews

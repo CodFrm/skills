@@ -33,7 +33,7 @@ that would fail under a wrong implementation; fix those issues.
 Return at most 15 lines, no report file:
 - status: complete | complete with concerns | stuck | missing context
 - short commit SHA
-- RED and GREEN commands with exit codes and deciding observations
-- each goal clause confirmed, or the exact clause still false
+- the RED command, its exit code and the failure it showed
+- per goal part: one command, its exit code and the deciding observation, or the exact clause still false
 - concerns and any contradiction with plan context
 ```
