@@ -21,13 +21,13 @@
 | [using-dev-kit](./dev-kit/skills/using-dev-kit/) | 选择技能并遵守共享的提问、派发规则 |
 | [init](./dev-kit/skills/init/) | 补齐项目文档、lint/CI 护栏、单测与 e2e 流程 |
 | [brainstorming](./dev-kit/skills/brainstorming/) | 探索需求并将定稿设计写成 spec |
-| [writing-plans](./dev-kit/skills/writing-plans/) | 将获批 spec 拆成可执行、可并行的计划 |
+| [writing-plans](./dev-kit/skills/writing-plans/) | 将获批 spec 拆成可执行、可恢复的计划 |
 | [using-git-worktrees](./dev-kit/skills/using-git-worktrees/) | 在隔离工作区开发并处理分支交付 |
-| [executing-plans](./dev-kit/skills/executing-plans/) | 按计划推进任务、互审、静态审查和运行时验证 |
+| [executing-plans](./dev-kit/skills/executing-plans/) | 按计划串行推进任务、静态审查和运行时验证 |
 | [test-driven-development](./dev-kit/skills/test-driven-development/) | 以失败测试驱动新行为和缺陷修复 |
 | [systematic-debugging](./dev-kit/skills/systematic-debugging/) | 先复现并定位根因，再进入修复 |
 
-可选 Pi 单任务派发集成：[dev-kit-pi-subagent](./dev-kit/.pi/extensions/subagent/)；单独安装后每次调用启动一个独立子进程，主会话负责串行依赖和获准的并行 sibling calls，基础 dev-kit 仍保持 inline。
+可选 Pi 单任务派发集成：[dev-kit-pi-subagent](./dev-kit/.pi/extensions/subagent/)；单独安装后每次调用启动一个独立子进程，主会话默认串行派发，只有 wrap-up 两轴静态评审同时发出多个并行 sibling calls，基础 dev-kit 仍保持 inline。
 
 ### [coding-agents](./coding-agents/) · Coding Agent 编排
 

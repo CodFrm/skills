@@ -13,14 +13,14 @@ Require a `ready` plan, or resume any plan not `done`. Read the entire plan and 
 The main session is the orchestrator:
 
 1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
-2. It records and routes each return immediately; a task or batch finishing does not pause the loop.
-3. In `subagent` mode it never reviews source, commit content or diffs. It decides from structured implementer/reviewer results, its own runtime observations and mechanical SHA/state checks. An insufficient report triggers a fresh reviewer; the main session never fills the review gap.
-4. Work is not complete in the context that produced it: task/batch review → two-axis static wrap-up → runtime verification.
+2. It records and routes each return immediately; a finished task does not pause the loop.
+3. Dispatch is serial — one subagent, its return recorded, then the next. The sole exception is the two static wrap-up axes, which are read-only and go out together.
+4. In `subagent` mode it never reviews source, commit content or diffs. It decides from structured implementer/reviewer results, its own runtime observations and mechanical SHA/state checks. An insufficient report triggers a fresh reviewer; the main session never fills the review gap.
+5. Work is not complete in the context that produced it: two-axis static wrap-up → runtime verification.
 
 ## Resume state
 
-- `doing`: recover its SHA mechanically from history. If ambiguous, dispatch a read-only scout that identifies the commit without judging it. Recovered → `reviewing`; otherwise → `todo`.
-- `reviewing`: if no recorded structured review/fix result exists, dispatch [batch review](#the-batch-review-and-its-fix-what-makes-a-task-done) over the recorded SHAs. Never re-dispatch an implementer whose commit exists.
+- `doing`: recover its SHA mechanically from history; a read-only scout may identify the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA → `todo`. Never re-dispatch an implementer whose commit exists.
 - `verification.pending`: enter runtime verification after static review.
 - `verification.running`: resume from the partial scratch evidence, covering every requirement still without a verdict.
 - `verification.reported`: inspect the report/evidence, never the branch diff.
@@ -37,69 +37,39 @@ Verify the recorded workspace is the current checkout, the spec is tracked on it
 
 ```text
 collect ready tasks
-  → select one by default, or a gate-approved parallel batch
+  → select one
   → write doing state
   → implement (TDD; debug first for faults)
-  → record SHA/result
-  → independent batch review-and-fix in subagent mode
+  → record a command, exit code and deciding observation per goal part
+  → done
   → full suite
   → repeat
 ```
 
-Ready means `status: todo` and all `deps` are `done`. `inline` always runs one task at a time and skips batch review.
-
-### Parallel is proved, not assumed
-
-Serial dispatch is the default for implementation, investigation, review/fix, static review and runtime-driving work. Read-only work is not exempt.
-
-Immediately before every parallel dispatch, require plan facts or a read-only scout report bound to the exact current HEAD and proving all four boundaries:
-
-| Boundary | Required fact |
-|---|---|
-| Writes | Exact write/output sets are disjoint, including generated files, lockfiles, manifests, fixtures, snapshots and formatter output |
-| Dependencies | No sibling creates or changes an interface, schema, configuration or behaviour another consumes |
-| Resources | No shared mutable port, service, database, cache, package-manager state, browser profile, account or external resource |
-| Verification | Each focused check is meaningful without sibling changes; combining results needs no new design decision |
-
-Append a `parallel_evidence` entry naming the work, exact HEAD, evidence source and one concrete statement per boundary, then write the plan. Any missing, ambiguous, stale or expensive-to-prove boundary means serial. Implementer prompts also state exclusive write ownership and forbidden shared resources.
-
-If a collision appears after launch, start no more siblings, preserve completed commits, reconcile mechanically and continue serially.
+Ready means `status: todo` and all `deps` are `done`.
 
 ### Dispatch implementation
 
-Before dispatch, write selected tasks `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, mode/ownership, model tier and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan and commits only its task by path.
+Before dispatch, write the selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan and commits only its task by path.
 
 A structured return is routing input:
 
 | Status | Transition |
 |---|---|
-| `complete` | `git cat-file -e <sha>^{commit}` must resolve; write SHA and `reviewing` |
-| `complete with concerns` | Same; pass concerns verbatim to the reviewer |
+| `complete` | `git cat-file -e <sha>^{commit}` must resolve; record the SHA |
+| `complete with concerns` | Same, and copy the concerns verbatim into the task `note` |
 | `missing context` | Add verified missing context and re-dispatch; contradiction goes to the user |
 | `stuck` | Change something before retry: add context, raise tier, recut plan, or mark blocked |
 
 If the implementer declares part of its goal incomplete, send it back once for that named shortfall. A second declared shortfall marks the task `blocked`. Do not inspect code or infer additional shortfalls in the main session.
 
-### `inline` mode keeps the evidence gate
+### What makes a task `done`
 
-Because inline has no independent task/batch review, a task leaves `doing` only after the main session records a command, exit code and observation for each part of its goal. Apply the same one-send-back limit. Static wrap-up and runtime verification still run.
-
-## The batch review and its fix: what makes a task `done`
-
-In `subagent` mode, dispatch [one batch reviewer/fixer](references/task-prompts.md#batch-review-and-fix) after every selected task has left `doing`. It reads only the listed implementer commits with `git show`, never the working tree, and judges:
-
-- each task goal and served spec requirement;
-- project conventions;
-- sibling consistency/interfaces;
-- correctness, failure paths, security and test value.
-
-The reviewer records findings first, then fixes ordinary findings through TDD in one commit. It returns rather than fixes: a wholly unimplemented task goal, a fix requiring a design decision, or a finding that invalidates the plan. Those park the affected task `blocked` and, where requirements/decomposition changed, go to the user.
-
-The main session checks only required fields, explicit unresolved findings and that each reported SHA resolves. Incomplete/ambiguous return → another reviewer. Unresolved blocking findings → affected tasks `blocked`; non-blocking findings → `note`. Otherwise mark tasks `done`, then run the full suite. Diagnose red before selecting another task.
+A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
 
 ## When to stop, and when not to
 
-Continue through task, batch and green-suite boundaries. Stop for:
+Continue through task and green-suite boundaries. Stop for:
 
 - a user decision that changes the agreed requirement or task shape;
 - a destructive action or an external side effect not already authorized;
@@ -111,21 +81,20 @@ Limits:
 | Scope | Limit | Exhausted state |
 |---|---|---|
 | Implementer-declared shortfall | one send-back | task `blocked` |
-| Batch review findings | one review-and-fix dispatch | blocking task `blocked`; others noted |
 | Static wrap-up | two review passes and at most two fixer dispatches | blocking → plan `stopped`; others noted |
 
 ## Wrap-up: two static reviews
 
 Enter when every task is `done` or `blocked`. First require `e2e/scratch/<spec-slug>/report.md` to be ignored; if not, add the ignore rule through the normal implementation/review path before static wrap-up.
 
-Run two independent read-only reviews at `strong`, using [separate prompts](references/wrap-up-prompts.md):
+Send two independent read-only reviews together at `strong`, using [separate prompts](references/wrap-up-prompts.md):
 
 | Axis | Reads | Decides |
 |---|---|---|
 | Spec verification | approved spec + whole branch diff | missing/partial work, unrequested behaviour, wrong implementation of agreed behaviour |
 | Code review | whole branch diff, not the spec | correctness, edge cases, error handling, security, dead code, test value and cross-task drift |
 
-Never merge the axes or bias either prompt with earlier review conclusions. Run them concurrently only after the [parallel gate](#parallel-is-proved-not-assumed) records isolated outputs/resources for the exact HEAD; otherwise serially. In `inline` mode, perform both yourself against the same prompts.
+Never merge the axes or bias either prompt with earlier review conclusions. In `inline` mode, perform both yourself against the same prompts.
 
 Route only their structured findings. Missing fields or ambiguous scope require a replacement reviewer; the main session does not inspect the branch to complete the review.
 

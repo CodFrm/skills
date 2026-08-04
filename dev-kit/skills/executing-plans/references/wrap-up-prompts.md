@@ -1,6 +1,6 @@
 # Wrap-up prompts
 
-Use both at `strong`, read-only, as separate reviews. Run concurrently only after [`executing-plans`' parallel gate](../SKILL.md#parallel-is-proved-not-assumed); otherwise serially. Apply [shared dispatch rules](prompts.md#what-every-dispatch-shares) and [do not bias verdicts](prompts.md#do-not-write-the-verdict-into-either-review-prompt).
+Use both at `strong`, read-only, as separate reviews sent together. Apply [shared dispatch rules](prompts.md#what-every-dispatch-shares) and [do not bias verdicts](prompts.md#do-not-write-the-verdict-into-either-review-prompt).
 
 ## Static spec verification
 

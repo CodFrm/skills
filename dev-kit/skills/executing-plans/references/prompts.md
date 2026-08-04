@@ -2,7 +2,7 @@
 
 | Stage | Template |
 |---|---|
-| Task loop | [implementer and batch reviewer/fixer](task-prompts.md) |
+| Task loop | [implementer](task-prompts.md) |
 | Static wrap-up | [spec verifier and code reviewer](wrap-up-prompts.md) |
 
 ## What every dispatch shares
@@ -15,8 +15,8 @@
 
 ## Do not write the verdict into either review prompt
 
-Keep spec verification and code review separate. Constrain scope and method, never conclusions: remove phrases such as “no need to inspect,” “do not flag,” “at most minor,” or “already decided.” Concurrency is independently gated by [`executing-plans`](../SKILL.md#parallel-is-proved-not-assumed).
+Keep spec verification and code review separate. Constrain scope and method, never conclusions: remove phrases such as “no need to inspect,” “do not flag,” “at most minor,” or “already decided.”
 
 ## Fixing findings
 
-Each fix starts with a failing test. A batch reviewer fixes its own ordinary findings in that dispatch. Wrap-up findings go to a fresh fixer using the implementer template with the finding as goal.
+Each fix starts with a failing test. Wrap-up findings go to a fresh fixer using the implementer template with the finding as goal.

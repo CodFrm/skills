@@ -133,8 +133,8 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
   const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
 
-  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话负责串行依赖和获准的并行 sibling calls.*基础 dev-kit 仍保持 inline/)
-  assert.doesNotMatch(catalog, /single、parallel 与 chain/)
+  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话默认串行派发，只有 wrap-up 两轴静态评审同时发出多个并行 sibling calls.*基础 dev-kit 仍保持 inline/)
+  assert.doesNotMatch(catalog, /single、parallel 与 chain|获准的并行|并行批次/)
 
   assert.match(packageReadme, /基础 `dev-kit\/package\.json` 不引用本包/)
   assert.match(packageReadme, /pi install \/path\/to\/skills\/dev-kit\/\.pi\/extensions\/subagent/)
