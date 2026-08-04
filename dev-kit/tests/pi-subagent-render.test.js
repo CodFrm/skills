@@ -170,7 +170,7 @@ test('rendering shows text for unrecognized details', async () => {
     theme,
     {},
   ))
-  assert.match(rendered, /Readable response/)
+  assert.equal(rendered, output.content[0].text)
 })
 
 test('compact progress is bounded while expanded rendering and direct task details stay complete', async () => {
