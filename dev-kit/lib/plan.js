@@ -26,7 +26,7 @@ const { PLANS, findRoot, resolveInside } = require('./project')
 const VOCAB = {
   status: ['draft', 'ready', 'running', 'done', 'stopped'],
   mode: ['subagent', 'inline'],
-  taskStatus: ['todo', 'doing', 'reviewing', 'done', 'blocked'],
+  taskStatus: ['todo', 'doing', 'done', 'blocked'],
   reviewStatus: ['pending', 'passed', 'stopped'],
   verificationStatus: ['pending', 'running', 'reported', 'accepted', 'blocked'],
 }
@@ -34,9 +34,8 @@ const VOCAB = {
 // The keys the schema knows, per object. Anything else is a note, and its value is not descended
 // into: an improvised key is somebody's structure, not a typo to be graded.
 const KEYS = {
-  plan: ['spec', 'status', 'mode', 'worktree', 'goal', 'context', 'tasks', 'parallel_evidence', 'review', 'verification'],
+  plan: ['spec', 'status', 'mode', 'worktree', 'goal', 'context', 'tasks', 'review', 'verification'],
   task: ['id', 'goal', 'deps', 'files', 'model', 'interfaces', 'status', 'commit', 'note'],
-  evidence: ['tasks', 'head', 'source', 'writes', 'dependencies', 'resources', 'verification'],
   review: ['status', 'fixes'],
   verification: ['status', 'report', 'head', 'note'],
 }
@@ -382,10 +381,6 @@ function checkPlan(doc) {
     }
   }
 
-  const evidence = guard(() => entryOf(root, 'parallel_evidence'))
-  if (evidence && evidence.value.kind === 'seq') {
-    for (const item of evidence.value.items) if (item.kind === 'map') known(item, 'parallel_evidence: ', KEYS.evidence)
-  }
   for (const [key, schema, allowed] of [['review', KEYS.review, VOCAB.reviewStatus], ['verification', KEYS.verification, VOCAB.verificationStatus]]) {
     const e = guard(() => entryOf(root, key))
     if (!e || e.value.kind !== 'map') continue
@@ -421,17 +416,6 @@ function encodeScalar(value) {
   if (!risky) return value
   const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
   return `"${escaped}"`
-}
-
-// `[a, b]`, as parseInlineSeq reads one back: it takes the whole list off a single line and splits
-// the items on the commas before decoding them, so the comma is this shape's separator and a
-// bracket has no escape. An item carrying one is refused here instead of written as a line that
-// would leave the plan unreadable to every later command.
-function encodeInlineSeq(values, label) {
-  for (const v of values) {
-    if (/[[\]{}]/.test(v)) throw new PlanError(`${label}: "${v}" cannot be written as a list item, because a bracket has no escape in an inline list`)
-  }
-  return `[${values.map(encodeScalar).join(', ')}]`
 }
 
 // The one address a write may land on: an existing scalar entry, found and unambiguous (entryOf
@@ -501,8 +485,8 @@ function applyEdits(lines, edits) {
 // to carry it, and the caller's atomic temp-file-plus-rename write path is the only one there is.
 
 // The true last physical line of any parsed node, recursing to the last child: a mapping item in a
-// list (an evidence entry) spans several lines, and inserting after just its first line would land
-// the new item's dash in the middle of the old one.
+// list (a task) spans several lines, and inserting after just its first line would land the new
+// item's dash in the middle of the old one.
 function nodeEndLine(node) {
   if (node.kind === 'scalar') return node.endLine
   if (node.kind === 'map') return node.entries.length ? nodeEndLine(node.entries[node.entries.length - 1].value) : node.line
@@ -523,8 +507,8 @@ function blockStep(doc) {
 }
 
 // Appends one item to the list at `node[key]`, or fails and builds nothing. `render(itemIndent)`
-// returns the new item's line(s) at that indent, so a single SHA and a multi-key evidence mapping
-// share this one path. `limit` (default unbounded) is `review.fixes`'s cap of two.
+// returns the new item's line(s) at that indent. `limit` (default unbounded) is `review.fixes`'s
+// cap of two.
 //
 // An inline empty list (`fixes: []`) is the one line an append may rewrite instead of purely
 // inserting after: it becomes the key alone, comment kept verbatim, with the new item below it. A
@@ -625,10 +609,9 @@ const SUBS = {
   task: { flags: ['--plan', '--status', '--commit', '--note'], positional: ['id'] },
   review: { flags: ['--plan', '--status', '--fix'] },
   context: { flags: ['--plan', '--add'] },
-  evidence: { flags: ['--plan', ...KEYS.evidence.map(k => `--${k}`)] },
   verification: { flags: ['--plan', '--status', '--report', '--head', '--note'] },
 }
-const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|evidence|verification> [--plan <slug>] ...`
+const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|verification> [--plan <slug>] ...`
 
 // review.fixes is capped at two per writing-plans/SKILL.md's "up to two wrap-up fixer SHAs"; past
 // that the static wrap-up limit (executing-plans/SKILL.md) is on review.status: stopped, not a
@@ -636,22 +619,6 @@ const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|evide
 const FIXES_LIMIT = 2
 
 const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeScalar(value)}`]
-
-// The seven boundary flags are the seven keys checkPlan grades a parallel_evidence entry against;
-// a second copy would drift, and the entry it drifted on is the one this command wrote.
-const EVIDENCE_FIELDS = KEYS.evidence
-
-// `tasks` is the one evidence field the plan template writes as a list of ids or stage labels
-// (writing-plans/SKILL.md's template); the other six are prose, and a comma in them is prose too.
-const evidenceValue = (key, value) => (key === 'tasks'
-  ? encodeInlineSeq(value.split(',').map(s => s.trim()).filter(s => s !== ''), '--tasks')
-  : encodeScalar(value))
-
-const evidenceItem = flags => itemIndent => {
-  const dash = ' '.repeat(itemIndent)
-  const cont = ' '.repeat(itemIndent + 2)
-  return EVIDENCE_FIELDS.map((key, i) => `${i === 0 ? dash + '- ' : cont}${key}: ${evidenceValue(key, flags[key])}`)
-}
 
 function parseFlags(argv, allowed) {
   const flags = {}
@@ -799,12 +766,6 @@ async function cmdPlan(argv, io = {}) {
     if (sub === 'context') {
       if (flags.add === undefined) { err(`devkit: plan context needs --add\n${USAGE}`); return 1 }
       await save([resolveAppend(doc, doc.root, 'context', 'context', scalarItem(flags.add))])
-      return 0
-    }
-    if (sub === 'evidence') {
-      const missing = EVIDENCE_FIELDS.filter(key => flags[key] === undefined)
-      if (missing.length) { err(`devkit: plan evidence needs ${missing.map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
-      await save([resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', evidenceItem(flags))])
       return 0
     }
     if (sub === 'verification') {

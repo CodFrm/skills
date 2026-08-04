@@ -27,8 +27,6 @@ tasks:
     commit: null
     note: null
 
-parallel_evidence: []
-
 review:
   status: pending
   fixes: []

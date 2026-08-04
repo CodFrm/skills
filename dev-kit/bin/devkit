@@ -20,8 +20,6 @@ const HELP = `dev-kit — optional local helper
   devkit plan task <id>            Write that task's --status, --commit or --note
   devkit plan review               Write --status, or append a --fix <sha> to fixes
   devkit plan context              Append --add <text> as a context entry
-  devkit plan evidence             Append one parallel_evidence entry, from --tasks, --head,
-                                   --source, --writes, --dependencies, --resources, --verification
   devkit plan verification         Write --status, --report, --head or --note
   devkit help                      This text
 

@@ -17,7 +17,7 @@ tasks:
     files: [src/a.js]
     model: mid
     interfaces: null
-    status: done              # todo → doing → reviewing → done | blocked
+    status: done              # todo → doing → done | blocked
     commit: abc1234
     note: >-
       The reviewer wrote status: dong here and it is prose, not a key:
@@ -42,8 +42,6 @@ tasks:
     status: todo
     commit: null
     note: null
-
-parallel_evidence: []
 
 review:
   status: pending

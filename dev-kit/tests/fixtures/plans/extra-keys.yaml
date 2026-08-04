@@ -18,8 +18,6 @@ tasks:
     commit: null
     note: null
 
-parallel_evidence: []
-
 delivery_caveats:
   - "Improvised at the top level, on purpose"
 

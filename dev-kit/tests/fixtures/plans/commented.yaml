@@ -11,14 +11,12 @@ tasks:
   - id: 1
     goal: "<one observable vertical slice>"
     deps: []                  # only ordering source
-    files: [src/a.js]          # expected writes; evidence input, never parallel permission
+    files: [src/a.js]          # expected writes
     model: null               # cheap | mid | strong | null; never a model id
     interfaces: null          # consumed cross-task name/signature, on the consumer
-    status: todo              # todo → doing → reviewing → done | blocked
+    status: todo              # todo → doing → done | blocked
     commit: null
     note: null
-
-parallel_evidence: []         # executing-plans writes immediately before each parallel dispatch
 
 review:
   status: pending             # pending → passed | stopped

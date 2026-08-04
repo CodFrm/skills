@@ -80,9 +80,6 @@ test('the schema keys and the fixes cap match the plan template in writing-plans
   assert.deepEqual(taskNodes(doc)[0].entries.map(e => e.key), KEYS.task)
   assert.deepEqual(entryOf(doc.root, 'review').value.entries.map(e => e.key), KEYS.review)
   assert.deepEqual(entryOf(doc.root, 'verification').value.entries.map(e => e.key), KEYS.verification)
-  // The template ships a parallel_evidence entry commented out, so its keys come off those lines.
-  const commented = template.slice(template.indexOf('parallel_evidence:')).split('\n\n')[0]
-  assert.deepEqual([...commented.matchAll(/^\s*#\s+-?\s*([a-z_]+):/gm)].map(m => m[1]), KEYS.evidence)
   assert.equal({ one: 1, two: 2, three: 3 }[/fixes:.*#\s*up to (\w+) wrap-up fixer SHAs/.exec(skill)[1]], FIXES_LIMIT)
 })
 
@@ -335,7 +332,7 @@ test('one unaddressable task does not swallow the rest of the report', () => {
   // all, and an off-vocabulary value after all three: check is the whole-file pass, so the ones
   // it cannot address must be reported rather than end it.
   const { errors, notes } = checkPlan(load('off-shape-tasks.yaml'))
-  assert.deepEqual(lines(errors), [22, 35, 39, 48])
+  assert.deepEqual(lines(errors), [22, 35, 39, 46])
   assert.deepEqual(notes, [])
   assert.match(errors[0].message, /deps/)
   assert.match(errors[1].message, /deps/)
@@ -531,7 +528,7 @@ test('resolveAppend converts an inline empty list into block form, on the key\'s
   const doc = load('conforming.yaml')
   const review = entryOf(doc.root, 'review').value
   const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
-  assert.deepEqual(edit, { line: 50, endLine: 50, text: ['  fixes:', '    - abc1234'] })
+  assert.deepEqual(edit, { line: 48, endLine: 48, text: ['  fixes:', '    - abc1234'] })
 })
 
 test('resolveAppend keeps the trailing comment of the [] line it converts', () => {
@@ -569,15 +566,15 @@ test('resolveAppend finds the true end of a multi-line mapping item, not just it
     '    status: todo',
     '    deps: []',
     '',
-    'parallel_evidence:',
-    '  - tasks: "3, 4"',
-    '    head: aaa1111',
+    'attachments:',
+    '  - kind: "log"',
+    '    ref: aaa1111',
     '',
     'review:',
     '  status: pending',
   ].join('\n'))
-  const edit = resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', i => [`${' '.repeat(i)}- tasks: "5"`])
-  assert.deepEqual(edit, { line: 10, endLine: 9, text: ['  - tasks: "5"'] })
+  const edit = resolveAppend(doc, doc.root, 'attachments', 'attachments', i => [`${' '.repeat(i)}- kind: "patch"`])
+  assert.deepEqual(edit, { line: 10, endLine: 9, text: ['  - kind: "patch"'] })
 })
 
 // A `- ` carrying no key puts the item's first key on the next line, two columns in from the dash,
@@ -591,13 +588,13 @@ test('resolveAppend indents a new item by its list, not by a bare-dash item\'s f
     '    status: todo',
     '    deps: []',
     '',
-    'parallel_evidence:',
+    'attachments:',
     '  -',
-    '    tasks: "3, 4"',
-    '    head: aaa1111',
+    '    kind: "log"',
+    '    ref: aaa1111',
   ].join('\n'))
-  const edit = resolveAppend(doc, doc.root, 'parallel_evidence', 'parallel_evidence', i => [`${' '.repeat(i)}- tasks: "5"`])
-  assert.deepEqual(edit, { line: 11, endLine: 10, text: ['  - tasks: "5"'] })
+  const edit = resolveAppend(doc, doc.root, 'attachments', 'attachments', i => [`${' '.repeat(i)}- kind: "patch"`])
+  assert.deepEqual(edit, { line: 11, endLine: 10, text: ['  - kind: "patch"'] })
 })
 
 test('resolveAppend refuses once the list already holds the given limit', () => {
@@ -758,7 +755,7 @@ test('writing the key on a task\'s dash line keeps both the "- " and that line\'
   const cwd = project(null)
   fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
   const file = path.join(cwd, '.dev-kit', 'plans', 'dashed.yaml')
-  const before = 'status: running\ntasks:\n  - status: todo   # todo → doing → reviewing → done | blocked\n    id: 1\n    deps: []\n'
+  const before = 'status: running\ntasks:\n  - status: todo   # todo → doing → done | blocked\n    id: 1\n    deps: []\n'
   fs.writeFileSync(file, before)
   const { code, err } = await run(cwd, ['task', '1', '--status', 'doing', '--plan', 'dashed'])
   assert.equal(err, '')
@@ -841,7 +838,7 @@ test('writing a task status in a plan shaped like the template keeps its state l
   assert.equal(err, '')
   assert.equal(code, 0)
   const after = fs.readFileSync(file, 'utf8')
-  assertOnlySpanChanged(before, after, 17, 1, '    status: doing              # todo → doing → reviewing → done | blocked')
+  assertOnlySpanChanged(before, after, 17, 1, '    status: doing              # todo → doing → done | blocked')
 })
 
 test('writing review.status and verification.status each keep their own state legend', async () => {
@@ -852,12 +849,12 @@ test('writing review.status and verification.status each keep their own state le
   assert.equal((await run(cwd, ['verification', '--status', 'running', '--plan', 'tpl'])).code, 0)
   const after = fs.readFileSync(file, 'utf8')
   const afterLines = after.split('\n')
-  assert.equal(afterLines[23], '  status: passed             # pending → passed | stopped')
-  assert.equal(afterLines[27], '  status: running             # pending → running → reported → accepted | blocked')
+  assert.equal(afterLines[21], '  status: passed             # pending → passed | stopped')
+  assert.equal(afterLines[25], '  status: running             # pending → running → reported → accepted | blocked')
   const beforeLines = before.split('\n')
-  assert.deepEqual(afterLines.slice(0, 23), beforeLines.slice(0, 23))
-  assert.deepEqual(afterLines.slice(24, 27), beforeLines.slice(24, 27))
-  assert.deepEqual(afterLines.slice(28), beforeLines.slice(28))
+  assert.deepEqual(afterLines.slice(0, 21), beforeLines.slice(0, 21))
+  assert.deepEqual(afterLines.slice(22, 25), beforeLines.slice(22, 25))
+  assert.deepEqual(afterLines.slice(26), beforeLines.slice(26))
 })
 
 // The write path is decision 8's temp-file-plus-rename inside writePlanFile; a filesystem error
@@ -955,11 +952,11 @@ test('plan set refuses a field it does not know, frozen fields included', async 
 test('plan task writes status, commit and note together', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
-  const { code, err } = await run(cwd, ['task', '2', '--status', 'reviewing', '--commit', 'f5401dc', '--note', 'looks good', '--plan', 'live'])
+  const { code, err } = await run(cwd, ['task', '2', '--status', 'doing', '--commit', 'f5401dc', '--note', 'looks good', '--plan', 'live'])
   assert.equal(err, '')
   assert.equal(code, 0)
   const task = taskNode(parsePlan(fs.readFileSync(file, 'utf8')), '2')
-  assert.equal(textOf(task, 'status'), 'reviewing')
+  assert.equal(textOf(task, 'status'), 'doing')
   assert.equal(textOf(task, 'commit'), 'f5401dc')
   assert.equal(textOf(task, 'note'), 'looks good')
 })
@@ -971,6 +968,18 @@ test('plan task with one bad flag among several writes none of them', async () =
   const { code, err } = await run(cwd, ['task', '2', '--status', 'bogus', '--commit', 'f5401dc', '--plan', 'live'])
   assert.equal(code, 1)
   assert.match(err, /bogus/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+// `reviewing` was a legal task status before the serial task loop retired it; a plan still naming
+// it must be rejected the same as any other off-vocabulary value, not silently accepted.
+test('plan task refuses the retired reviewing status and lists the four legal values, writing nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['task', '2', '--status', 'reviewing', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /"reviewing" is not one of todo, doing, done, blocked/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
@@ -1173,12 +1182,12 @@ test('appending to a template-shaped plan keeps the legend on the [] line it con
   assert.equal(code, 0)
   const beforeLines = before.split('\n')
   const afterLines = fs.readFileSync(file, 'utf8').split('\n')
-  const legend = beforeLines[24].slice('  fixes: []'.length)
+  const legend = beforeLines[22].slice('  fixes: []'.length)
   assert.notEqual(legend.trim(), '', 'the fixture must carry the template legend this test is about')
-  assert.deepEqual(afterLines.slice(0, 24), beforeLines.slice(0, 24))
-  assert.equal(afterLines[24], `  fixes:${legend}`)
-  assert.equal(afterLines[25], '    - abc1234')
-  assert.deepEqual(afterLines.slice(26), beforeLines.slice(25))
+  assert.deepEqual(afterLines.slice(0, 22), beforeLines.slice(0, 22))
+  assert.equal(afterLines[22], `  fixes:${legend}`)
+  assert.equal(afterLines[23], '    - abc1234')
+  assert.deepEqual(afterLines.slice(24), beforeLines.slice(23))
 })
 
 // Shared by the two tests below: a plan whose review.fixes is already at the two-fixer cap.
@@ -1223,52 +1232,23 @@ test('a --status and --fix combined where --fix is over the limit writes neither
   assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
-test('plan evidence appends one entry once all seven flags are given, converting parallel_evidence: []', async () => {
-  const cwd = project({ live: 'conforming.yaml' })
-  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
-  const { code, err } = await run(cwd, [
-    'evidence',
-    '--tasks', '2, 3', '--head', 'f5401dc', '--source', 'plan facts',
-    '--writes', 'disjoint sets', '--dependencies', 'none', '--resources', 'none',
-    '--verification', 'each check independently meaningful',
-    '--plan', 'live',
-  ])
-  assert.equal(err, '')
-  assert.equal(code, 0)
-  const after = fs.readFileSync(file, 'utf8')
-  const evidence = entryOf(parsePlan(after).root, 'parallel_evidence').value
-  assert.equal(evidence.items.length, 1)
-  const item = evidence.items[0]
-  // `tasks` is the one evidence field the template writes as a list (writing-plans/SKILL.md:41).
-  assert.match(after, /^ {2}- tasks: \[2, 3\]$/m)
-  assert.deepEqual(entryOf(item, 'tasks').value.items.map(i => i.text), ['2', '3'])
-  assert.equal(entryOf(item, 'head').value.text, 'f5401dc')
-  assert.equal(entryOf(item, 'verification').value.text, 'each check independently meaningful')
-})
-
-// An inline list has no escape for a bracket: the reader takes the whole `[...]` on one line and
-// refuses anything nested. Writing one anyway leaves a plan that no later command can read.
-test('plan evidence refuses a --tasks value an inline list cannot carry, and writes nothing', async () => {
+// `evidence` wrote parallel_evidence entries for the four-boundary gate; task-level parallelism is
+// retired entirely, so the subcommand is gone rather than emptied, same as any other typo.
+test('plan evidence is no longer a subcommand, and writes nothing', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
   const before = fs.readFileSync(file, 'utf8')
-  const argv = ['evidence']
-  for (const key of KEYS.evidence) argv.push(`--${key}`, key === 'tasks' ? '3, stage [4]' : `a ${key} boundary`)
-  argv.push('--plan', 'live')
-  const { code, err } = await run(cwd, argv)
+  const { code, err } = await run(cwd, ['evidence', '--tasks', '2, 3', '--plan', 'live'])
   assert.equal(code, 1)
-  assert.match(err, /tasks/)
+  assert.match(err, /"evidence" is not one/)
+  assert.match(err, /usage: devkit plan/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
-// The append lands after the last line of the last item, at the list's own indent. A bare `- ` puts
-// that item's first key a level deeper, and an indent read off there writes an item outside the
-// list: exit 0, nothing printed, and every later plan command on the file fails.
-test('plan evidence appends under a bare-dash entry and the plan still reads', async () => {
-  const cwd = project(null)
-  fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
-  const file = path.join(cwd, '.dev-kit', 'plans', 'dashed.yaml')
-  fs.writeFileSync(file, [
+// parallel_evidence is off the plan schema now, so a plan still carrying one is graded the same as
+// any other improvised top-level key: a note, not an error, and check does not descend into it.
+test('plan check calls a leftover parallel_evidence an improvised key, not a schema field', () => {
+  const doc = parsePlan([
     'status: running',
     'tasks:',
     '  - id: 1',
@@ -1276,50 +1256,14 @@ test('plan evidence appends under a bare-dash entry and the plan still reads', a
     '    deps: []',
     '',
     'parallel_evidence:',
-    '  -',
-    '    tasks: [3, 4]',
+    '  - tasks: [1]',
     '    head: aaa1111',
-    '',
+    '    dependencies: bogus-not-a-real-key',
   ].join('\n'))
-  const argv = ['evidence']
-  for (const key of KEYS.evidence) argv.push(`--${key}`, key === 'tasks' ? '5, 6' : `a ${key} boundary`)
-  argv.push('--plan', 'dashed')
-  const { code, err } = await run(cwd, argv)
-  assert.equal(err, '')
-  assert.equal(code, 0)
-  const evidence = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'parallel_evidence').value
-  assert.equal(evidence.items.length, 2)
-  assert.deepEqual(entryOf(evidence.items[1], 'tasks').value.items.map(i => i.text), ['5', '6'])
-})
-
-test('plan evidence fails naming exactly the missing flags, and writes nothing', async () => {
-  const cwd = project({ live: 'conforming.yaml' })
-  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
-  const before = fs.readFileSync(file, 'utf8')
-  const { code, err } = await run(cwd, ['evidence', '--tasks', '2, 3', '--head', 'f5401dc', '--plan', 'live'])
-  assert.equal(code, 1)
-  assert.match(err, /--source/)
-  assert.match(err, /--writes/)
-  assert.match(err, /--dependencies/)
-  assert.match(err, /--resources/)
-  assert.match(err, /--verification/)
-  assert.doesNotMatch(err, /--tasks/)
-  assert.doesNotMatch(err, /--head/)
-  assert.equal(fs.readFileSync(file, 'utf8'), before)
-})
-
-// The seven flags and the seven keys check grades a parallel_evidence entry against are one list.
-// Two copies drift, and the drifted entry is the one this command just wrote.
-test('the entry plan evidence writes is one plan check finds no improvised key in', async () => {
-  const cwd = project({ live: 'conforming.yaml' })
-  const argv = ['evidence']
-  for (const key of KEYS.evidence) argv.push(`--${key}`, `a ${key} boundary`)
-  argv.push('--plan', 'live')
-  assert.equal((await run(cwd, argv)).code, 0)
-  const { code, out, err } = await run(cwd, ['check', '--plan', 'live'])
-  assert.equal(err, '')
-  assert.equal(code, 0)
-  assert.doesNotMatch(out, /parallel_evidence/)
+  const { errors, notes } = checkPlan(doc)
+  assert.deepEqual(errors, [])
+  assert.deepEqual(lines(notes), [7])
+  assert.match(notes[0].message, /parallel_evidence/)
 })
 
 test('bin/devkit plan context appends through the real CLI', () => {
@@ -1445,8 +1389,8 @@ test('plan check exits zero when only improvised keys are left', async () => {
   const { code, out, err } = await run(cwd, ['check'])
   assert.equal(err, '')
   assert.equal(code, 0)
-  assert.match(out, /extra\.yaml:23/)
-  assert.match(out, /extra\.yaml:29/)
+  assert.match(out, /extra\.yaml:21/)
+  assert.match(out, /extra\.yaml:27/)
 })
 
 // A note that pastes a tab-indented command is legal YAML, and no plan subcommand repairs a plan,

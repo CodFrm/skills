@@ -38,8 +38,6 @@ tasks:
     note: null
   - a fourth task nobody wrote as a mapping
 
-parallel_evidence: []
-
 review:
   status: pending
   fixes: []
