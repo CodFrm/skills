@@ -37,7 +37,7 @@ export function validateTaskRequest(
 	if (task === undefined) return invalid("task", "is required");
 	if (typeof task !== "string" || task.trim().length === 0) return invalid("task", "must not be empty");
 
-	const requestedCwd = values.cwd;
+	const requestedCwd = omitBlankOptional(values.cwd);
 	if (requestedCwd !== undefined && typeof requestedCwd !== "string") {
 		return invalid("cwd", "must resolve to an existing directory");
 	}
@@ -49,7 +49,7 @@ export function validateTaskRequest(
 		return invalid("cwd", "must resolve to an existing directory");
 	}
 
-	const explicitModel = values.model;
+	const explicitModel = omitBlankOptional(values.model);
 	if (
 		explicitModel !== undefined
 		&& (typeof explicitModel !== "string" || !/^[^/\s]+\/[^/\s]+(?:\/[^/\s]+)*$/.test(explicitModel))
@@ -58,7 +58,7 @@ export function validateTaskRequest(
 	}
 	const model = explicitModel ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
 
-	const explicitThinking = values.thinking;
+	const explicitThinking = omitBlankOptional(values.thinking);
 	if (explicitThinking !== undefined && (typeof explicitThinking !== "string" || !THINKING_LEVELS.has(explicitThinking))) {
 		return invalid("thinking", `must be one of ${Array.from(THINKING_LEVELS).join(", ")}`);
 	}
@@ -83,6 +83,10 @@ export function validateTaskRequest(
 		ok: true,
 		request: { task, profile, cwd, model, thinking, tools },
 	};
+}
+
+function omitBlankOptional(value: unknown): unknown {
+	return typeof value === "string" && value.trim().length === 0 ? undefined : value;
 }
 
 function invalid(field: string, message: string): ValidationResult {

@@ -123,6 +123,9 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.deepEqual(Object.keys(tool.parameters.properties), ['task', 'profile', 'model', 'thinking', 'cwd'])
   assert.deepEqual(tool.parameters.required, ['task', 'profile'])
   assert.deepEqual(tool.parameters.properties.profile.enum, ['read-only', 'write', 'general'])
+  assert.match(tool.parameters.properties.model.description, /omitted or blank.*inherit/i)
+  assert.match(tool.parameters.properties.thinking.description, /omitted or blank.*inherit/i)
+  assert.match(tool.parameters.properties.cwd.description, /omitted or blank.*inherit/i)
   assert.equal(tool.parameters.additionalProperties, false)
 })
 
@@ -225,6 +228,54 @@ test('single write task launches with fixed tools and explicit runtime choices',
   assert.match(captures[0].systemPrompt, /dispatched subagent/i)
   assert.match(captures[0].systemPrompt, /must not.*subagent/i)
   assert.match(captures[0].systemPrompt, /must not take over the whole plan/i)
+})
+
+test('blank optional runtime fields inherit exactly like omitted fields', async t => {
+  const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-blank-optionals-')
+  const tool = await loadTool(['artifact', 'read', 'subagent', 'artifact'])
+  const ctx = context(root)
+  const task = 'Inspect inherited runtime choices'
+
+  await tool.execute(
+    'omitted-optionals',
+    { task, profile: 'general' },
+    undefined,
+    undefined,
+    ctx,
+  )
+  await tool.execute(
+    'blank-optionals',
+    { task, profile: 'general', model: '', thinking: ' ', cwd: '\t' },
+    undefined,
+    undefined,
+    ctx,
+  )
+
+  const captures = readJsonLines(capturePath)
+  assert.equal(captures.length, 2)
+  const runtimeChoices = capture => ({
+    cwd: capture.cwd,
+    model: capture.args.slice(capture.args.indexOf('--model'), capture.args.indexOf('--model') + 2),
+    thinking: capture.args.slice(capture.args.indexOf('--thinking'), capture.args.indexOf('--thinking') + 2),
+    tools: capture.args.slice(capture.args.indexOf('--tools'), capture.args.indexOf('--tools') + 2),
+    approve: capture.args.includes('--approve'),
+    noApprove: capture.args.includes('--no-approve'),
+    childMarker: capture.childMarker,
+    systemPrompt: capture.systemPrompt,
+  })
+  const [omitted, blank] = captures.map(runtimeChoices)
+  assert.deepEqual({ ...omitted, systemPrompt: undefined }, {
+    cwd: fs.realpathSync(root),
+    model: ['--model', 'parent-provider/parent-model'],
+    thinking: ['--thinking', 'medium'],
+    tools: ['--tools', 'artifact,read'],
+    approve: true,
+    noApprove: false,
+    childMarker: '1',
+    systemPrompt: undefined,
+  })
+  assert.match(omitted.systemPrompt, /dispatched subagent/i)
+  assert.deepEqual(blank, omitted)
 })
 
 test('single task exposes its final model-visible output, tool call, usage, and model', async t => {

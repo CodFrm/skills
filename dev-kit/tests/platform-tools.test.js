@@ -61,8 +61,8 @@ function assertPiSingleTaskMapping(mapping) {
   const runtime = section(mapping, 'Model, working directory and trust')
   assert.match(runtime, /Resolve `cheap`, `mid`, or `strong` plan tiers to a real `provider\/model` in the main session at dispatch/)
   assert.match(runtime, /package does not infer or persist that mapping/)
-  assert.match(runtime, /Omitted `model` and `thinking` inherit the parent values/)
-  assert.match(runtime, /Omitted `cwd` uses the parent cwd; a supplied path is resolved from it and must be a directory/)
+  assert.match(runtime, /Omitted or blank `model` and `thinking` inherit the parent values/)
+  assert.match(runtime, /Omitted or blank `cwd` uses the parent cwd; a nonblank supplied path is resolved from it and must be a directory/)
   assert.match(runtime, /trusted in-tree cwd uses one-time approval; an untrusted or out-of-tree cwd uses one-time rejection/)
   assert.match(runtime, /independent Pi JSON\/print process with no session persistence/)
   assert.match(runtime, /JSONL progress continues to stream into the current call/)
@@ -164,9 +164,9 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   assert.match(recursion, /system prompt/)
 
   const runtime = section(packageReadme, 'Model, working directory and trust')
-  assert.match(runtime, /未提供 `model` 或 `thinking` 时继承父会话当前值/)
-  assert.match(runtime, /显式 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback/)
-  assert.match(runtime, /未提供 `cwd` 时使用父会话 cwd；提供时相对父 cwd 解析并在启动前确认是目录/)
+  assert.match(runtime, /未提供或留空 `model`、`thinking` 时继承父会话当前值/)
+  assert.match(runtime, /显式非空 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback/)
+  assert.match(runtime, /未提供或留空 `cwd` 时使用父会话 cwd；提供非空路径时相对父 cwd 解析并在启动前确认是目录/)
   assert.match(runtime, /父项目已信任.*一次性 approval.*否则.*一次性拒绝/)
   assert.match(runtime, /独立的 Pi JSON\/print 子进程并关闭 session 持久化/)
 

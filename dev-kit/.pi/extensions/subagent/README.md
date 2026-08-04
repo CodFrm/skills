@@ -57,7 +57,7 @@ subagent({
 
 ## Model, working directory and trust
 
-未提供 `model` 或 `thinking` 时继承父会话当前值；显式 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback。未提供 `cwd` 时使用父会话 cwd；提供时相对父 cwd 解析并在启动前确认是目录。父项目已信任且 cwd 等于父 cwd 或位于其下时使用一次性 approval，否则使用一次性拒绝。每个任务都启动独立的 Pi JSON/print 子进程并关闭 session 持久化。
+未提供或留空 `model`、`thinking` 时继承父会话当前值；显式非空 model 不存在、未认证或不能启动时保留原始失败诊断，不静默 fallback。未提供或留空 `cwd` 时使用父会话 cwd；提供非空路径时相对父 cwd 解析并在启动前确认是目录。父项目已信任且 cwd 等于父 cwd 或位于其下时使用一次性 approval，否则使用一次性拒绝。每个任务都启动独立的 Pi JSON/print 子进程并关闭 session 持久化。
 
 ## 输出与失败
 
