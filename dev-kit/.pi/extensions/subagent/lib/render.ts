@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import type { Message } from "@earendil-works/pi-ai";
 import { getFinalOutput, isFailedResult } from "./invocation.ts";
-import type { SubagentDetails, TaskResult, UsageStats } from "./types.ts";
+import type { TaskResult, UsageStats } from "./types.ts";
 
 const COLLAPSED_ITEM_COUNT = 10;
 
@@ -60,43 +60,21 @@ export function createRenderers(runtime?: RenderRuntime) {
 		},
 		renderResult(result: any, options: { expanded: boolean }, theme: Theme) {
 			const resolvedRuntime = getRuntime();
-			const details = result.details as SubagentDetails | undefined;
-			if (!details || details.results.length === 0) {
+			const details = result.details as TaskResult | undefined;
+			if (!details) {
 				const content = result.content?.find((part: any) => part.type === "text")?.text ?? "(no output)";
 				return new resolvedRuntime.Text(content, 0, 0);
 			}
-			if (details.mode === "single") {
-				return renderSingle(details.results[0], options.expanded, theme, resolvedRuntime);
-			}
-			if (details.mode === "parallel") {
-				return renderParallel(details.results, options.expanded, theme, resolvedRuntime);
-			}
-			return renderChain(details.results, options.expanded, theme, resolvedRuntime);
+			return renderTask(details, options.expanded, theme, resolvedRuntime);
 		},
 	};
 }
 
 function formatCall(args: any, theme: Theme): string {
-	if (Array.isArray(args.chain)) {
-		let text = `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", `chain (${args.chain.length} steps)`)}`;
-		for (const [index, step] of args.chain.slice(0, 3).entries()) {
-			text += `\n  ${index + 1}. ${theme.fg("accent", step.profile)} ${theme.fg("dim", preview(step.task, 40))}`;
-		}
-		if (args.chain.length > 3) text += `\n  ${theme.fg("muted", `... +${args.chain.length - 3} more`)}`;
-		return text;
-	}
-	if (Array.isArray(args.tasks)) {
-		let text = `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", `parallel (${args.tasks.length} tasks)`)}`;
-		for (const task of args.tasks.slice(0, 3)) {
-			text += `\n  ${theme.fg("accent", task.profile)} ${theme.fg("dim", preview(task.task, 40))}`;
-		}
-		if (args.tasks.length > 3) text += `\n  ${theme.fg("muted", `... +${args.tasks.length - 3} more`)}`;
-		return text;
-	}
 	return `${theme.fg("toolTitle", theme.bold("subagent "))}${theme.fg("accent", args.profile ?? "...")}\n  ${theme.fg("dim", preview(args.task ?? "...", 60))}`;
 }
 
-function renderSingle(result: TaskResult, expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
+function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
 	const icon = result.exitCode === -1
 		? theme.fg("warning", "⏳")
 		: isFailedResult(result)
@@ -106,10 +84,11 @@ function renderSingle(result: TaskResult, expanded: boolean, theme: Theme, runti
 	const items = getDisplayItems(result.messages);
 	const output = getFinalOutput(result.messages);
 	if (!expanded) {
-		let text = header;
-		if (result.errorMessage) text += `\n${theme.fg("error", result.errorMessage)}`;
+		let text = `${header}\n${theme.fg("dim", result.task)}`;
 		if (items.length === 0) text += `\n${theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)")}`;
 		else text += `\n${renderDisplayItems(items, theme, COLLAPSED_ITEM_COUNT)}`;
+		const diagnostics = formatDiagnostics(result);
+		if (diagnostics.length > 0) text += `\n${theme.fg("error", diagnostics.join("\n"))}`;
 		const usage = formatUsage(result.usage, result.model);
 		if (usage) text += `\n${theme.fg("dim", usage)}`;
 		if (items.length > COLLAPSED_ITEM_COUNT) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
@@ -118,7 +97,6 @@ function renderSingle(result: TaskResult, expanded: boolean, theme: Theme, runti
 
 	const container = new runtime.Container();
 	container.addChild(new runtime.Text(header, 0, 0));
-	if (result.errorMessage) container.addChild(new runtime.Text(theme.fg("error", `Error: ${result.errorMessage}`), 0, 0));
 	container.addChild(new runtime.Spacer(1));
 	container.addChild(new runtime.Text(theme.fg("muted", "─── Task ───"), 0, 0));
 	container.addChild(new runtime.Text(theme.fg("dim", result.task), 0, 0));
@@ -126,7 +104,13 @@ function renderSingle(result: TaskResult, expanded: boolean, theme: Theme, runti
 	container.addChild(new runtime.Text(theme.fg("muted", "─── Output ───"), 0, 0));
 	addToolCalls(container, items, theme, runtime);
 	if (output) container.addChild(new runtime.Markdown(output.trim(), 0, 0, markdownTheme(theme)));
-	else container.addChild(new runtime.Text(theme.fg("muted", "(no output)"), 0, 0));
+	else container.addChild(new runtime.Text(theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)"), 0, 0));
+	const diagnostics = formatDiagnostics(result);
+	if (diagnostics.length > 0) {
+		container.addChild(new runtime.Spacer(1));
+		container.addChild(new runtime.Text(theme.fg("muted", "─── Diagnostics ───"), 0, 0));
+		container.addChild(new runtime.Text(theme.fg("error", diagnostics.join("\n")), 0, 0));
+	}
 	const usage = formatUsage(result.usage, result.model);
 	if (usage) {
 		container.addChild(new runtime.Spacer(1));
@@ -135,78 +119,13 @@ function renderSingle(result: TaskResult, expanded: boolean, theme: Theme, runti
 	return container;
 }
 
-function renderParallel(results: TaskResult[], expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
-	const running = results.filter(result => result.exitCode === -1).length;
-	const succeeded = results.filter(result => result.exitCode !== -1 && !isFailedResult(result)).length;
-	const failed = results.filter(result => result.exitCode !== -1 && isFailedResult(result)).length;
-	const icon = running > 0 ? theme.fg("warning", "⏳") : failed > 0 ? theme.fg("warning", "◐") : theme.fg("success", "✓");
-	const status = running > 0 ? `${succeeded + failed}/${results.length} done, ${running} running` : `${succeeded}/${results.length} tasks`;
-	return renderMany("parallel", results, icon, status, expanded, theme, runtime);
-}
-
-function renderChain(results: TaskResult[], expanded: boolean, theme: Theme, runtime: RenderRuntime): Component {
-	const running = results.filter(result => result.exitCode === -1).length;
-	const succeeded = results.filter(result => result.exitCode !== -1 && !isFailedResult(result)).length;
-	const failed = results.filter(result => result.exitCode !== -1 && isFailedResult(result)).length;
-	const icon = running > 0 ? theme.fg("warning", "⏳") : failed > 0 ? theme.fg("error", "✗") : theme.fg("success", "✓");
-	const status = running > 0 ? `${succeeded + failed}/${results.length} done, ${running} running` : `${succeeded}/${results.length} steps`;
-	return renderMany("chain", results, icon, status, expanded, theme, runtime);
-}
-
-function renderMany(
-	mode: "parallel" | "chain",
-	results: TaskResult[],
-	icon: string,
-	status: string,
-	expanded: boolean,
-	theme: Theme,
-	runtime: RenderRuntime,
-): Component {
-	const title = `${icon} ${theme.fg("toolTitle", theme.bold(`${mode} `))}${theme.fg("accent", status)}`;
-	if (!expanded) {
-		let text = title;
-		for (const [index, result] of results.entries()) {
-			const resultIcon = result.exitCode === -1 ? "⏳" : isFailedResult(result) ? "✗" : "✓";
-			const label = mode === "chain" ? `Step ${result.step ?? index + 1}` : `Task ${index + 1}`;
-			text += `\n\n─── ${label} [${result.profile}] ${resultIcon}`;
-			if (result.errorMessage) text += `\n${theme.fg("error", result.errorMessage)}`;
-			else {
-				const items = getDisplayItems(result.messages);
-				text += items.length > 0
-					? `\n${renderDisplayItems(items, theme, 5)}`
-					: `\n${theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)")}`;
-			}
-		}
-		if (results.every(result => result.exitCode !== -1)) {
-			const usage = formatUsage(aggregateUsage(results));
-			if (usage) text += `\n\n${theme.fg("dim", `Total: ${usage}`)}`;
-		}
-		text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
-		return new runtime.Text(text, 0, 0);
-	}
-
-	const container = new runtime.Container();
-	container.addChild(new runtime.Text(title, 0, 0));
-	for (const [index, result] of results.entries()) {
-		const resultIcon = result.exitCode === -1 ? "⏳" : isFailedResult(result) ? "✗" : "✓";
-		const label = mode === "chain" ? `Step ${result.step ?? index + 1}` : `Task ${index + 1}`;
-		container.addChild(new runtime.Spacer(1));
-		container.addChild(new runtime.Text(`─── ${label} [${result.profile}] ${resultIcon}`, 0, 0));
-		container.addChild(new runtime.Text(`Task: ${result.task}`, 0, 0));
-		if (result.errorMessage) container.addChild(new runtime.Text(theme.fg("error", `Error: ${result.errorMessage}`), 0, 0));
-		const items = getDisplayItems(result.messages);
-		addToolCalls(container, items, theme, runtime);
-		const output = getFinalOutput(result.messages);
-		if (output) container.addChild(new runtime.Markdown(output.trim(), 0, 0, markdownTheme(theme)));
-		const usage = formatUsage(result.usage, result.model);
-		if (usage) container.addChild(new runtime.Text(theme.fg("dim", usage), 0, 0));
-	}
-	const usage = formatUsage(aggregateUsage(results));
-	if (usage) {
-		container.addChild(new runtime.Spacer(1));
-		container.addChild(new runtime.Text(theme.fg("dim", `Total: ${usage}`), 0, 0));
-	}
-	return container;
+function formatDiagnostics(result: TaskResult): string[] {
+	if (result.exitCode === -1 || !isFailedResult(result)) return [];
+	const lines = [`Exit code: ${result.exitCode}`];
+	if (result.stopReason) lines.push(`Stop reason: ${result.stopReason}`);
+	if (result.errorMessage) lines.push(`Error: ${result.errorMessage}`);
+	if (result.stderr.trim()) lines.push(`Stderr: ${result.stderr.trim()}`);
+	return lines;
 }
 
 function getDisplayItems(messages: Message[]): DisplayItem[] {
@@ -249,18 +168,6 @@ function formatToolCall(name: string, args: Record<string, unknown>): string {
 	if (name === "find") return `find ${String(args.pattern ?? "*")} in ${String(args.path ?? ".")}`;
 	if (name === "ls") return `ls ${String(args.path ?? ".")}`;
 	return `${name} ${preview(JSON.stringify(args), 50)}`;
-}
-
-function aggregateUsage(results: TaskResult[]): UsageStats {
-	return results.reduce<UsageStats>((total, result) => ({
-		input: total.input + result.usage.input,
-		output: total.output + result.usage.output,
-		cacheRead: total.cacheRead + result.usage.cacheRead,
-		cacheWrite: total.cacheWrite + result.usage.cacheWrite,
-		cost: total.cost + result.usage.cost,
-		contextTokens: 0,
-		turns: total.turns + result.usage.turns,
-	}), { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 });
 }
 
 function formatUsage(usage: UsageStats, model?: string): string {

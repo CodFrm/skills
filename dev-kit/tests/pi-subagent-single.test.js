@@ -36,6 +36,69 @@ async function loadTool(activeToolNames = DEFAULT_TOOLS, allToolNames = activeTo
   return tool
 }
 
+function useFakePi(t, prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  const previous = {
+    argv1: process.argv[1],
+    capture: process.env.FAKE_PI_CAPTURE,
+    timeline: process.env.FAKE_PI_TIMELINE,
+  }
+  const capturePath = path.join(root, 'capture.jsonl')
+  const timelinePath = path.join(root, 'timeline.jsonl')
+  process.argv[1] = FAKE_PI
+  process.env.FAKE_PI_CAPTURE = capturePath
+  process.env.FAKE_PI_TIMELINE = timelinePath
+  t.after(() => {
+    process.argv[1] = previous.argv1
+    for (const [key, value] of [
+      ['FAKE_PI_CAPTURE', previous.capture],
+      ['FAKE_PI_TIMELINE', previous.timeline],
+    ]) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+  return { root, capturePath, timelinePath }
+}
+
+function context(cwd) {
+  return {
+    cwd,
+    model: { provider: 'parent-provider', id: 'parent-model' },
+    thinkingLevel: 'medium',
+    isProjectTrusted: () => true,
+  }
+}
+
+function readJsonLines(file) {
+  if (!fs.existsSync(file)) return []
+  const content = fs.readFileSync(file, 'utf8').trim()
+  return content ? content.split('\n').map(JSON.parse) : []
+}
+
+async function waitFor(predicate, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(`condition not met within ${timeoutMs}ms`)
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
+function maxConcurrent(events) {
+  let active = 0
+  let maximum = 0
+  for (const event of [...events].sort((a, b) => a.time - b.time)) {
+    if (event.event === 'start') {
+      active += 1
+      maximum = Math.max(maximum, active)
+    } else if (event.event === 'end' || event.event === 'aborted' || event.event === 'signaled') {
+      active -= 1
+    }
+  }
+  return maximum
+}
+
 test('optional package registers subagent without widening the base dev-kit package', async () => {
   assert.equal(fs.existsSync(PACKAGE_MANIFEST), true, 'missing optional package manifest')
   assert.equal(fs.existsSync(EXTENSION), true, 'missing manifest-declared extension')
@@ -114,9 +177,10 @@ test('single write task launches with fixed tools and explicit runtime choices',
 
   assert.equal(result.isError, undefined)
   assert.equal(result.content[0].text, 'fake subagent completed')
-  assert.equal(result.details.mode, 'single')
-  assert.equal(result.details.results.length, 1)
-  assert.deepEqual(result.details.results[0].usage, {
+  assert.equal(result.details.task, 'Implement the approved slice')
+  assert.equal(result.details.profile, 'write')
+  assert.equal(result.details.cwd, fs.realpathSync(childCwd))
+  assert.deepEqual(result.details.usage, {
     input: 11,
     output: 7,
     cacheRead: 3,
@@ -125,8 +189,19 @@ test('single write task launches with fixed tools and explicit runtime choices',
     contextTokens: 23,
     turns: 1,
   })
-  assert.equal(result.details.results[0].model, 'fake-provider/fake-model')
+  assert.equal(result.details.model, 'fake-provider/fake-model')
+  assert.equal(result.details.messages.at(-1).content[0].text, 'fake subagent completed')
+  assert.equal('mode' in result.details, false)
+  assert.equal('results' in result.details, false)
   assert.ok(updates.length > 0, 'JSONL progress was not streamed to onUpdate')
+  const finalUpdate = updates.at(-1)
+  assert.equal(finalUpdate.content[0].text, 'fake subagent completed')
+  assert.equal(finalUpdate.details.task, 'Implement the approved slice')
+  assert.equal(finalUpdate.details.messages.at(-1).content[0].text, 'fake subagent completed')
+  assert.deepEqual(finalUpdate.details.usage, result.details.usage)
+  assert.equal(finalUpdate.details.model, 'fake-provider/fake-model')
+  assert.equal('mode' in finalUpdate.details, false)
+  assert.equal('results' in finalUpdate.details, false)
 
   const captures = fs.readFileSync(capturePath, 'utf8').trim().split('\n').map(JSON.parse)
   assert.equal(captures.length, 1)
@@ -149,6 +224,65 @@ test('single write task launches with fixed tools and explicit runtime choices',
   assert.equal(captures[0].args.at(-1), 'Task: Implement the approved slice')
   assert.match(captures[0].systemPrompt, /dispatched subagent/i)
   assert.match(captures[0].systemPrompt, /must not.*subagent/i)
+})
+
+test('JSONL updates and final details preserve the task tool call, output, usage, and model', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-jsonl-'))
+  const fakePi = path.join(root, 'fake-pi-tool-call.js')
+  const message = {
+    role: 'assistant',
+    content: [
+      { type: 'toolCall', id: 'call-1', name: 'read', arguments: { path: '/tmp/project/file.ts' } },
+      { type: 'text', text: 'inspected the file' },
+    ],
+    usage: {
+      input: 21,
+      output: 8,
+      cacheRead: 5,
+      cacheWrite: 3,
+      cost: { total: 0.0456 },
+      totalTokens: 37,
+    },
+    model: 'fake-provider/tool-model',
+    stopReason: 'end',
+  }
+  fs.writeFileSync(
+    fakePi,
+    `'use strict'\nconst message = ${JSON.stringify(message)}\nprocess.stdout.write(JSON.stringify({ type: 'message_end', message }) + '\\n')\n`,
+  )
+
+  const previousArgv1 = process.argv[1]
+  process.argv[1] = fakePi
+  t.after(() => {
+    process.argv[1] = previousArgv1
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const tool = await loadTool()
+  const updates = []
+  const result = await tool.execute(
+    'jsonl-tool-call',
+    { task: 'Inspect one file', profile: 'read-only' },
+    undefined,
+    update => updates.push(update),
+    context(root),
+  )
+
+  assert.equal(result.content[0].text, 'inspected the file')
+  assert.equal(result.details.task, 'Inspect one file')
+  assert.deepEqual(result.details.messages[0].content, message.content)
+  assert.deepEqual(result.details.usage, {
+    input: 21,
+    output: 8,
+    cacheRead: 5,
+    cacheWrite: 3,
+    cost: 0.0456,
+    contextTokens: 37,
+    turns: 1,
+  })
+  assert.equal(result.details.model, 'fake-provider/tool-model')
+  assert.deepEqual(updates.at(-1).details.messages[0].content, message.content)
+  assert.equal(updates.at(-1).content[0].text, 'inspected the file')
 })
 
 test('general snapshots active tools on every call, preserves first occurrence, and excludes subagent', async t => {
@@ -380,9 +514,9 @@ test('a child killed by an external signal is reported as a failure', async t =>
   )
 
   assert.equal(result.isError, true)
-  assert.equal(result.details.results[0].exitCode, 1)
-  assert.equal(result.details.results[0].stopReason, 'error')
-  assert.match(result.details.results[0].errorMessage, /SIGKILL/)
+  assert.equal(result.details.exitCode, 1)
+  assert.equal(result.details.stopReason, 'error')
+  assert.match(result.details.errorMessage, /SIGKILL/)
   assert.match(result.content[0].text, /SIGKILL/)
 })
 
@@ -440,8 +574,103 @@ test('single task failure returns exit, stop reason, error, stderr, and last out
   assert.match(result.content[0].text, /provider unavailable/)
   assert.match(result.content[0].text, /child diagnostic/)
   assert.match(result.content[0].text, /last partial output/)
-  assert.equal(result.details.results[0].exitCode, 2)
-  assert.equal(result.details.results[0].stopReason, 'error')
-  assert.equal(result.details.results[0].errorMessage, 'provider unavailable')
-  assert.equal(result.details.results[0].stderr, 'child diagnostic')
+  assert.equal(result.details.exitCode, 2)
+  assert.equal(result.details.stopReason, 'error')
+  assert.equal(result.details.errorMessage, 'provider unavailable')
+  assert.equal(result.details.stderr, 'child diagnostic')
+  assert.equal(result.details.messages.at(-1).content[0].text, 'last partial output')
+})
+
+test('two independent calls overlap and keep their results isolated', async t => {
+  const { root, capturePath, timelinePath } = useFakePi(t, 'dev-kit-subagent-reentrant-')
+  const tool = await loadTool()
+
+  const [first, second] = await Promise.all([
+    tool.execute(
+      'first',
+      { task: '[delay=180] [output=alpha]', profile: 'write' },
+      undefined,
+      undefined,
+      context(root),
+    ),
+    tool.execute(
+      'second',
+      { task: '[delay=180] [output=beta] [fail]', profile: 'read-only' },
+      undefined,
+      undefined,
+      context(root),
+    ),
+  ])
+
+  assert.equal(first.isError, undefined)
+  assert.equal(first.content[0].text, 'alpha')
+  assert.equal(first.details.task, '[delay=180] [output=alpha]')
+  assert.equal(first.details.messages.at(-1).content[0].text, 'alpha')
+  assert.equal(second.isError, true)
+  assert.match(second.content[0].text, /marked fake failure/)
+  assert.equal(second.details.task, '[delay=180] [output=beta] [fail]')
+  assert.equal(second.details.messages.at(-1).content[0].text, 'beta')
+
+  const captures = readJsonLines(capturePath)
+  assert.equal(captures.length, 2)
+  assert.deepEqual(new Set(captures.map(item => item.args.at(-1))), new Set([
+    'Task: [delay=180] [output=alpha]',
+    'Task: [delay=180] [output=beta] [fail]',
+  ]))
+  assert.equal(maxConcurrent(readJsonLines(timelinePath)), 2)
+})
+
+test('aborting a call terminates its child and returns failure evidence', async t => {
+  const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-abort-')
+  const tool = await loadTool()
+  const controller = new AbortController()
+  const started = Date.now()
+  const execution = tool.execute(
+    'abort',
+    { task: '[delay=3000] [output=too-late]', profile: 'read-only' },
+    controller.signal,
+    undefined,
+    context(root),
+  )
+  await waitFor(() => readJsonLines(capturePath).length === 1)
+  controller.abort()
+
+  const result = await execution
+  const elapsed = Date.now() - started
+
+  assert.ok(elapsed < 1500, `abort took ${elapsed}ms`)
+  assert.equal(result.isError, true)
+  assert.equal(result.details.stopReason, 'aborted')
+  assert.equal(result.details.errorMessage, 'Subagent was aborted')
+  assert.ok(result.details.exitCode > 0)
+  assert.match(result.content[0].text, /aborted/i)
+  assert.equal(readJsonLines(capturePath).length, 1)
+})
+
+test('a child launch failure retains the spawn diagnostic', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-launch-'))
+  const previousArgv1 = process.argv[1]
+  const previousPath = process.env.PATH
+  process.argv[1] = undefined
+  process.env.PATH = ''
+  t.after(() => {
+    process.argv[1] = previousArgv1
+    if (previousPath === undefined) delete process.env.PATH
+    else process.env.PATH = previousPath
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const tool = await loadTool()
+  const result = await tool.execute(
+    'launch-failure',
+    { task: 'Run the child', profile: 'read-only' },
+    undefined,
+    undefined,
+    context(root),
+  )
+
+  assert.equal(result.isError, true)
+  assert.equal(result.details.exitCode, 1)
+  assert.match(result.details.errorMessage, /spawn pi ENOENT/)
+  assert.match(result.content[0].text, /spawn pi ENOENT/)
 })

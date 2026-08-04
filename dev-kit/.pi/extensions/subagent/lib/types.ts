@@ -39,12 +39,6 @@ export interface TaskResult {
 	model?: string;
 	stopReason?: string;
 	errorMessage?: string;
-	step?: number;
 }
 
-export interface SubagentDetails {
-	mode: "single" | "parallel" | "chain";
-	results: TaskResult[];
-}
-
-export type OnUpdate = (partial: AgentToolResult<SubagentDetails>) => void;
+export type OnUpdate = (partial: AgentToolResult<TaskResult>) => void;

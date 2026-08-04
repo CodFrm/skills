@@ -2,11 +2,29 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { OnUpdate, ResolvedTaskRequest, SubagentDetails, TaskResult, UsageStats } from "./types.ts";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { OnUpdate, ResolvedTaskRequest, SubagentParams, TaskResult, UsageStats } from "./types.ts";
+import { validateTaskRequest } from "./validation.ts";
 
 export const SUBAGENT_CHILD_ENV = "DEV_KIT_PI_SUBAGENT_CHILD";
+
+export async function executeSubagent(
+	params: SubagentParams,
+	pi: ExtensionAPI,
+	signal: AbortSignal | undefined,
+	onUpdate: OnUpdate | undefined,
+	ctx: ExtensionContext,
+): Promise<AgentToolResult<TaskResult>> {
+	const validation = validateTaskRequest(params, pi, ctx);
+	if (!validation.ok) throw new Error(`Invalid subagent request: ${validation.error}`);
+
+	const result = await runSingleTask(validation.request, ctx, signal, onUpdate);
+	return isFailedResult(result)
+		? { content: [{ type: "text", text: formatFailure(result) }], details: result, isError: true }
+		: { content: [{ type: "text", text: getFinalOutput(result.messages) || "(no output)" }], details: result };
+}
 
 export async function runSingleTask(
 	request: ResolvedTaskRequest,
@@ -113,7 +131,7 @@ function spawnAndCollect(
 				}
 				onUpdate?.({
 					content: [{ type: "text", text: getFinalOutput(result.messages) || "(running...)" }],
-					details: makeDetails(result),
+					details: result,
 				});
 			}
 		};
@@ -230,10 +248,6 @@ export function formatFailure(result: TaskResult): string {
 	const output = getFinalOutput(result.messages);
 	if (output) lines.push(`Last output: ${output}`);
 	return lines.join("\n");
-}
-
-function makeDetails(result: TaskResult): SubagentDetails {
-	return { mode: "single", results: [result] };
 }
 
 function emptyUsage(): UsageStats {

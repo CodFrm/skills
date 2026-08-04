@@ -113,90 +113,80 @@ function result(overrides = {}) {
   }
 }
 
-test('renderers show mode progress, errors, expanded tasks, and usage', async () => {
+test('renderers show exactly one task call, progress, output, usage, and model', async () => {
   const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
   const renderers = createRenderers(fakeRuntime)
 
   const call = render(renderers.renderCall(
-    { tasks: [{ task: 'one', profile: 'write' }, { task: 'two', profile: 'read-only' }] },
+    { task: 'Inspect the branch', profile: 'read-only' },
     theme,
     {},
   ))
-  assert.match(call, /subagent parallel \(2 tasks\)/i)
-  assert.match(call, /write.*one/i)
-  assert.match(call, /read-only.*two/i)
+  assert.match(call, /subagent.*read-only/i)
+  assert.match(call, /Inspect the branch/)
+  assert.doesNotMatch(call, /parallel|chain|batch|step|aggregate/i)
 
-  const singleDetails = { mode: 'single', results: [result()] }
-  const collapsed = render(renderers.renderResult(
-    { content: [{ type: 'text', text: 'Final answer' }], details: singleDetails },
-    { expanded: false, isPartial: false },
-    theme,
-    {},
-  ))
-  assert.match(collapsed, /✓.*read-only/)
-  assert.match(collapsed, /read .*file\.ts/)
-  assert.match(collapsed, /Final \*\*answer\*\*/)
-  assert.match(collapsed, /2 turns.*↑1\.2k.*↓20.*R3.*W4.*\$0\.0123.*ctx:1\.5k.*fake-provider\/fake-model/)
+  for (const expanded of [false, true]) {
+    const rendered = render(renderers.renderResult(
+      { content: [{ type: 'text', text: 'Final answer' }], details: result() },
+      { expanded, isPartial: false },
+      theme,
+      {},
+    ))
+    assert.match(rendered, /✓.*read-only/)
+    assert.match(rendered, /Inspect the branch/)
+    assert.match(rendered, /read .*file\.ts/)
+    assert.match(rendered, /Final \*\*answer\*\*/)
+    assert.match(rendered, /2 turns.*↑1\.2k.*↓20.*R3.*W4.*\$0\.0123.*ctx:1\.5k.*fake-provider\/fake-model/)
+    assert.doesNotMatch(rendered, /parallel|chain|batch|step|aggregate|Total:/i)
+  }
 
-  const expanded = render(renderers.renderResult(
-    { content: [{ type: 'text', text: 'Final answer' }], details: singleDetails },
-    { expanded: true, isPartial: false },
-    theme,
-    {},
-  ))
-  assert.match(expanded, /Task/)
-  assert.match(expanded, /Inspect the branch/)
-  assert.match(expanded, /Output/)
-  assert.match(expanded, /Final \*\*answer\*\*/)
-
-  const parallel = render(renderers.renderResult(
+  const running = render(renderers.renderResult(
     {
-      content: [{ type: 'text', text: 'running' }],
-      details: {
-        mode: 'parallel',
-        results: [
-          result({ task: 'running', exitCode: -1, messages: [], stopReason: undefined }),
-          result({ task: 'done' }),
-          result({ task: 'failed', exitCode: 2, stopReason: 'error', errorMessage: 'provider failed' }),
-        ],
-      },
+      content: [{ type: 'text', text: '(running...)' }],
+      details: result({ exitCode: -1, messages: [], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 } }),
     },
     { expanded: false, isPartial: true },
     theme,
     {},
   ))
-  assert.match(parallel, /2\/3 done, 1 running/)
-  assert.match(parallel, /provider failed/)
-
-  const chain = render(renderers.renderResult(
-    {
-      content: [{ type: 'text', text: 'done' }],
-      details: { mode: 'chain', results: [result({ step: 1 }), result({ step: 2, profile: 'write' })] },
-    },
-    { expanded: true, isPartial: false },
-    theme,
-    {},
-  ))
-  assert.match(chain, /Step 1.*read-only/)
-  assert.match(chain, /Step 2.*write/)
-  assert.match(chain, /Total: 4 turns/)
-
-  const runningChain = render(renderers.renderResult(
-    {
-      content: [{ type: 'text', text: 'running' }],
-      details: {
-        mode: 'chain',
-        results: [result({ step: 1 }), result({ step: 2, exitCode: -1, messages: [], stopReason: undefined })],
-      },
-    },
-    { expanded: false, isPartial: true },
-    theme,
-    {},
-  ))
-  assert.match(runningChain, /⏳.*1\/2 done, 1 running/)
+  assert.match(running, /⏳.*read-only/)
+  assert.match(running, /Inspect the branch/)
+  assert.match(running, /\(running\.\.\.\)/)
+  assert.match(running, /fake-provider\/fake-model/)
 })
 
-test('parallel caps model-visible task output at 50KB while details keep the full message', async t => {
+test('compact and expanded renderers retain exact failure diagnostics', async () => {
+  const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
+  const renderers = createRenderers(fakeRuntime)
+  const failed = result({
+    exitCode: 2,
+    stopReason: 'error',
+    errorMessage: 'provider unavailable',
+    stderr: 'child diagnostic',
+  })
+
+  for (const expanded of [false, true]) {
+    const rendered = render(renderers.renderResult(
+      { content: [{ type: 'text', text: 'Subagent failed.' }], details: failed, isError: true },
+      { expanded, isPartial: false },
+      theme,
+      {},
+    ))
+    assert.match(rendered, /✗.*read-only/)
+    assert.match(rendered, /Inspect the branch/)
+    assert.match(rendered, /read .*file\.ts/)
+    assert.match(rendered, /Final \*\*answer\*\*/)
+    assert.match(rendered, /Exit code: 2/)
+    assert.match(rendered, /Stop reason: error/)
+    assert.match(rendered, /Error: provider unavailable/)
+    assert.match(rendered, /Stderr: child diagnostic/)
+    assert.match(rendered, /fake-provider\/fake-model/)
+    assert.doesNotMatch(rendered, /parallel|chain|batch|step|aggregate|Total:/i)
+  }
+})
+
+test('single task preserves the full model-visible output and direct task details', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-truncate-'))
   const previousArgv1 = process.argv[1]
   const previousOutput = process.env.FAKE_PI_OUTPUT
@@ -212,7 +202,7 @@ test('parallel caps model-visible task output at 50KB while details keep the ful
   const tool = await loadTool()
   const execution = await tool.execute(
     'truncate',
-    { tasks: [{ task: 'Return a large result', profile: 'read-only' }] },
+    { task: 'Return a large result', profile: 'read-only' },
     undefined,
     undefined,
     {
@@ -224,8 +214,10 @@ test('parallel caps model-visible task output at 50KB while details keep the ful
   )
 
   const visible = execution.content[0].text
-  assert.match(visible, /Output truncated/)
-  assert.ok(Buffer.byteLength(visible, 'utf8') < 52 * 1024, `visible output was ${Buffer.byteLength(visible, 'utf8')} bytes`)
-  const full = execution.details.results[0].messages[0].content[0].text
-  assert.equal(Buffer.byteLength(full, 'utf8'), 60 * 1024)
+  assert.equal(Buffer.byteLength(visible, 'utf8'), 60 * 1024)
+  assert.doesNotMatch(visible, /truncat/i)
+  assert.equal(execution.details.task, 'Return a large result')
+  assert.equal(execution.details.messages[0].content[0].text, visible)
+  assert.equal('mode' in execution.details, false)
+  assert.equal('results' in execution.details, false)
 })
