@@ -1,6 +1,6 @@
 # dev-kit
 
-规格驱动开发的控制流程：获批 spec → 隔离分支 → 长任务 plan → TDD 实现与独立审查 → 两轴静态收尾 → fresh runtime 验证 → 用户选择交付。`init` 独立负责项目约束、文档、guardrail 与 e2e harness。
+规格驱动开发的控制流程：获批 spec → 隔离分支 → 长任务 plan → TDD 实现与独立审查 → 两轴静态收尾 → 主会话 runtime 验证 → 用户选择交付。`init` 独立负责项目约束、文档、guardrail 与 e2e harness。
 
 ## 安装
 
@@ -61,7 +61,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 |---|---|
 | [using-dev-kit](./skills/using-dev-kit/) | 每个开发会话的开头，以及写代码、跑命令、向用户提问之前——这套 kit 的引导页 |
 | [init](./skills/init/) | 项目要立规矩，或老项目文档过期、没有护栏、同一类问题反复出现 |
-| [brainstorming](./skills/brainstorming/) | 要加功能、改行为、设计 UI——在任何实现动作之前，需求已清楚但没写下来时同样适用 |
+| [brainstorming](./skills/brainstorming/) | 要加功能、改行为或设计 UI，且需求或边界仍未确定；已经定案、可在一个会话完成的小改动直接进入 TDD 或项目检查 |
 | [writing-plans](./skills/writing-plans/) | spec 获批之后，改动拆下来超过约三步，或要跨会话 |
 | [using-git-worktrees](./skills/using-git-worktrees/) | 用户确认 spec 草稿没有问题、要把它和实现放进独立分支时，以及分支收尾交付时 |
 | [executing-plans](./skills/executing-plans/) | 已有定稿的 `.dev-kit/plans/*.yaml` 要推进或收尾 |
@@ -70,7 +70,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 ## 链路
 
-`brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for independent task/batch review, two-axis static wrap-up and fresh runtime verification → `using-git-worktrees` for delivery.
+When design remains unsettled: `brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for independent task/batch review, two-axis static wrap-up and main-session runtime verification → `using-git-worktrees` for delivery. A settled small change starts at `test-driven-development` or the applicable project checks.
 
 Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md#parallel-is-proved-not-assumed) exclusively owns concurrency authorization and subagent review boundaries. `init` triggers independently.
 

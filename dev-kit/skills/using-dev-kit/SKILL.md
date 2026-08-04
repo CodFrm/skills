@@ -20,8 +20,8 @@ Before asking the user, apply [the three gates](references/asking-users.md#three
 
 | Request state | Route |
 |---|---|
-| The change, location and verification are already settled | No chain. Use `test-driven-development` for behaviour; otherwise run the applicable project checks |
-| New or changed behaviour, UI or contract | `brainstorming` |
+| Settled small change: observable result, scope, location and verification are fixed, and the work fits one session | No chain. Use `test-driven-development` for behaviour; otherwise run the applicable project checks |
+| New or changed behaviour, UI or contract with an undecided requirement or boundary | `brainstorming` |
 | Bug, failing test/build, regression or unexplained mismatch | `systematic-debugging` |
 | Project constraints, contributor docs or recurring convention failures need establishing | `init` — independent of the development chain |
 

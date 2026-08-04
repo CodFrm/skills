@@ -59,7 +59,7 @@ verification:
 
 Record `files` wide enough to include generated files, lockfiles, manifests, fixtures, snapshots and formatter-owned output. [`executing-plans`](../executing-plans/SKILL.md#parallel-is-proved-not-assumed) alone authorizes concurrency.
 
-`reviewing` means an implementer commit exists but independent task/batch review is incomplete. `verification` records the fresh runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
+`reviewing` means an implementer commit exists but independent task/batch review is incomplete. `verification` records the runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
 
 ## Cutting the tasks
 
@@ -91,7 +91,7 @@ Run the checklist, then send one message containing:
 - a request to approve or recut the breakdown;
 - execution-mode choices: `subagent` and `inline` when the current harness exposes native dispatch, otherwise only `inline`.
 
-Explain that `subagent` gives fresh implementer/reviewer contexts; concurrency still requires the execution-time four-boundary gate. Explain that `inline` has no independent task/batch review, while static wrap-up and runtime verification still run in the main context.
+Explain that `subagent` gives fresh implementer/reviewer contexts; concurrency still requires the execution-time four-boundary gate. Explain that `inline` has no independent task/batch review, while static wrap-up still runs; runtime verification runs in the main session under either mode.
 
 Wait for both decisions. A recut plan repeats the complete gate. Write `status: ready` and `mode` only from the answer, except a harness with no native dispatch forces `inline`.
 

@@ -4,14 +4,13 @@
 |---|---|
 | Task loop | [implementer and batch reviewer/fixer](task-prompts.md) |
 | Static wrap-up | [spec verifier and code reviewer](wrap-up-prompts.md) |
-| Runtime | [fresh verifier](verification-prompt.md) |
 
 ## What every dispatch shares
 
 - Fill every `<>` slot from the plan/spec. Point to files instead of pasting session history.
 - Resolve `cheap` / `mid` / `strong` against models available now; never invent a model id.
 - Bound the return to findings/evidence/status, not a working transcript.
-- Implementers/reviewers create no report file. Only the runtime verifier writes the durable local report.
+- A dispatch creates no report file; the durable local report belongs to [runtime verification](runtime-verification.md).
 - A subagent reports; it never sets plan state or declares the round done.
 
 ## Do not write the verdict into either review prompt

@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: >-
-  Use before any implementation — adding a feature, changing behaviour, designing UI — even when the requirement already feels clear, and again when an agreed one turns out wrong. Ends in a user-approved spec. Not for: factual Q&A or read-only investigation.
+  Use before implementing new or changed behaviour, UI or contracts when a requirement or boundary remains undecided, and again when an agreed one turns out wrong. Ends in a user-approved spec. Not for: a settled small change, factual Q&A or read-only investigation.
 ---
 
 # Requirements exploration and specification (brainstorming)
@@ -85,6 +85,6 @@ The committed spec and baseline must already be in the isolated round workspace.
 | Change shape | Next state |
 |---|---|
 | More than about three steps or spans sessions | [`writing-plans`](../writing-plans/SKILL.md) |
-| Three steps or fewer in one session | One TDD slice, then [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [fresh runtime verification](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent), and delivery |
+| Three steps or fewer in one session | One TDD slice, then [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [runtime verification](../executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it), and delivery |
 
 Any newly undecided behaviour returns to this skill and must clear the same approval gate.

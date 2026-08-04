@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "dev-kit",
-      "description": "Spec-driven development, end to end. The spec settles what to build, the plan settles how: agreed design → isolated worktree → approved spec committed on its branch → plan → one TDD round per task, each commit reviewed by a subagent that did not write it → two static wrap-up reviews → fresh runtime-verification subagent and reproducible report. Plus init, for AGENTS.md, layered docs and lint guardrails wired into CI.",
+      "description": "Spec-driven development, end to end. The spec settles what to build, the plan settles how: agreed design → isolated worktree → approved spec committed on its branch → plan → one TDD round per task, each commit reviewed by a subagent that did not write it → two static wrap-up reviews → main-session runtime verification and reproducible report. Plus init, for AGENTS.md, layered docs and lint guardrails wired into CI.",
       "version": "0.1.0",
       "source": "./dev-kit",
       "author": {

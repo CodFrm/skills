@@ -6,7 +6,7 @@
 
 **Objective:** 把「subagent 还是 inline」这一问并进 plan 转 `ready` 的那一次闸门，让用户一条消息里答完切分与执行模式。
 
-**Hard invariant:** 不论模式由谁问、什么时候问，什么都不能免的那三样不变——TDD 全程、证据门槛（命令、退出码、观察），以及[两道静态审查](../../dev-kit/skills/executing-plans/SKILL.md#wrap-up-two-static-reviews)加其后[一次运行时验证](../../dev-kit/skills/executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent)。
+**Hard invariant:** 不论模式由谁问、什么时候问，什么都不能免的那三样不变——TDD 全程、证据门槛（命令、退出码、观察），以及[两道静态审查](../../dev-kit/skills/executing-plans/SKILL.md#wrap-up-two-static-reviews)加其后[一次运行时验证](../../dev-kit/skills/executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it)。
 
 ## Problem
 

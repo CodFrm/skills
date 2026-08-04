@@ -116,4 +116,4 @@ Never remove another worktree or clear `.dev-kit/`. Before force-deleting a bran
 Keep the existing round worktree. Route feedback by effect:
 
 - New/changed behaviour, design change or multi-file scope → `brainstorming` and a new approved round.
-- Settled small correction → TDD/appropriate verification, [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [fresh runtime verification](../executing-plans/SKILL.md#runtime-verification-a-fresh-third-subagent), then delivery again.
+- Settled small correction → TDD/appropriate verification, [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [runtime verification](../executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it), then delivery again.

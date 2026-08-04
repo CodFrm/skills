@@ -1,0 +1,43 @@
+# Runtime verification
+
+Verdicts come from observed behaviour of the built target, never from code, mocks or green tests. Read the spec completely, plus `docs/verification.md` and the e2e guide when present, then read whatever identifies how to start, reach and drive the target — and stop there. Judging the implementation belonged to the two static reviews.
+
+## Before running
+
+- Require the report path gitignored, the working tree clean and HEAD exactly the reviewed SHA. On failure, report the blocker and write nothing.
+- Record initial HEAD and SHA-256 of the plan. Recheck both plus clean-tree output at the end.
+- Reuse the existing harness. Write scripts and evidence only under `e2e/scratch/<spec-slug>/`.
+
+## One verdict per spec requirement
+
+| Verdict | Requires |
+|---|---|
+| `holds` | command, exit code and deciding evidence |
+| `does not hold` | reached it and observed contrary behaviour |
+| `not observed` | no decisive observation, with the gap or blocker |
+
+An observed failure is never `not observed`; a mock never proves a real-integration requirement, authorized or not. Do not weaken checks, omit failures or soften verdicts.
+
+## Boundaries
+
+- Deliberate writes only under scratch. Inventory disposable build/runtime output; clean safe output created by this run and report every remainder.
+- Do not edit production code, tracked tests/files, index, HEAD or branches. A non-hold is reported, not repaired here.
+- Add no dependencies. Use credentials only through approved ignored mechanisms; redact secrets and personal data from commands, logs, payloads and images.
+- Isolate data/resources, stop started processes and report persistent side effects.
+
+## Stop and ask
+
+Two things are the user's to answer, never yours to arrange around: a requirement whose real dependency `.env` does not configure, and an effect outside the authorization list — deploy, shared or real migration, message send, mutating external call, charge. No container, service process, system service, documented start-up command, mock or fixture substitutes for either.
+
+Carry every other requirement to a verdict first, so one round of questions covers them all. Name the service and the absent variable names — names only, never values — or the exact effect and what it touches. [`executing-plans`](../SKILL.md#runtime-verification-the-main-session-drives-it) owns what each answer changes.
+
+## The report
+
+Write `e2e/scratch/<spec-slug>/report.md` as you work. Follow the project's report template when present; otherwise include:
+
+- per-requirement verdict;
+- ordered steps with commands, exit codes and deciding evidence;
+- every coverage gap, and per blocked service the absent variable names;
+- created artifacts and cleanup state;
+- initial/final HEAD, clean-tree output and plan checksum;
+- shortest clean-checkout reproduction steps for the user.
