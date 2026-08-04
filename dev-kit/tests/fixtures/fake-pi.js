@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('node:fs')
+const { pathToFileURL } = require('node:url')
 
 const args = process.argv.slice(2)
 const task = args.at(-1) || ''
@@ -12,8 +13,8 @@ const signalMarker = task.match(/\[signal=(SIG[A-Z]+)\]/)
 const markedFailure = task.includes('[fail]')
 const toolsIndex = args.indexOf('--tools')
 const selectedTools = toolsIndex === -1 ? [] : args[toolsIndex + 1].split(',').filter(Boolean)
-const unavailableTool = process.env.FAKE_PI_UNAVAILABLE_TOOL
-const unavailableSelectedTool = unavailableTool && selectedTools.includes(unavailableTool) ? unavailableTool : null
+const activeTools = (process.env.FAKE_PI_ACTIVE_TOOLS ?? selectedTools.join(',')).split(',').filter(Boolean)
+const extensionPaths = args.flatMap((arg, index) => arg === '--extension' ? [args[index + 1]] : [])
 const capture = {
   args,
   cwd: process.cwd(),
@@ -33,42 +34,70 @@ process.on('SIGTERM', () => {
   process.exit(143)
 })
 
-const delay = Number(delayMarker?.[1] || process.env.FAKE_PI_DELAY_MS || 0)
-setTimeout(() => {
-  if (signalMarker) {
-    recordTimeline('signaled')
-    process.kill(process.pid, signalMarker[1])
+void run()
+
+async function run() {
+  if (await taskWasHandledByExtension()) {
+    recordTimeline('blocked')
     return
   }
-  const stopReason = process.env.FAKE_PI_STOP_REASON || (markedFailure || unavailableSelectedTool ? 'error' : 'end')
-  const message = {
-    role: 'assistant',
-    content: [{ type: 'text', text: process.env.FAKE_PI_OUTPUT || outputMarker?.[1] || 'fake subagent completed' }],
-    usage: {
-      input: 11,
-      output: 7,
-      cacheRead: 3,
-      cacheWrite: 2,
-      cost: { total: 0.0123 },
-      totalTokens: 23,
+
+  recordTimeline('task')
+  const delay = Number(delayMarker?.[1] || process.env.FAKE_PI_DELAY_MS || 0)
+  setTimeout(() => {
+    if (signalMarker) {
+      recordTimeline('signaled')
+      process.kill(process.pid, signalMarker[1])
+      return
+    }
+    const stopReason = process.env.FAKE_PI_STOP_REASON || (markedFailure ? 'error' : 'end')
+    const message = {
+      role: 'assistant',
+      content: [{ type: 'text', text: process.env.FAKE_PI_OUTPUT || outputMarker?.[1] || 'fake subagent completed' }],
+      usage: {
+        input: 11,
+        output: 7,
+        cacheRead: 3,
+        cacheWrite: 2,
+        cost: { total: 0.0123 },
+        totalTokens: 23,
+      },
+      model: process.env.FAKE_PI_MODEL || 'fake-provider/fake-model',
+      stopReason,
+    }
+
+    const errorMessage = process.env.FAKE_PI_ERROR_MESSAGE || (markedFailure ? 'marked fake failure' : undefined)
+    if (errorMessage) message.errorMessage = errorMessage
+    console.log(JSON.stringify({ type: 'message_end', message }))
+    const stderr = process.env.FAKE_PI_STDERR || (markedFailure ? 'marked fake stderr' : '')
+    if (stderr) process.stderr.write(stderr)
+    finished = true
+    recordTimeline('end')
+    process.exit(Number(process.env.FAKE_PI_EXIT_CODE || (markedFailure ? 2 : 0)))
+  }, delay)
+}
+
+async function taskWasHandledByExtension() {
+  const inputHandlers = []
+  const pi = {
+    getActiveTools() {
+      return [...activeTools]
     },
-    model: process.env.FAKE_PI_MODEL || 'fake-provider/fake-model',
-    stopReason,
+    on(event, handler) {
+      if (event === 'input') inputHandlers.push(handler)
+    },
   }
 
-  const errorMessage = process.env.FAKE_PI_ERROR_MESSAGE
-    || (unavailableSelectedTool ? `active child tool ${unavailableSelectedTool} is unavailable` : undefined)
-    || (markedFailure ? 'marked fake failure' : undefined)
-  if (errorMessage) message.errorMessage = errorMessage
-  console.log(JSON.stringify({ type: 'message_end', message }))
-  const stderr = process.env.FAKE_PI_STDERR
-    || (unavailableSelectedTool ? `unknown tool: ${unavailableSelectedTool}` : '')
-    || (markedFailure ? 'marked fake stderr' : '')
-  if (stderr) process.stderr.write(stderr)
-  finished = true
-  recordTimeline('end')
-  process.exit(Number(process.env.FAKE_PI_EXIT_CODE || (markedFailure || unavailableSelectedTool ? 2 : 0)))
-}, delay)
+  for (const extensionPath of extensionPaths) {
+    const extension = await import(pathToFileURL(extensionPath).href)
+    if (typeof extension.default === 'function') await extension.default(pi)
+  }
+  for (const handler of inputHandlers) {
+    const result = await handler({ type: 'input', text: task, source: 'interactive' }, {})
+    if (result?.action === 'handled') return true
+  }
+  return false
+}
 
 function recordTimeline(event) {
   if (!process.env.FAKE_PI_TIMELINE) return

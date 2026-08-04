@@ -365,27 +365,13 @@ test('general rejects comma-containing active tool names before spawn', async t 
   assert.equal(fs.existsSync(capturePath), false, 'a comma-containing active tool launched the child')
 })
 
-test('an unavailable general-profile child tool fails with the child diagnostic instead of falling back', async t => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-unavailable-'))
-  const capturePath = path.join(root, 'capture.jsonl')
-  const previous = {
-    argv1: process.argv[1],
-    capture: process.env.FAKE_PI_CAPTURE,
-    unavailable: process.env.FAKE_PI_UNAVAILABLE_TOOL,
-  }
-  process.argv[1] = FAKE_PI
-  process.env.FAKE_PI_CAPTURE = capturePath
-  process.env.FAKE_PI_UNAVAILABLE_TOOL = 'artifact'
+test('an unavailable general-profile child tool fails before task execution instead of falling back', async t => {
+  const { root, capturePath, timelinePath } = useFakePi(t, 'dev-kit-subagent-unavailable-')
+  const previousActiveTools = process.env.FAKE_PI_ACTIVE_TOOLS
+  process.env.FAKE_PI_ACTIVE_TOOLS = 'read'
   t.after(() => {
-    process.argv[1] = previous.argv1
-    for (const [key, value] of [
-      ['FAKE_PI_CAPTURE', previous.capture],
-      ['FAKE_PI_UNAVAILABLE_TOOL', previous.unavailable],
-    ]) {
-      if (value === undefined) delete process.env[key]
-      else process.env[key] = value
-    }
-    fs.rmSync(root, { recursive: true, force: true })
+    if (previousActiveTools === undefined) delete process.env.FAKE_PI_ACTIVE_TOOLS
+    else process.env.FAKE_PI_ACTIVE_TOOLS = previousActiveTools
   })
 
   const tool = await loadTool(['artifact', 'read'])
@@ -394,18 +380,18 @@ test('an unavailable general-profile child tool fails with the child diagnostic 
     { task: 'Require the active artifact tool', profile: 'general' },
     undefined,
     undefined,
-    {
-      cwd: root,
-      model: { provider: 'parent-provider', id: 'parent-model' },
-      thinkingLevel: 'medium',
-      isProjectTrusted: () => true,
-    },
+    context(root),
   )
 
   assert.equal(result.isError, true)
-  assert.match(result.content[0].text, /active child tool artifact is unavailable/i)
+  assert.equal(result.details.stopReason, 'error')
+  assert.match(result.content[0].text, /requested general tool.*artifact.*not activated/i)
+  assert.match(result.details.stderr, /requested general tool.*artifact.*not activated/i)
+  assert.deepEqual(result.details.messages, [])
+  assert.equal(readJsonLines(timelinePath).some(event => event.event === 'task'), false)
   const capture = JSON.parse(fs.readFileSync(capturePath, 'utf8').trim())
   assert.equal(capture.args[capture.args.indexOf('--tools') + 1], 'artifact,read')
+  assert.notEqual(capture.args.indexOf('--extension'), -1)
 })
 
 test('read-only task inherits the parent model and thinking without extending project trust', async t => {

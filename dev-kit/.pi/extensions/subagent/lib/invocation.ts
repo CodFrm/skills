@@ -45,6 +45,11 @@ export async function runSingleTask(
 	args.push(isTrustedChild(ctx, request.cwd) ? "--approve" : "--no-approve");
 
 	const promptDir = fs.mkdtempSync(path.join(os.tmpdir(), "dev-kit-subagent-"));
+	if (request.profile === "general" && request.tools.length > 0) {
+		const verifierPath = path.join(promptDir, "general-tool-verifier.mjs");
+		fs.writeFileSync(verifierPath, generalToolVerifierSource(request.tools), { encoding: "utf8", mode: 0o600 });
+		args.push("--extension", verifierPath);
+	}
 	const promptPath = path.join(promptDir, "system-prompt.md");
 	fs.writeFileSync(promptPath, systemPrompt(request.profile), { encoding: "utf8", mode: 0o600 });
 	args.push("--append-system-prompt", promptPath, `Task: ${request.task}`);
@@ -198,6 +203,22 @@ function systemPrompt(profile: ResolvedTaskRequest["profile"]): string {
 		);
 	}
 	return lines.join("\n");
+}
+
+function generalToolVerifierSource(requestedTools: string[]): string {
+	return [
+		`const requestedTools = ${JSON.stringify(requestedTools)};`,
+		"export default function generalToolVerifier(pi) {",
+		"\tpi.on(\"input\", () => {",
+		"\t\tconst activeTools = new Set(pi.getActiveTools());",
+		"\t\tconst missingTools = requestedTools.filter(tool => !activeTools.has(tool));",
+		"\t\tif (missingTools.length === 0) return;",
+		"\t\tprocess.stderr.write(`Pi subagent diagnostic: requested general tool(s) ${missingTools.join(\", \")} were not activated in the child Pi process; task was not executed.\\n`);",
+		"\t\tprocess.exitCode = 1;",
+		"\t\treturn { action: \"handled\" };",
+		"\t});",
+		"}",
+	].join("\n");
 }
 
 function createResult(request: ResolvedTaskRequest): TaskResult {
