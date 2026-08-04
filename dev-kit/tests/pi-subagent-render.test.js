@@ -156,38 +156,71 @@ test('renderers show exactly one task call, progress, output, usage, and model',
   assert.match(running, /fake-provider\/fake-model/)
 })
 
-test('single-task renderers do not truncate the prompt, progress, output, or tool details', async () => {
+test('compact progress is bounded while expanded rendering and direct task details stay complete', async () => {
   const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
   const renderers = createRenderers(fakeRuntime)
-  const longPrompt = `Inspect ${'the complete task '.repeat(6)}END`
-  const longArgument = 'x'.repeat(80)
-  const messages = Array.from({ length: 12 }, (_, index) => ({
+  const longArgument = 'x'.repeat(16 * 1024)
+  const history = Array.from({ length: 48 }, (_, index) => ({
     role: 'assistant',
-    content: [{ type: 'toolCall', name: `custom-${index}`, arguments: { value: index === 0 ? longArgument : `value-${index}` } }],
+    content: [{ type: 'text', text: `earlier output ${index}: ${'history '.repeat(80)}` }],
     usage: {},
   }))
-  messages.push({
-    role: 'assistant',
-    content: [{ type: 'text', text: 'line 1\nline 2\nline 3\nline 4\nline 5' }],
-    usage: {},
-  })
+  const messages = [
+    ...history,
+    { role: 'assistant', content: [{ type: 'toolCall', name: 'custom', arguments: { value: longArgument } }], usage: {} },
+    { role: 'assistant', content: [{ type: 'text', text: 'latest output' }], usage: {} },
+  ]
+  const taskResult = result({ messages })
+  const modelVisibleOutput = 'model-visible output remains complete'
+  const toolResult = { content: [{ type: 'text', text: modelVisibleOutput }], details: taskResult }
 
-  const call = render(renderers.renderCall({ task: longPrompt, profile: 'read-only' }, theme, {}))
-  assert.match(call, new RegExp(longPrompt))
-  assert.doesNotMatch(call, /\.\.\./)
+  const compact = render(renderers.renderResult(
+    toolResult,
+    { expanded: false, isPartial: true },
+    theme,
+    {},
+  ))
+  assert.ok(Buffer.byteLength(compact, 'utf8') < 6 * 1024, `compact render was ${Buffer.byteLength(compact, 'utf8')} bytes`)
+  assert.match(compact, /earlier items/)
+  assert.match(compact, /latest output/)
+  assert.doesNotMatch(compact, new RegExp(longArgument))
+
+  const expanded = render(renderers.renderResult(
+    toolResult,
+    { expanded: true, isPartial: false },
+    theme,
+    {},
+  ))
+  assert.match(expanded, /latest output/)
+  assert.match(expanded, new RegExp(longArgument))
+  assert.match(taskResult.messages[0].content[0].text, /earlier output 0/)
+  assert.equal(taskResult.messages[48].content[0].arguments.value, longArgument)
+  assert.equal(toolResult.content[0].text, modelVisibleOutput)
+})
+
+test('legacy completed single results remain readable and malformed legacy details fall back to model-visible content', async () => {
+  const { createRenderers } = await import(`${pathToFileURL(RENDER).href}?test=${Date.now()}-${Math.random()}`)
+  const renderers = createRenderers(fakeRuntime)
+  const storedResult = result()
 
   for (const expanded of [false, true]) {
     const rendered = render(renderers.renderResult(
-      { content: [{ type: 'text', text: 'line 1\nline 2\nline 3\nline 4\nline 5' }], details: result({ task: longPrompt, messages }) },
+      { content: [{ type: 'text', text: 'legacy model-visible fallback' }], details: { mode: 'single', results: [storedResult] } },
       { expanded, isPartial: false },
       theme,
       {},
     ))
-    assert.match(rendered, /custom-0/)
-    assert.match(rendered, new RegExp(longArgument))
-    assert.match(rendered, /line 5/)
-    assert.doesNotMatch(rendered, /earlier items|Ctrl\+O to expand/)
+    assert.match(rendered, /Inspect the branch/)
+    assert.match(rendered, /Final \*\*answer\*\*/)
   }
+
+  const fallback = render(renderers.renderResult(
+    { content: [{ type: 'text', text: 'legacy model-visible fallback' }], details: { mode: 'single', results: [] } },
+    { expanded: false, isPartial: false },
+    theme,
+    {},
+  ))
+  assert.equal(fallback, 'legacy model-visible fallback')
 })
 
 test('compact and expanded renderers retain exact failure diagnostics', async () => {

@@ -12,7 +12,6 @@ const BASE_MANIFEST = path.join(DEV_KIT_ROOT, 'package.json')
 const PACKAGE_ROOT = path.join(DEV_KIT_ROOT, '.pi', 'extensions', 'subagent')
 const PACKAGE_MANIFEST = path.join(PACKAGE_ROOT, 'package.json')
 const EXTENSION = path.join(PACKAGE_ROOT, 'subagent.ts')
-const INVOCATION = path.join(PACKAGE_ROOT, 'lib', 'invocation.ts')
 const FAKE_PI = path.join(__dirname, 'fixtures', 'fake-pi.js')
 const CHILD_MARKER = 'DEV_KIT_PI_SUBAGENT_CHILD'
 const DEFAULT_TOOLS = ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'subagent']
@@ -127,11 +126,6 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.equal(tool.parameters.additionalProperties, false)
 })
 
-test('single-task invocation exports no deleted mode output adapter', async () => {
-  const mod = await import(`${pathToFileURL(INVOCATION).href}?test=${Date.now()}-${Math.random()}`)
-  assert.equal('getResultOutput' in mod, false)
-})
-
 test('child invocations do not register subagent', async t => {
   const previousMarker = process.env[CHILD_MARKER]
   process.env[CHILD_MARKER] = '1'
@@ -230,9 +224,10 @@ test('single write task launches with fixed tools and explicit runtime choices',
   assert.equal(captures[0].args.at(-1), 'Task: Implement the approved slice')
   assert.match(captures[0].systemPrompt, /dispatched subagent/i)
   assert.match(captures[0].systemPrompt, /must not.*subagent/i)
+  assert.match(captures[0].systemPrompt, /must not take over the whole plan/i)
 })
 
-test('JSONL updates and final details preserve the task tool call, output, usage, and model', async t => {
+test('single task exposes its final model-visible output, tool call, usage, and model', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-jsonl-'))
   const fakePi = path.join(root, 'fake-pi-tool-call.js')
   const message = {
@@ -348,6 +343,26 @@ test('general snapshots active tools on every call, preserves first occurrence, 
     '--tools',
     '',
   ])
+})
+
+test('general rejects comma-containing active tool names before spawn', async t => {
+  const { root, capturePath } = useFakePi(t, 'dev-kit-subagent-comma-tool-')
+
+  for (const activeToolName of ['safe,write', 'subagent,foo']) {
+    const tool = await loadTool(['read', activeToolName])
+    await assert.rejects(
+      () => tool.execute(
+        `comma-${activeToolName}`,
+        { task: 'Use an exactly inherited tool set', profile: 'general' },
+        undefined,
+        undefined,
+        context(root),
+      ),
+      /tools: general profile.*comma/i,
+    )
+  }
+
+  assert.equal(fs.existsSync(capturePath), false, 'a comma-containing active tool launched the child')
 })
 
 test('an unavailable general-profile child tool fails with the child diagnostic instead of falling back', async t => {
@@ -484,6 +499,7 @@ test('invalid single-task fields fail before a Pi process starts', async t => {
     [{ task: 'work', profile: 'write', tools: ['read'] }, /tools/],
     [{ task: 'work', profile: 'write', tools: [] }, /tools/],
     [{ task: 'work', profile: 'write', tools: '' }, /tools/],
+    [{ task: 'work', profile: 'write', mode: 'single', results: [] }, /mode/],
     [{ task: 'work', profile: 'write', unexpected: true }, /unexpected/],
   ]
 

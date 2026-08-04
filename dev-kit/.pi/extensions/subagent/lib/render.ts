@@ -49,6 +49,13 @@ type DisplayItem =
 	| { type: "text"; text: string }
 	| { type: "toolCall"; name: string; args: Record<string, unknown> };
 
+const COMPACT_ITEM_COUNT = 8;
+const COMPACT_ITEM_LENGTH = 512;
+const COMPACT_ARGUMENT_LENGTH = 200;
+const COMPACT_FIELD_LENGTH = 512;
+const COMPACT_ARGUMENT_ENTRIES = 8;
+const COMPACT_ARGUMENT_DEPTH = 4;
+
 export function createRenderers(runtime?: RenderRuntime) {
 	const getRuntime = () => runtime ?? loadRuntime();
 	return {
@@ -58,11 +65,8 @@ export function createRenderers(runtime?: RenderRuntime) {
 		},
 		renderResult(result: any, options: { expanded: boolean }, theme: Theme) {
 			const resolvedRuntime = getRuntime();
-			const details = result.details as TaskResult | undefined;
-			if (!details) {
-				const content = result.content?.find((part: any) => part.type === "text")?.text ?? "(no output)";
-				return new resolvedRuntime.Text(content, 0, 0);
-			}
+			const details = resolveTaskResult(result?.details);
+			if (!details) return new resolvedRuntime.Text(modelVisibleContent(result), 0, 0);
 			return renderTask(details, options.expanded, theme, resolvedRuntime);
 		},
 	};
@@ -79,19 +83,20 @@ function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime
 			? theme.fg("error", "✗")
 			: theme.fg("success", "✓");
 	const header = `${icon} ${theme.fg("toolTitle", theme.bold(result.profile))}`;
-	const items = getDisplayItems(result.messages);
-	const output = getFinalOutput(result.messages);
 	if (!expanded) {
-		let text = `${header}\n${theme.fg("dim", result.task)}`;
+		const { items, hasEarlierItems } = getRecentDisplayItems(result.messages, COMPACT_ITEM_COUNT);
+		let text = `${header}\n${theme.fg("dim", preview(result.task, COMPACT_FIELD_LENGTH))}`;
 		if (items.length === 0) text += `\n${theme.fg("muted", result.exitCode === -1 ? "(running...)" : "(no output)")}`;
-		else text += `\n${renderDisplayItems(items, theme)}`;
-		const diagnostics = formatDiagnostics(result);
+		else text += `\n${renderCompactDisplayItems(items, hasEarlierItems, theme)}`;
+		const diagnostics = formatDiagnostics(result, true);
 		if (diagnostics.length > 0) text += `\n${theme.fg("error", diagnostics.join("\n"))}`;
-		const usage = formatUsage(result.usage, result.model);
+		const usage = formatUsage(result.usage, result.model && preview(result.model, COMPACT_FIELD_LENGTH));
 		if (usage) text += `\n${theme.fg("dim", usage)}`;
 		return new runtime.Text(text, 0, 0);
 	}
 
+	const items = getDisplayItems(result.messages);
+	const output = getFinalOutput(result.messages);
 	const container = new runtime.Container();
 	container.addChild(new runtime.Text(header, 0, 0));
 	container.addChild(new runtime.Spacer(1));
@@ -116,12 +121,13 @@ function renderTask(result: TaskResult, expanded: boolean, theme: Theme, runtime
 	return container;
 }
 
-function formatDiagnostics(result: TaskResult): string[] {
+function formatDiagnostics(result: TaskResult, compact = false): string[] {
 	if (result.exitCode === -1 || !isFailedResult(result)) return [];
+	const detail = (text: string) => compact ? preview(text, COMPACT_FIELD_LENGTH) : text;
 	const lines = [`Exit code: ${result.exitCode}`];
-	if (result.stopReason) lines.push(`Stop reason: ${result.stopReason}`);
-	if (result.errorMessage) lines.push(`Error: ${result.errorMessage}`);
-	if (result.stderr.trim()) lines.push(`Stderr: ${result.stderr.trim()}`);
+	if (result.stopReason) lines.push(`Stop reason: ${detail(result.stopReason)}`);
+	if (result.errorMessage) lines.push(`Error: ${detail(result.errorMessage)}`);
+	if (result.stderr.trim()) lines.push(`Stderr: ${detail(result.stderr.trim())}`);
 	return lines;
 }
 
@@ -130,18 +136,40 @@ function getDisplayItems(messages: Message[]): DisplayItem[] {
 	for (const message of messages) {
 		if (message.role !== "assistant") continue;
 		for (const part of message.content) {
-			if (part.type === "text") items.push({ type: "text", text: part.text });
-			else if (part.type === "toolCall") items.push({ type: "toolCall", name: part.name, args: part.arguments });
+			const item = displayItem(part);
+			if (item) items.push(item);
 		}
 	}
 	return items;
 }
 
-function renderDisplayItems(items: DisplayItem[], theme: Theme): string {
+function getRecentDisplayItems(messages: Message[], limit: number): { items: DisplayItem[]; hasEarlierItems: boolean } {
+	const items: DisplayItem[] = [];
+	for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+		const message = messages[messageIndex];
+		if (message.role !== "assistant") continue;
+		for (let partIndex = message.content.length - 1; partIndex >= 0; partIndex -= 1) {
+			const item = displayItem(message.content[partIndex]);
+			if (!item) continue;
+			if (items.length === limit) return { items: items.reverse(), hasEarlierItems: true };
+			items.push(item);
+		}
+	}
+	return { items: items.reverse(), hasEarlierItems: false };
+}
+
+function displayItem(part: any): DisplayItem | undefined {
+	if (part.type === "text") return { type: "text", text: part.text };
+	if (part.type === "toolCall") return { type: "toolCall", name: part.name, args: part.arguments };
+	return undefined;
+}
+
+function renderCompactDisplayItems(items: DisplayItem[], hasEarlierItems: boolean, theme: Theme): string {
 	const lines: string[] = [];
+	if (hasEarlierItems) lines.push(theme.fg("muted", "… earlier items"));
 	for (const item of items) {
-		if (item.type === "toolCall") lines.push(`→ ${formatToolCall(item.name, item.args)}`);
-		else lines.push(theme.fg("toolOutput", item.text));
+		if (item.type === "toolCall") lines.push(`→ ${preview(formatToolCall(item.name, item.args, true), COMPACT_ITEM_LENGTH)}`);
+		else lines.push(theme.fg("toolOutput", preview(item.text, COMPACT_ITEM_LENGTH)));
 	}
 	return lines.join("\n");
 }
@@ -154,15 +182,162 @@ function addToolCalls(container: ContainerComponent, items: DisplayItem[], theme
 	}
 }
 
-function formatToolCall(name: string, args: Record<string, unknown>): string {
-	if (name === "bash") return `$ ${String(args.command ?? "...")}`;
-	if (name === "read") return `read ${String(args.file_path ?? args.path ?? "...")}`;
-	if (name === "write") return `write ${String(args.file_path ?? args.path ?? "...")}`;
-	if (name === "edit") return `edit ${String(args.file_path ?? args.path ?? "...")}`;
-	if (name === "grep") return `grep /${String(args.pattern ?? "")}/ in ${String(args.path ?? ".")}`;
-	if (name === "find") return `find ${String(args.pattern ?? "*")} in ${String(args.path ?? ".")}`;
-	if (name === "ls") return `ls ${String(args.path ?? ".")}`;
-	return `${name} ${JSON.stringify(args)}`;
+function formatToolCall(name: string, args: Record<string, unknown>, compact = false): string {
+	const value = (argument: unknown, fallback: string) => formatToolArgument(argument ?? fallback, compact);
+	if (name === "bash") return `$ ${value(args.command, "...")}`;
+	if (name === "read") return `read ${value(args.file_path ?? args.path, "...")}`;
+	if (name === "write") return `write ${value(args.file_path ?? args.path, "...")}`;
+	if (name === "edit") return `edit ${value(args.file_path ?? args.path, "...")}`;
+	if (name === "grep") return `grep /${value(args.pattern, "")}/ in ${value(args.path, ".")}`;
+	if (name === "find") return `find ${value(args.pattern, "*")} in ${value(args.path, ".")}`;
+	if (name === "ls") return `ls ${value(args.path, ".")}`;
+	return `${name} ${compact ? formatCompactJson(args, COMPACT_ITEM_LENGTH - name.length - 1) : JSON.stringify(args)}`;
+}
+
+function formatToolArgument(value: unknown, compact: boolean): string {
+	if (!compact) return String(value);
+	if (typeof value === "string") return preview(value, COMPACT_ARGUMENT_LENGTH);
+	try {
+		return preview(String(value), COMPACT_ARGUMENT_LENGTH);
+	} catch {
+		return "(unavailable)";
+	}
+}
+
+function formatCompactJson(value: unknown, maxLength: number): string {
+	let text = "";
+	let truncated = false;
+	let exhausted = false;
+	const seen = new Set<object>();
+	const append = (next: string): boolean => {
+		const remaining = maxLength - text.length;
+		if (remaining <= 0) {
+			truncated = true;
+			exhausted = true;
+			return false;
+		}
+		if (next.length > remaining) {
+			text += next.slice(0, remaining);
+			truncated = true;
+			exhausted = true;
+			return false;
+		}
+		text += next;
+		return true;
+	};
+	const visit = (entry: unknown, depth: number): void => {
+		if (exhausted) return;
+		if (entry === null) {
+			append("null");
+			return;
+		}
+		if (typeof entry === "string") {
+			const sample = entry.slice(0, COMPACT_ARGUMENT_LENGTH);
+			append(JSON.stringify(sample));
+			if (sample.length < entry.length) truncated = true;
+			return;
+		}
+		if (typeof entry === "number" || typeof entry === "boolean") {
+			append(String(entry));
+			return;
+		}
+		if (typeof entry !== "object") {
+			append(JSON.stringify(String(entry)));
+			return;
+		}
+		if (seen.has(entry) || depth >= COMPACT_ARGUMENT_DEPTH) {
+			truncated = true;
+			append('"…"');
+			return;
+		}
+		seen.add(entry);
+		if (Array.isArray(entry)) {
+			append("[");
+			for (let index = 0; index < entry.length && index < COMPACT_ARGUMENT_ENTRIES && !exhausted; index += 1) {
+				if (index > 0) append(",");
+				visit(entry[index], depth + 1);
+			}
+			if (entry.length > COMPACT_ARGUMENT_ENTRIES && !exhausted) {
+				truncated = true;
+				append(",…");
+			}
+			append("]");
+		} else {
+			const record = entry as Record<string, unknown>;
+			append("{");
+			let count = 0;
+			for (const key in record) {
+				if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+				if (count === COMPACT_ARGUMENT_ENTRIES) {
+					truncated = true;
+					append(",…");
+					break;
+				}
+				if (count > 0) append(",");
+				append(JSON.stringify(key.slice(0, COMPACT_ARGUMENT_LENGTH)));
+				append(":");
+				visit(record[key], depth + 1);
+				count += 1;
+				if (exhausted) break;
+			}
+			append("}");
+		}
+		seen.delete(entry);
+	};
+	visit(value, 0);
+	if (!truncated) return text;
+	return text.length >= maxLength
+		? `${text.slice(0, Math.max(0, maxLength - 1))}…`
+		: `${text}…`;
+}
+
+function preview(text: string, maxLength: number): string {
+	return text.length > maxLength ? `${text.slice(0, Math.max(0, maxLength - 1))}…` : text;
+}
+
+function resolveTaskResult(details: unknown): TaskResult | undefined {
+	if (isTaskResult(details)) return details;
+	if (!isRecord(details) || details.mode !== "single" || !Array.isArray(details.results)) return undefined;
+	return isTaskResult(details.results[0]) ? details.results[0] : undefined;
+}
+
+function modelVisibleContent(result: any): string {
+	if (!Array.isArray(result?.content)) return "(no output)";
+	const text = result.content.find((part: unknown) => isRecord(part) && part.type === "text" && typeof part.text === "string");
+	return isRecord(text) && typeof text.text === "string" ? text.text : "(no output)";
+}
+
+function isTaskResult(value: unknown): value is TaskResult {
+	if (!isRecord(value) || !isUsageStats(value.usage) || !isRenderableMessages(value.messages)) return false;
+	return typeof value.task === "string"
+		&& (value.profile === "read-only" || value.profile === "write" || value.profile === "general")
+		&& typeof value.cwd === "string"
+		&& typeof value.exitCode === "number"
+		&& typeof value.stderr === "string"
+		&& (value.model === undefined || typeof value.model === "string")
+		&& (value.stopReason === undefined || typeof value.stopReason === "string")
+		&& (value.errorMessage === undefined || typeof value.errorMessage === "string");
+}
+
+function isUsageStats(value: unknown): value is UsageStats {
+	if (!isRecord(value)) return false;
+	return ["input", "output", "cacheRead", "cacheWrite", "cost", "contextTokens", "turns"].every(field => typeof value[field] === "number");
+}
+
+function isRenderableMessages(value: unknown): value is Message[] {
+	return Array.isArray(value) && value.every(message => {
+		if (!isRecord(message) || typeof message.role !== "string" || !Array.isArray(message.content)) return false;
+		return message.content.every(part => {
+			if (!isRecord(part) || typeof part.type !== "string") return false;
+			if (part.type === "text") return typeof part.text === "string";
+			if (part.type === "toolCall") return typeof part.name === "string" && isRecord(part.arguments);
+			return true;
+		});
+	});
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object";
 }
 
 function formatUsage(usage: UsageStats, model?: string): string {

@@ -65,6 +65,12 @@ export function validateTaskRequest(
 	const thinking = explicitThinking ?? ctx.thinkingLevel;
 
 	const selectedTools = profile === "general" ? pi.getActiveTools() : PROFILE_TOOLS[profile];
+	if (profile === "general") {
+		const commaTool = selectedTools.find(tool => tool.includes(","));
+		if (commaTool) {
+			return invalid("tools", `general profile cannot represent active tool ${JSON.stringify(commaTool)} because it contains a comma`);
+		}
+	}
 	const tools: string[] = [];
 	const seen = new Set<string>();
 	for (const tool of selectedTools) {
