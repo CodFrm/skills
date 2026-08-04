@@ -80,7 +80,7 @@ Run the checklist, then send one message containing:
 - a request to approve or recut the breakdown;
 - execution-mode choices: `subagent` and `inline` when the current harness exposes native dispatch, otherwise only `inline`.
 
-Explain that `subagent` runs each task and both static wrap-up reviews in fresh contexts, while `inline` runs the same steps in the main context, where no review is independent of the work it reviews. Runtime verification runs in the main session under either mode.
+Explain that `subagent` runs each dispatched step in a fresh context, while `inline` runs the same steps in the main context, where no review is independent of the work it reviews. Runtime verification runs in the main session under either mode.
 
 Wait for both decisions. A recut plan repeats the complete gate. Write `status: ready` and `mode` only from the answer, except a harness with no native dispatch forces `inline`.
 

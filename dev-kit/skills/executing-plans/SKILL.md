@@ -20,7 +20,7 @@ The main session is the orchestrator:
 
 ## Resume state
 
-- `doing`: recover its SHA mechanically from history; a read-only scout may identify the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA → `todo`. Never re-dispatch an implementer whose commit exists.
+- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch a read-only scout that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA → `todo`. Never re-dispatch an implementer whose commit exists.
 - `verification.pending`: enter runtime verification after static review.
 - `verification.running`: resume from the partial scratch evidence, covering every requirement still without a verdict.
 - `verification.reported`: inspect the report/evidence, never the branch diff.
@@ -85,7 +85,7 @@ Limits:
 
 ## Wrap-up: two static reviews
 
-Enter when every task is `done` or `blocked`. First require `e2e/scratch/<spec-slug>/report.md` to be ignored; if not, add the ignore rule through the normal implementation/review path before static wrap-up.
+Enter when every task is `done` or `blocked`. First require `e2e/scratch/<spec-slug>/report.md` to be ignored; if not, add the ignore rule through the normal implementation path before static wrap-up.
 
 Send two independent read-only reviews together at `strong`, using [separate prompts](references/wrap-up-prompts.md):
 
