@@ -46,7 +46,7 @@ subagent({
 | Profile | 子进程工具 | 用途与约束 |
 |---|---|---|
 | `read-only` | 固定 `read,bash,grep,find,ls` | 调查、静态审查和验证；prompt 要求不得修改文件、仓库状态或外部系统，bash 只做只读检查 |
-| `write` | 固定 `read,bash,edit,write,grep,find,ls` | 实现、review-and-fix 和不需要项目自定义工具的落盘任务；修改范围由 task prompt 与项目规则决定 |
+| `write` | 固定 `read,bash,edit,write,grep,find,ls` | 实现、退回补齐与 wrap-up 修复这类不需要项目自定义工具的落盘任务；修改范围由 task prompt 与项目规则决定 |
 | `general` | 父会话当前 active tools 去重后所得集合，并无条件排除精确名称 `subagent`；过滤后为空时以无工具模式启动 | 需要父会话已加载的 browser、artifact 或其他 extension 工具时使用；不从 registered tools 扩大集合 |
 
 这些 profile 是工具边界与行为约束，不是 OS sandbox；子进程仍以当前用户权限运行。若父 active tool 在子进程中不可用，调用失败并返回 Pi 诊断，不静默删除能力或 fallback 到更宽集合。

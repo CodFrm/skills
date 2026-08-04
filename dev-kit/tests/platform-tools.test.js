@@ -142,23 +142,21 @@ test('executing-plans closes both incomplete-return causes with one shared send-
 
 test('the loop names who implements in inline mode', () => {
   const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
-  assert.match(loop, /In `inline` mode/)
+  assert.match(loop, /In `inline` mode the main session is the implementer, against the same prompt and the same structured return\./)
 })
 
 test('the done gate is absolute except for the resume path it names', () => {
   const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
-  assert.match(loop, /leaves `doing` only after/)
-  assert.match(loop, /\(#resume-state\)/)
+  assert.match(loop, /leaves `doing` only after the main session records[^.]*for each part of the task goal; only a \[resumed\]\(#resume-state\) task leaves without it\./)
 })
 
-test('an incomplete return re-dispatches against a prompt of its own', () => {
+test('an incomplete return re-dispatches against a prompt scoped to the one gap', () => {
   const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
   assert.match(loop, /\(references\/task-prompts\.md#send-back\)/)
 
   const sendBack = section(readRoot('dev-kit/skills/executing-plans/references/task-prompts.md'), 'Send-back')
-  assert.match(sendBack, /<plan path>/)
-  assert.match(sendBack, /already committed/)
-  assert.match(sendBack, /re-commit/)
+  assert.match(sendBack, /Close one gap in task <id> from <plan path>, already committed at <sha>\./)
+  assert.match(sendBack, /Nothing else is open — do not revisit, refactor or re-commit the rest\./)
 })
 
 test('AGENTS.md and executing-plans state the same sole serial exception', () => {
@@ -196,7 +194,8 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   assert.match(orchestration, /前一个调用返回后.*新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
 
   const profiles = section(packageReadme, 'Profiles and tool resolution')
-  assert.match(profiles, /`write`.*不需要项目自定义工具的落盘任务/)
+  assert.match(profiles, /`write`.*实现、退回补齐与 wrap-up 修复这类不需要项目自定义工具的落盘任务/)
+  assert.doesNotMatch(profiles, /review-and-fix/)
   assert.match(profiles, /`general`.*父会话当前 active tools.*排除精确名称 `subagent`/)
   assert.match(profiles, /过滤后为空时以无工具模式启动/)
   assert.match(profiles, /不从 registered tools 扩大集合/)

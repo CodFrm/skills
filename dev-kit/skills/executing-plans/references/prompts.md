@@ -2,7 +2,7 @@
 
 | Stage | Template |
 |---|---|
-| Task loop | [implementer](task-prompts.md) |
+| Task loop | [implementer](task-prompts.md#implementer), then [send-back](task-prompts.md#send-back) for an incomplete return |
 | Static wrap-up | [spec verifier and code reviewer](wrap-up-prompts.md) |
 
 ## What every dispatch shares

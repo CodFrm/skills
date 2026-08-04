@@ -57,7 +57,7 @@ A structured return is routing input:
 | Status | Transition |
 |---|---|
 | `complete` | `git cat-file -e <sha>^{commit}` must resolve; record the SHA |
-| `complete with concerns` | Same, and copy the concerns verbatim into the task `note` |
+| `complete with concerns` | Same, and append the concerns verbatim to the task `note` |
 | `missing context` | Add verified missing context and re-dispatch; contradiction goes to the user |
 | `stuck` | Change something before retry: add context, raise tier, recut plan, or mark blocked |
 
@@ -104,7 +104,7 @@ Route only their structured findings. Missing fields or ambiguous scope require 
 2. Repeat both static reviews over the full branch.
 3. If blocking findings remain, send only those to one final fresh fixer, record its SHA and run the full suite. Do not run a third static review.
 
-A red suite or unresolved blocking finding after the allowance sets `review.status: stopped`. Record lesser findings in task notes. Otherwise set `review.status: passed`, then write `verification.status: running`, report path and exact current HEAD before starting runtime verification.
+A red suite or unresolved blocking finding after the allowance sets `review.status: stopped`. Append lesser findings to task notes, keeping what each already holds. Otherwise set `review.status: passed`, then write `verification.status: running`, report path and exact current HEAD before starting runtime verification.
 
 ## Runtime verification: the main session drives it
 
