@@ -128,6 +128,18 @@ Model, cwd, trust, output, failure, and abort behavior are retained.
   assert.throws(() => assertPiSingleTaskMapping(staleMapping), /one fresh child/)
 })
 
+test('executing-plans closes both incomplete-return causes with one shared send-back', () => {
+  const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+
+  const loop = section(skill, 'The loop')
+  assert.match(loop, /declares a goal part incomplete, or leaves one without that record/)
+  assert.match(loop, /both causes draw on that single send-back/)
+
+  const limits = section(skill, 'When to stop, and when not to')
+  assert.match(limits, /\| Incomplete implementer return \| one send-back \| task `blocked` \|/)
+  assert.doesNotMatch(limits, /Implementer-declared shortfall/)
+})
+
 test('Pi public guidance preserves installation and attribution while rejecting the old contract', () => {
   const catalog = readRoot('README.md')
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
