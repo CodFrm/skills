@@ -75,7 +75,11 @@ plan 模板不再有 `parallel_evidence` 段。`task.status` 的合法值为 `to
 
 ## 引用清理
 
-移除 `#parallel-is-proved-not-assumed` 之后，下列文件不得残留指向该锚点的链接或以四边界闸门为前提的句子：`dev-kit/README.md`、`skills/using-dev-kit/SKILL.md`（注入每个会话的引导）、`skills/using-dev-kit/references/dispatching.md`、`claude-tools.md`、`codex-tools.md`、`pi-tools.md`、`skills/systematic-debugging/SKILL.md`、`skills/init/SKILL.md`、`skills/writing-plans/SKILL.md`、`skills/executing-plans/references/prompts.md`、`task-prompts.md`、`wrap-up-prompts.md`、`.pi/extensions/subagent/README.md`。三份平台工具映射中「派发一个闸门批准的并行批次」一行随之移除；Pi 与 Codex 的多调用并行描述改述为仅适用于 wrap-up 两轴。
+判据是句子，不是文件清单：`#parallel-is-proved-not-assumed` 移除后，仓库里不得残留指向该锚点的链接，也不得残留以任务级并行或 batch review 为前提的句子。交付前按判据重新搜索，不得只核对下面这份清单。三份平台工具映射中「派发一个闸门批准的并行批次」一行随之移除；Pi 与 Codex 的多调用并行描述改述为仅适用于 wrap-up 两轴。
+
+测试固化的措辞与 prose 同属该判据：一条把陈旧前提钉死的断言，会在 prose 被改对之后把陈旧前提保下来，也会让「只改 prose」的任务看起来是绿的。
+
+已知站点，非穷举：`AGENTS.md`、根 `README.md`、`dev-kit/README.md`、`skills/using-dev-kit/SKILL.md`（注入每个会话的引导）、`skills/using-dev-kit/references/` 下的 `dispatching.md`、`claude-tools.md`、`codex-tools.md`、`pi-tools.md`、`skills/systematic-debugging/SKILL.md`、`skills/init/SKILL.md`、`skills/writing-plans/SKILL.md`、`skills/executing-plans/SKILL.md` 及其 `references/` 下的 `prompts.md`、`task-prompts.md`、`wrap-up-prompts.md`、`.pi/extensions/subagent/README.md`、`dev-kit/tests/platform-tools.test.js`。
 
 `AGENTS.md` 的两条编排硬约束改为：第 1 条声明派发默认串行、唯一例外是 wrap-up 两轴静态评审（只读、不写工作树/index/HEAD、不共享可变资源，可同时发出）；第 2 条逐字保留。承重清单中的「独立静态审查」明确指 wrap-up 两轴。
 
@@ -97,7 +101,7 @@ plan 模板不再有 `parallel_evidence` 段。`task.status` 的合法值为 `to
 | `dev-kit/tests/plan.test.js` 中模板与 `VOCAB` / `KEYS` 的逐字相等断言 | 提示词模板与 `lib/plan.js` 的状态词表、schema 键同步；`reviewing` 与 `parallel_evidence` 在两处同时消失 | 现有 `plan.test.js:62`、`:72`；`:83-85` 从模板注释推导 `KEYS.evidence`，随该块一并删除 |
 | `devkit plan task <id> --status reviewing` | 已移除的状态被拒绝并列出合法值，不写入文件 | 现有 off-vocabulary 拒绝用例 |
 | `devkit plan evidence` | 子命令不再存在，报未知子命令并打印 usage | 现有未知子命令用例 |
-| `AGENTS.md` 的锚点校验脚本 | 13 份文件中无指向已删锚点的断链 | `AGENTS.md`「删完之后」一节 |
+| `AGENTS.md` 的锚点校验脚本 | 仓库内无指向已删锚点的断链（脚本遍历全部被跟踪 `*.md`，不依赖文件清单） | `AGENTS.md`「删完之后」一节 |
 | `node --test dev-kit/tests/*.test.js` | 全绿，含 manifests 一致性 | 现有测试目录 |
 
 无法自动化的部分：提示词正文是否仍然可执行（动作、状态、责任人、输入、输出、停止条件齐全），以及承重边界是否被精简误伤。由 wrap-up 的两轴静态评审对照本 spec 与 `AGENTS.md` 三关判断；runtime verification 以一次真实的 `executing-plans` 走查覆盖循环形状。
