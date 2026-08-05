@@ -86,7 +86,7 @@ Limits:
 | Resume commit scout | one dispatch | task `todo` |
 | `missing context` or `stuck` | one re-dispatch | task `blocked` |
 | Incomplete implementer return | one send-back | task `blocked` |
-| Wrap-up axis | one logical review-and-fix pass; interrupted invocations resume its receipt | review `stopped` |
+| Wrap-up axis | one writable pass, plus one read-only confirmation when it changes HEAD | review `stopped` |
 
 ## Wrap-up: two review-and-fix axes
 
@@ -101,7 +101,9 @@ Run the two independent axes serially at `strong`, using [separate prompts](refe
 
 Before each axis, require a clean tree and record `review.status: running`, its `axis`, exact pre-dispatch `head` and `.dev-kit/reviews/<slug>/<axis>.md` `receipt`. Give the axis the absolute workspace, branch range, pre-dispatch HEAD, receipt, full-suite command, commit convention and write boundary. Never merge the axes or put one axis's conclusions into the other prompt. In `inline` mode, perform the same state transitions and receipt writes yourself.
 
-On return or resume, require the receipt to match the recorded axis/head, final HEAD to resolve, the tree to be clean and every required command to carry an exit code and deciding observation. Append the final HEAD to `review.fixes` only when it differs from the recorded head, then rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
+On return or resume, require the receipt to match the recorded axis/head, report each finding and action, resolve final HEAD, leave a clean tree and carry an exit code and deciding observation for every required command. Rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session.
+
+When final HEAD differs from the recorded head, append it to `review.fixes`, record a fresh same-axis confirmation against that HEAD and dispatch the [read-only confirmation prompt](references/wrap-up-prompts.md#same-axis-confirmation). The confirmation reports remaining findings but must not change tracked files or HEAD; any finding, invalid receipt or red command sets review and plan `stopped`. A writable axis with unchanged HEAD, or its clean confirmation, completes that axis. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
 
 ## Runtime verification: the main session drives it
 

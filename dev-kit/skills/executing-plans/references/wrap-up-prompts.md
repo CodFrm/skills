@@ -33,3 +33,17 @@ implementations or interfaces.
 For each finding, give file:line, the concrete breaking input/state and fix it. Ignore historical size
 in untouched code. Do not claim runtime observation; stay in range except for a named precedent/risk check.
 ```
+
+## Same-axis confirmation
+
+```text
+In <workspace>, independently confirm the completed <spec verification | code review> axis over
+<range> at exact HEAD <pre-head>. Use the same axis ownership above. Receipt <receipt>, full suite
+<full-suite>.
+
+Read the whole current branch input required by that axis; do not rely on its prior receipt as a verdict.
+Do not change tracked files, the index or HEAD. For each remaining owned finding, give file:line and the
+concrete unmet spec clause or breaking input/state. Run focused checks needed for the verdict and the full
+suite. Return `complete` only when no owned finding remains; otherwise return `blocked` with every finding.
+Write the receipt and structured return under the shared contract, omitting commit and action fields.
+```
