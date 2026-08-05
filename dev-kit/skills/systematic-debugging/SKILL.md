@@ -26,7 +26,7 @@ This process runs before TDD wherever a fault appears. Diagnostic work is read-o
 
 ## Disproving hypotheses with subagents
 
-Each hypothesis may be a bounded subagent task returning predicted vs observed and eliminated vs standing. Dispatch serially, including read-only experiments.
+Each hypothesis may be one bounded subagent task returning predicted vs observed and eliminated vs standing. Dispatch serially, including read-only experiments; an inconclusive return is not re-dispatched.
 
 The main session owns the reproduction, global attempt count and root-cause decision.
 

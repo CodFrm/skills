@@ -27,7 +27,8 @@ const VOCAB = {
   status: ['draft', 'ready', 'running', 'done', 'stopped'],
   mode: ['subagent', 'inline'],
   taskStatus: ['todo', 'doing', 'done', 'blocked'],
-  reviewStatus: ['pending', 'passed', 'stopped'],
+  reviewStatus: ['pending', 'running', 'passed', 'stopped'],
+  reviewAxis: ['none', 'spec', 'code'],
   verificationStatus: ['pending', 'running', 'reported', 'accepted', 'blocked'],
 }
 
@@ -36,7 +37,7 @@ const VOCAB = {
 const KEYS = {
   plan: ['spec', 'status', 'mode', 'worktree', 'goal', 'context', 'tasks', 'review', 'verification'],
   task: ['id', 'goal', 'deps', 'files', 'model', 'interfaces', 'status', 'commit', 'note'],
-  review: ['status', 'fixes'],
+  review: ['status', 'axis', 'head', 'receipt', 'fixes', 'note'],
   verification: ['status', 'report', 'head', 'note'],
 }
 
@@ -388,6 +389,28 @@ function checkPlan(doc) {
     vocab(e.value, 'status', `${key}.status`, allowed)
   }
 
+  const reviewEntry = guard(() => entryOf(root, 'review'))
+  if (reviewEntry && reviewEntry.value.kind === 'map') {
+    const review = reviewEntry.value
+    vocab(review, 'axis', 'review.axis', VOCAB.reviewAxis, { required: true })
+    const stateEntries = Object.fromEntries(['status', 'axis', 'head', 'receipt'].map(key => [key, guard(() => entryOf(review, key))]))
+    if (Object.values(stateEntries).every(e => e && e.value.kind === 'scalar')) {
+      const status = stateEntries.status.value.text
+      const axis = stateEntries.axis.value.text
+      const head = stateEntries.head.value.text
+      const receipt = stateEntries.receipt.value.text
+      if (status === 'running') {
+        if (!['spec', 'code'].includes(axis)) fail(stateEntries.axis.line, 'review.axis: running review needs spec or code')
+        if (!head) fail(stateEntries.head.line, 'review.head: running review needs the pre-dispatch HEAD')
+        if (!receipt) fail(stateEntries.receipt.line, 'review.receipt: running review needs an ignored receipt path')
+      } else if (status === 'pending' || status === 'passed') {
+        if (axis !== 'none') fail(stateEntries.axis.line, `review.axis: ${status} review needs none`)
+        if (head !== null) fail(stateEntries.head.line, `review.head: ${status} review needs null`)
+        if (receipt !== null) fail(stateEntries.receipt.line, `review.receipt: ${status} review needs null`)
+      }
+    }
+  }
+
   const byLine = (a, b) => a.line - b.line
   return { errors: errors.sort(byLine), notes: notes.sort(byLine) }
 }
@@ -607,18 +630,17 @@ const SUBS = {
   check: { flags: ['--plan'] },
   set: { flags: ['--plan'], positional: ['field', 'value'] },
   task: { flags: ['--plan', '--status', '--commit', '--note'], positional: ['id'] },
-  review: { flags: ['--plan', '--status', '--fix'] },
+  review: { flags: ['--plan', '--status', '--axis', '--head', '--receipt', '--fix', '--note'] },
   context: { flags: ['--plan', '--add'] },
   verification: { flags: ['--plan', '--status', '--report', '--head', '--note'] },
 }
 const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|verification> [--plan <slug>] ...`
 
-// review.fixes is capped at two per writing-plans/SKILL.md's "up to two wrap-up fixer SHAs"; past
-// that the static wrap-up limit (executing-plans/SKILL.md) is on review.status: stopped, not a
-// third fix.
+// One optional commit per wrap-up axis makes review.fixes at most two entries.
 const FIXES_LIMIT = 2
 
 const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeScalar(value)}`]
+const nullableFlag = value => value === 'null' ? null : value
 
 function parseFlags(argv, allowed) {
   const flags = {}
@@ -752,14 +774,15 @@ async function cmdPlan(argv, io = {}) {
       const entry = entryOf(doc.root, 'review')
       if (!entry) { err(`devkit: ${name}: review: not found`); return 1 }
       if (entry.value.kind !== 'map') throw new PlanError('review: is not an object, so its fields cannot be written', entry.line)
-      const edits = []
-      if (flags.status !== undefined) {
-        edits.push(...resolveEdits(doc, entry.value, [{ key: 'status', value: flags.status, vocab: VOCAB.reviewStatus, label: 'review.status' }]))
-      }
+      const vocabs = { status: VOCAB.reviewStatus, axis: VOCAB.reviewAxis, head: null, receipt: null, note: null }
+      const fields = Object.keys(vocabs)
+        .filter(key => flags[key] !== undefined)
+        .map(key => ({ key, value: ['head', 'receipt', 'note'].includes(key) ? nullableFlag(flags[key]) : flags[key], vocab: vocabs[key], label: `review.${key}` }))
+      const edits = fields.length ? resolveEdits(doc, entry.value, fields) : []
       if (flags.fix !== undefined) {
         edits.push(resolveAppend(doc, entry.value, 'fixes', 'review.fixes', scalarItem(flags.fix), FIXES_LIMIT))
       }
-      if (!edits.length) { err(`devkit: plan review needs --status or --fix\n${USAGE}`); return 1 }
+      if (!edits.length) { err(`devkit: plan review needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')} or --fix\n${USAGE}`); return 1 }
       await save(edits)
       return 0
     }
@@ -775,7 +798,7 @@ async function cmdPlan(argv, io = {}) {
       const vocabs = { status: VOCAB.verificationStatus, report: null, head: null, note: null }
       const fields = Object.keys(vocabs)
         .filter(key => flags[key] !== undefined)
-        .map(key => ({ key, value: flags[key], vocab: vocabs[key], label: `verification.${key}` }))
+        .map(key => ({ key, value: key === 'status' ? flags[key] : nullableFlag(flags[key]), vocab: vocabs[key], label: `verification.${key}` }))
       if (!fields.length) { err(`devkit: plan verification needs ${Object.keys(vocabs).map(k => `--${k}`).join(', ')}\n${USAGE}`); return 1 }
       await save(resolveEdits(doc, entry.value, fields))
       return 0

@@ -20,15 +20,15 @@ Before asking the user, apply [the three gates](references/asking-users.md#three
 
 | Request state | Route |
 |---|---|
-| Settled small change: observable result, scope, location and verification are fixed, and the work fits one session | No chain. Use `test-driven-development` for behaviour; otherwise run the applicable project checks |
+| Settled small change: observable result, scope and verification are fixed | `brainstorming` compact path: record and approve the requirement without reopening design |
 | New or changed behaviour, UI or contract with an undecided requirement or boundary | `brainstorming` |
 | Bug, failing test/build, regression or unexplained mismatch | `systematic-debugging` |
 | Project constraints, contributor docs or recurring convention failures need establishing | `init` — independent of the development chain |
 
-If any requirement or boundary is undecided, route to `brainstorming`. Implementation never runs directly on `main` or `master`.
+Every tracked change uses the spec/workspace/plan chain; a settled change skips exploration, not its durable contract or verification. Implementation never runs directly on `main` or `master`.
 
 ## Platform tools
 
 Before dispatching, read exactly one current-harness mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). If it exposes no native subagent, choose "inline".
 
-[dispatching.md](references/dispatching.md) owns what to delegate. Dispatch is serial by default; [`executing-plans`](../executing-plans/SKILL.md) owns the sole exception.
+[dispatching.md](references/dispatching.md) owns what to delegate. Dispatch is serial; [`executing-plans`](../executing-plans/SKILL.md) owns the task and wrap-up sequence.

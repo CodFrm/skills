@@ -39,10 +39,10 @@ DevKit 应写成流程控制和状态机，不写成教程或百科：
 - 一条约束只有在删掉后会导致流程错误、安全问题、不可恢复状态或证据失真时才作为硬规则保留；偏好不要写成硬约束。
 - 精简不能以歧义换长度：动作、状态、责任人、输入、输出和停止条件必须仍可直接执行。
 
-以下属于流程承重边界，不因精简删除：用户审批及破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、wrap-up 两轴独立静态审查、主会话亲自跑的 runtime verification、证据真实性，以及两条编排硬约束：
+以下属于流程承重边界，不因精简删除：用户审批及破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、wrap-up 两轴独立审查与各自修复、主会话亲自跑的 runtime verification、证据真实性，以及两条编排硬约束：
 
-1. 派发默认串行；唯一例外是 wrap-up 的两轴静态评审——只读、不写工作树/index/HEAD、不共享可变资源，同时发出。
-2. `subagent` 模式下主会话不审 source、commit 或 diff，只依据 implementer/reviewer 的结构化报告、自己的 runtime 观察和机械检查做决策；报告不足时重新派发，不自行补审。runtime verification 例外：它由主会话亲自跑，为驱动目标而读启动方式、接口和选择器不算审查。
+1. 派发全部串行，wrap-up 两轴也不例外。
+2. `subagent` 模式下主会话不审 source、commit 或 diff；它只依据结构化返回、wrap-up receipt、自己的 runtime 观察和机械检查，按 `executing-plans` 有界退回或恢复，不自行补审。runtime verification 由主会话亲自跑；为驱动目标而读启动方式、接口和选择器不算审查。
 
 写 `SKILL.md` 及其引用文件时，每句话过三关。
 

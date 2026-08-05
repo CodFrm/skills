@@ -19,8 +19,12 @@ tasks:
     note: null
 
 review:
-  status: pending             # pending → passed | stopped
-  fixes: []                   # up to two wrap-up fixer SHAs
+  status: pending             # pending → running → passed | stopped
+  axis: none                  # none | spec | code
+  head: null                  # current axis pre-dispatch HEAD
+  receipt: null               # ignored .dev-kit/reviews/<slug>/<axis>.md
+  fixes: []                   # up to two wrap-up axis SHAs
+  note: null
 
 verification:
   status: pending             # pending → running → reported → accepted | blocked

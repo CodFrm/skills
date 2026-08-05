@@ -33,11 +33,9 @@ function assertPiSingleTaskMapping(mapping) {
   assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
   assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
   assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
-  assert.match(dispatch, /Only the wrap-up spec-verification and code-review axes send multiple sibling `subagent` calls in one assistant message; Pi runs them concurrently\./)
+  assert.match(dispatch, /main session owns serial dispatch/)
   assert.doesNotMatch(dispatch, /parallel-is-proved-not-assumed|exact current HEAD|approves parallel dispatch|parallel_evidence/)
   assert.match(dispatch, /keeps no scheduler or queue/)
-  assert.match(dispatch, /does not cancel or retry sibling calls/)
-  assert.match(dispatch, /does not aggregate their results/)
   assert.match(dispatch, /never writes `\.dev-kit\/plans\/\*\.yaml`/)
 
   const profiles = section(mapping, 'Profiles and tool resolution')
@@ -85,7 +83,7 @@ test('Codex mapping uses the collaboration tools exposed by the current harness'
     assert.match(mapping, new RegExp(`\\b${tool}\\b`))
   }
   assert.doesNotMatch(mapping, /\bclose_agent\b/)
-  assert.match(mapping, /Dispatch is serial by default; only the wrap-up spec-verification and code-review axes use multiple `spawn_agent` calls, bounded by the available slots\./)
+  assert.match(mapping, /Dispatch every task serially, including the wrap-up axes\./)
   assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
@@ -93,7 +91,7 @@ test('Claude mapping keeps native subagents and task tracking distinct', () => {
   const mapping = read('references/claude-tools.md')
   assert.match(mapping, /`Task`/)
   assert.match(mapping, /`TodoWrite`/)
-  assert.match(mapping, /Dispatch is serial by default; the wrap-up spec-verification and code-review axes are the sole parallel exception, issuing multiple `Task` calls in one message\./)
+  assert.match(mapping, /Dispatch every task serially, including the wrap-up axes\./)
   assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
@@ -159,11 +157,46 @@ test('an incomplete return re-dispatches against a prompt scoped to the one gap'
   assert.match(sendBack, /Nothing else is open — do not revisit, refactor or re-commit the rest\./)
 })
 
-test('AGENTS.md and executing-plans state the same sole serial exception', () => {
-  assert.match(readRoot('AGENTS.md'), /唯一例外是 wrap-up 的两轴静态评审/)
+test('every formerly open-ended subagent return has one bounded follow-up', () => {
+  const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+  const limits = section(skill, 'When to stop, and when not to')
+
+  assert.match(limits, /\| Resume commit scout \| one dispatch \| task `todo` \|/)
+  assert.match(limits, /\| `missing context` or `stuck` \| one re-dispatch \| task `blocked` \|/)
+  assert.match(limits, /\| Wrap-up axis \| one logical review-and-fix pass; interrupted invocations resume its receipt \| review `stopped` \|/)
+  assert.match(readRoot('dev-kit/skills/systematic-debugging/SKILL.md'), /an inconclusive return is not re-dispatched/)
+})
+
+test('implementation and wrap-up axes self-review, self-fix and return only blockers', () => {
+  const taskPrompts = readRoot('dev-kit/skills/executing-plans/references/task-prompts.md')
+  const sharedPrompts = readRoot('dev-kit/skills/executing-plans/references/prompts.md')
+  const wrapUpPrompts = readRoot('dev-kit/skills/executing-plans/references/wrap-up-prompts.md')
+
+  assert.match(taskPrompts, /fix every issue found\s+within the task/)
+  assert.match(taskPrompts, /Do not return non-blocking review advice/)
+  assert.match(taskPrompts, /do not delegate non-blocking cleanup to the orchestrator/)
+  assert.match(sharedPrompts, /Fix all owned findings and non-blocking cleanup/)
+  assert.match(sharedPrompts, /Make\s+no empty commit/)
+  assert.match(sharedPrompts, /Initialize the ignored receipt as `running`/)
+  for (const slot of ['<workspace>', '<range>', '<pre-head>', '<receipt>', '<full-suite>', '<commit convention>', '<write boundary>']) {
+    assert.match(sharedPrompts, new RegExp(slot.replace(/[<>]/g, '\\$&')))
+  }
+  assert.doesNotMatch(wrapUpPrompts, /Read only|Do not modify the tree\/index\/HEAD/)
+})
+
+test('blocked tasks stop before wrap-up and runtime findings await a user decision', () => {
+  const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+  assert.match(skill, /any `blocked` task sets plan `status: stopped`/)
+  assert.match(skill, /Enter only when every task is `done`/)
+  assert.match(skill, /Otherwise keep `reported`.*ask the user to choose/s)
+  assert.match(skill, /Only explicit acceptance sets verification `accepted` and plan `done`/)
+})
+
+test('AGENTS.md and executing-plans require every dispatch to be serial', () => {
+  assert.match(readRoot('AGENTS.md'), /派发全部串行/)
   assert.match(
     readRoot('dev-kit/skills/executing-plans/SKILL.md'),
-    /The sole exception is the two static wrap-up axes/,
+    /Dispatch is serial — one subagent, its return recorded and mechanically checked, then the next/,
   )
 })
 
@@ -172,7 +205,7 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
   const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
 
-  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话默认串行派发，只有 wrap-up 两轴静态评审同时发出多个并行 sibling calls.*基础 dev-kit 仍保持 inline/)
+  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话全程串行派发.*基础 dev-kit 仍保持 inline/)
   assert.doesNotMatch(catalog, /single、parallel 与 chain|获准的并行|并行批次/)
 
   assert.match(packageReadme, /基础 `dev-kit\/package\.json` 不引用本包/)
@@ -187,15 +220,13 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   assert.match(contract, /`tasks`、`chain`、`tools` 以及其他未知字段都会在启动前拒绝，不做兼容转换/)
 
   const orchestration = section(packageReadme, '编排边界')
-  assert.match(orchestration, /主会话默认串行处理依赖/)
-  assert.match(orchestration, /唯一例外是 wrap-up 的 spec 验证轴与 code review 轴，二者可在同一 assistant message 中发送多个并行 sibling `subagent` calls/)
+  assert.match(orchestration, /主会话串行处理所有依赖和 wrap-up 两轴/)
   assert.doesNotMatch(orchestration, /parallel-is-proved-not-assumed|当前精确 HEAD|批准并行派发/)
-  assert.match(orchestration, /不保留 scheduler 或 queue.*不聚合 sibling results.*不写 `\.dev-kit\/plans\/\*\.yaml`/)
+  assert.match(orchestration, /不保留 scheduler 或 queue.*不写 `\.dev-kit\/plans\/\*\.yaml`/)
   assert.match(orchestration, /前一个调用返回后.*新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
 
   const profiles = section(packageReadme, 'Profiles and tool resolution')
-  assert.match(profiles, /`write`.*实现、退回补齐与 wrap-up 修复这类不需要项目自定义工具的落盘任务/)
-  assert.doesNotMatch(profiles, /review-and-fix/)
+  assert.match(profiles, /`write`.*实现、退回补齐与 wrap-up 审查修复这类不需要项目自定义工具的落盘任务/)
   assert.match(profiles, /`general`.*父会话当前 active tools.*排除精确名称 `subagent`/)
   assert.match(profiles, /过滤后为空时以无工具模式启动/)
   assert.match(profiles, /不从 registered tools 扩大集合/)

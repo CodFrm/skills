@@ -1,6 +1,6 @@
 # Runtime verification
 
-Verdicts come from observed behaviour of the built target, never from code, mocks or green tests. Read the spec completely, plus `docs/verification.md` and the e2e guide when present, then read whatever identifies how to start, reach and drive the target — and stop there. Judging the implementation belonged to the two static reviews.
+Verdicts come from observed behaviour of the built target, never from code, mocks or green tests. Read the spec completely, plus `docs/verification.md` and the e2e guide when present, then read whatever identifies how to start, reach and drive the target — and stop there. Judging and fixing the implementation belonged to the two wrap-up axes.
 
 ## Before running
 
@@ -41,3 +41,7 @@ Write `e2e/scratch/<spec-slug>/report.md` as you work. Follow the project's repo
 - created artifacts and cleanup state;
 - initial/final HEAD, clean-tree output and plan checksum;
 - shortest clean-checkout reproduction steps for the user.
+
+After validating the report, accept automatically only when every requirement holds. Otherwise keep
+verification `reported` and let the user choose whether to accept the findings, provide/authorize
+missing real input, or request a separate correction round. Never repair or start that round here.

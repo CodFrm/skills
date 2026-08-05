@@ -14,14 +14,15 @@ The main session is the orchestrator:
 
 1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
 2. It records and routes each return immediately; a finished task does not pause the loop.
-3. Dispatch is serial — one subagent, its return recorded, then the next. The sole exception is the two static wrap-up axes, which are read-only and go out together.
-4. In `subagent` mode it never reviews source, commit content or diffs. It decides from structured implementer/reviewer results, its own runtime observations and mechanical SHA/state checks. An insufficient return is closed by another dispatch, never by the main session's own inspection.
-5. Work is not complete in the context that produced it: two-axis static wrap-up → runtime verification.
+3. Dispatch is serial — one subagent, its return recorded and mechanically checked, then the next.
+4. In `subagent` mode it never reviews source, commits or diffs. It decides from structured returns, ignored wrap-up receipts, runtime observations and mechanical state checks. A lost wrap-up invocation resumes the same recorded axis; it is not a replacement or another review pass.
+5. Work is not complete after task implementation: two-axis review-and-fix wrap-up → runtime verification.
 
 ## Resume state
 
-- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch a read-only scout that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA → `todo`. Never re-dispatch an implementer whose commit exists.
-- `verification.pending`: enter runtime verification after static review.
+- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch one read-only scout that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA or an inconclusive scout → `todo`. Never re-dispatch an implementer whose commit exists.
+- `review.running`: validate its receipt; route a complete/blocked receipt, or resume the recorded axis against `review.head` without starting another pass.
+- `review.passed` with `verification.pending`: enter runtime verification.
 - `verification.running`: resume from the partial scratch evidence, covering every requirement still without a verdict.
 - `verification.reported`: inspect the report/evidence, never the branch diff.
 - `verification.accepted`: hand back.
@@ -57,15 +58,17 @@ A structured return is routing input:
 | Status | Transition |
 |---|---|
 | `complete` | `git cat-file -e <sha>^{commit}` must resolve; record the SHA |
-| `complete with concerns` | Same, and append the concerns verbatim to the task `note` |
-| `missing context` | Add verified missing context and re-dispatch; contradiction goes to the user |
-| `stuck` | Change something before retry: add context, raise tier, recut plan, or mark blocked |
+| `complete with concerns` | Same, and append only blocking concerns verbatim to the task `note` |
+| `missing context` | Add verified missing context and re-dispatch once; a second return marks the task `blocked`, while a contradiction requiring a decision goes to the user |
+| `stuck` | Change something once before retry: add context, raise tier or recut the plan; a second return marks the task `blocked` |
 
 ### What makes a task `done`
 
 A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
 
 A return that declares a goal part incomplete, or leaves one without that record, goes back once for the named part alone through [the send-back prompt](references/task-prompts.md#send-back) — both causes draw on that single send-back, and a second short return marks the task `blocked`.
+
+After the task loop, any `blocked` task sets plan `status: stopped`; report its exact note and do not enter wrap-up. Only an all-`done` task set may continue.
 
 ## When to stop, and when not to
 
@@ -80,35 +83,29 @@ Limits:
 
 | Scope | Limit | Exhausted state |
 |---|---|---|
+| Resume commit scout | one dispatch | task `todo` |
+| `missing context` or `stuck` | one re-dispatch | task `blocked` |
 | Incomplete implementer return | one send-back | task `blocked` |
-| Static wrap-up | two review passes and at most two fixer dispatches | blocking → plan `stopped`; others noted |
+| Wrap-up axis | one logical review-and-fix pass; interrupted invocations resume its receipt | review `stopped` |
 
-## Wrap-up: two static reviews
+## Wrap-up: two review-and-fix axes
 
-Enter when every task is `done` or `blocked`. First require `e2e/scratch/<spec-slug>/report.md` to be ignored; if not, add the ignore rule through the normal implementation path before static wrap-up.
+Enter only when every task is `done`. Require both `e2e/scratch/<spec-slug>/report.md` and `.dev-kit/reviews/<spec-slug>/` to be ignored; add a missing rule through the normal implementation path before wrap-up.
 
-Send two independent read-only reviews together at `strong`, using [separate prompts](references/wrap-up-prompts.md):
+Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each axis reviews the whole current branch, fixes its findings, self-reviews, runs the full suite and makes at most one commit:
 
-| Axis | Reads | Decides |
+| Axis | Reads | Owns |
 |---|---|---|
-| Spec verification | approved spec + whole branch diff | missing/partial work, unrequested behaviour, wrong implementation of agreed behaviour |
+| Spec verification | approved spec + whole branch diff | missing/partial work, unrequested behaviour and wrong implementation of agreed behaviour |
 | Code review | whole branch diff, not the spec | correctness, edge cases, error handling, security, dead code, test value and cross-task drift |
 
-Never merge the axes or bias either prompt with earlier review conclusions. In `inline` mode, perform both yourself against the same prompts.
+Before each axis, require a clean tree and record `review.status: running`, its `axis`, exact pre-dispatch `head` and `.dev-kit/reviews/<slug>/<axis>.md` `receipt`. Give the axis the absolute workspace, branch range, pre-dispatch HEAD, receipt, full-suite command, commit convention and write boundary. Never merge the axes or put one axis's conclusions into the other prompt. In `inline` mode, perform the same state transitions and receipt writes yourself.
 
-Route only their structured findings. Missing fields or ambiguous scope require a replacement reviewer; the main session does not inspect the branch to complete the review.
-
-## The two fix rounds
-
-1. Send initial findings to a fresh fixer; each finding starts with a failing test. Record its SHA and run the full suite.
-2. Repeat both static reviews over the full branch.
-3. If blocking findings remain, send only those to one final fresh fixer, record its SHA and run the full suite. Do not run a third static review.
-
-A red suite or unresolved blocking finding after the allowance sets `review.status: stopped`. Append lesser findings to task notes, keeping what each already holds. Otherwise set `review.status: passed`, then write `verification.status: running`, report path and exact current HEAD before starting runtime verification.
+On return or resume, require the receipt to match the recorded axis/head, final HEAD to resolve, the tree to be clean and every required command to carry an exit code and deciding observation. Append the final HEAD to `review.fixes` only when it differs from the recorded head, then rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
 
 ## Runtime verification: the main session drives it
 
-After static review passes, verify the branch in its real runtime yourself, under either mode, following [runtime-verification.md](references/runtime-verification.md). Never dispatch it: a subagent cannot ask the user, and this step is where the user's answer is needed mid-run.
+After wrap-up passes, verify the branch in its real runtime yourself, under either mode, following [runtime-verification.md](references/runtime-verification.md). Never dispatch it: a subagent cannot ask the user, and this step is where the user's answer is needed mid-run.
 
 You may build/start the real target, drive UI/API/CLI/e2e and write only ignored scratch evidence. You must not fix code, change tracked files, weaken checks, or perform an unapproved destructive/external action. Every spec requirement receives exactly `holds`, `does not hold` or `not observed`, with runtime evidence. The report must include exact reproduction steps for the user.
 
@@ -120,11 +117,11 @@ A requirement `not observed` because `.env` configures no real dependency does n
 |---|---|
 | fills `.env` | resume those requirements alone and merge their evidence into the same `report.md` |
 | authorizes a way to reach an environment | the same, recording that sentence verbatim in the report's authorization list; a mocked path still returns `not observed` |
-| declines | those requirements stay `not observed` and reach [delivery](#handing-it-back) unchanged |
+| declines | finish the report with those requirements `not observed`, keep verification `reported`, and ask whether to accept those findings for delivery |
 
 Once the report is written, set `verification.status: reported` and check it against the evidence: every requirement present; every `holds` backed by command, exit code and deciding observation; linked artifacts readable; initial/final HEAD, clean tree and plan checksum consistent. An unsupported claim is re-observed at the runtime or downgraded — never argued from source or diff.
 
-State every non-hold and unobserved requirement, then set `verification.status: accepted` and plan `status: done`. `done` means the bounded verification finished with findings intact, not that every requirement holds.
+If every requirement holds, set verification `accepted` and plan `done`. Otherwise keep `reported`, state every non-hold/unobserved requirement and ask the user to choose: accept the findings for delivery, provide/authorize the missing real input, or request a separately approved correction round. Only explicit acceptance sets verification `accepted` and plan `done`; runtime verification never fixes tracked files or starts that round itself.
 
 ## Handing it back
 

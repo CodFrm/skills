@@ -80,7 +80,7 @@ Otherwise continue from [`brainstorming` route selection](../brainstorming/SKILL
 
 ## Delivery and cleanup
 
-Enter only after static wrap-up and runtime verification finish.
+Enter only after review-and-fix wrap-up and runtime verification finish.
 
 1. Run the full suite on the exact delivery tree. Stop on red.
 2. Resolve the baseline from `origin/HEAD`, branch reflog and `git merge-base`; ask only if those cannot settle it. Report the baseline and commit count.
@@ -116,4 +116,4 @@ Never remove another worktree or clear `.dev-kit/`. Before force-deleting a bran
 Keep the existing round worktree. Route feedback by effect:
 
 - New/changed behaviour, design change or multi-file scope → `brainstorming` and a new approved round.
-- Settled small correction → TDD/appropriate verification, [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [runtime verification](../executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it), then delivery again.
+- Settled small correction → TDD/appropriate verification, [two review-and-fix axes](../executing-plans/SKILL.md#wrap-up-two-review-and-fix-axes), [runtime verification](../executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it), then delivery again.

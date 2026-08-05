@@ -37,7 +37,7 @@ subagent({
 
 ## 编排边界
 
-主会话默认串行处理依赖；唯一例外是 wrap-up 的 spec 验证轴与 code review 轴，二者可在同一 assistant message 中发送多个并行 sibling `subagent` calls。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限、不聚合 sibling results，也不写 `.dev-kit/plans/*.yaml`。
+主会话串行处理所有依赖和 wrap-up 两轴。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限，也不写 `.dev-kit/plans/*.yaml`。
 
 前一个调用返回后，主会话负责判断是否继续，并为串行依赖形成新的完整 task；工具不会机械传递前序输出或自行选择后续步骤。
 
@@ -45,8 +45,8 @@ subagent({
 
 | Profile | 子进程工具 | 用途与约束 |
 |---|---|---|
-| `read-only` | 固定 `read,bash,grep,find,ls` | 调查、静态审查和验证；prompt 要求不得修改文件、仓库状态或外部系统，bash 只做只读检查 |
-| `write` | 固定 `read,bash,edit,write,grep,find,ls` | 实现、退回补齐与 wrap-up 修复这类不需要项目自定义工具的落盘任务；修改范围由 task prompt 与项目规则决定 |
+| `read-only` | 固定 `read,bash,grep,find,ls` | 调查和验证；prompt 要求不得修改文件、仓库状态或外部系统，bash 只做只读检查 |
+| `write` | 固定 `read,bash,edit,write,grep,find,ls` | 实现、退回补齐与 wrap-up 审查修复这类不需要项目自定义工具的落盘任务；修改范围由 task prompt 与项目规则决定 |
 | `general` | 父会话当前 active tools 去重后所得集合，并无条件排除精确名称 `subagent`；过滤后为空时以无工具模式启动 | 需要父会话已加载的 browser、artifact 或其他 extension 工具时使用；不从 registered tools 扩大集合 |
 
 这些 profile 是工具边界与行为约束，不是 OS sandbox；子进程仍以当前用户权限运行。若父 active tool 在子进程中不可用，调用失败并返回 Pi 诊断，不静默删除能力或 fallback 到更宽集合。

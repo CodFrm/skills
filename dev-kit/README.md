@@ -1,6 +1,6 @@
 # dev-kit
 
-规格驱动开发的控制流程：获批 spec → 隔离分支 → 长任务 plan → TDD 实现与独立审查 → 两轴静态收尾 → 主会话 runtime 验证 → 用户选择交付。`init` 独立负责项目约束、文档、guardrail 与 e2e harness。
+规格驱动开发的控制流程：获批 spec → 隔离分支 → 长任务 plan → TDD 实现 → 两轴各自审查与修复 → 主会话 runtime 验证 → 用户选择交付。`init` 独立负责项目约束、文档、guardrail 与 e2e harness。
 
 ## 安装
 
@@ -61,8 +61,8 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 |---|---|
 | [using-dev-kit](./skills/using-dev-kit/) | 每个开发会话的开头，以及写代码、跑命令、向用户提问之前——这套 kit 的引导页 |
 | [init](./skills/init/) | 项目要立规矩，或老项目文档过期、没有护栏、同一类问题反复出现 |
-| [brainstorming](./skills/brainstorming/) | 要加功能、改行为或设计 UI，且需求或边界仍未确定；已经定案、可在一个会话完成的小改动直接进入 TDD 或项目检查 |
-| [writing-plans](./skills/writing-plans/) | spec 获批之后，改动拆下来超过约三步，或要跨会话 |
+| [brainstorming](./skills/brainstorming/) | 所有 tracked change 先形成获批 spec；需求已定案时走 compact path，不重开设计 |
+| [writing-plans](./skills/writing-plans/) | 每份获批 spec 都形成 plan；小改动写一个 compact task，较长改动拆 vertical slices |
 | [using-git-worktrees](./skills/using-git-worktrees/) | 用户确认 spec 草稿没有问题、要把它和实现放进独立分支时，以及分支收尾交付时 |
 | [executing-plans](./skills/executing-plans/) | 已有定稿的 `.dev-kit/plans/*.yaml` 要推进或收尾 |
 | [test-driven-development](./skills/test-driven-development/) | 实现新行为、修可复现的 bug、改公开契约——在写生产代码之前 |
@@ -70,7 +70,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 ## 链路
 
-When design remains unsettled: `brainstorming` → `using-git-worktrees` → (`writing-plans` for long work) → `test-driven-development` inside implementation → `executing-plans` for the serial task loop, two-axis static wrap-up and main-session runtime verification → `using-git-worktrees` for delivery. A settled small change starts at `test-driven-development` or the applicable project checks.
+Every tracked change follows `brainstorming` (compact when already settled) → `using-git-worktrees` → `writing-plans` (one task for a small change) → `test-driven-development` inside `executing-plans` → two-axis review-and-fix wrap-up → main-session runtime verification → `using-git-worktrees` for delivery.
 
 Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns subagent review boundaries. `init` triggers independently.
 

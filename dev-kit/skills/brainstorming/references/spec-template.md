@@ -40,7 +40,7 @@ Reference local mockups as supporting evidence only; put binding decisions in pr
 |---|---|---|
 | `<user-visible/public/module boundary>` | `<owned behaviour>` | `<existing test or none>` |
 
-State what cannot be automated and which static review or runtime observation covers it.
+State what cannot be automated and which wrap-up source review or runtime observation covers it.
 
 ## Open questions
 

@@ -23,7 +23,11 @@ delivery_caveats:
 
 review:
   status: pending
+  axis: none
+  head: null
+  receipt: null
   fixes: []
+  note: null
   status_note: pending
 
 verification:

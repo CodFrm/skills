@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: >-
-  Use before implementing new or changed behaviour, UI or contracts when a requirement or boundary remains undecided, and again when an agreed one turns out wrong. Ends in a user-approved spec. Not for: a settled small change, factual Q&A or read-only investigation.
+  Use before a tracked change to produce its approved spec: explore undecided behaviour, UI or contracts, or take the compact path when the request is already settled. Use again when an agreement turns out wrong. Not for factual Q&A or read-only investigation.
 ---
 
 # Requirements exploration and specification (brainstorming)
@@ -15,6 +15,8 @@ Design agreement and spec approval are separate gates. The first settles the dir
 Write the spec and every later report in the user's language, unless the repository's contributor docs consistently use another language. Keep machine-facing tokens ASCII.
 
 ## Order
+
+Follow the order below. For a settled request, omit steps 3–5: verify repository facts and any necessary split, then write the smallest complete spec, self-check it and obtain explicit approval without reopening design.
 
 1. Read project instructions, relevant code/tests and recent related commits. Record verified facts, user statements and unknowns. Fix the slug now: `YYYY-MM-DD-<lowercase-short-name>`.
 2. If the request contains independently shippable subsystems, propose the split and dependency order; continue with one spec.
@@ -43,7 +45,7 @@ A mockup is local decision evidence, not implementation. Put every binding decis
 
 The committed spec is the only durable statement of what the round owes. It states observable requirements and non-goals, not implementation steps, commands, verdicts or an acceptance checklist. If code, tests or a report conflict with it, stop, revise the spec, obtain approval and commit the revision; never edit it merely to match implementation.
 
-Every fact is verified, user-decided or explicitly unknown. Every requirement states a precondition, action and observable result. Testing decisions name the fewest high-value seams and what static review or runtime observation covers when automation is not feasible; confirm them with the user.
+Every fact is verified, user-decided or explicitly unknown. Every requirement states a precondition, action and observable result. Testing decisions name the fewest high-value seams and what wrap-up source review or runtime observation covers when automation is not feasible; confirm them with the user.
 
 ### File naming
 
@@ -84,7 +86,7 @@ The committed spec and baseline must already be in the isolated round workspace.
 
 | Change shape | Next state |
 |---|---|
-| More than about three steps or spans sessions | [`writing-plans`](../writing-plans/SKILL.md) |
-| Three steps or fewer in one session | One TDD slice, then [two static reviews](../executing-plans/SKILL.md#wrap-up-two-static-reviews), [runtime verification](../executing-plans/SKILL.md#runtime-verification-the-main-session-drives-it), and delivery |
+| More than about three steps or spans sessions | [`writing-plans`](../writing-plans/SKILL.md) with multiple vertical slices |
+| Three steps or fewer in one session | [`writing-plans`](../writing-plans/SKILL.md) with one compact TDD slice |
 
 Any newly undecided behaviour returns to this skill and must clear the same approval gate.

@@ -24,7 +24,7 @@ Before a plan ready gate, inspect the current session's actual tool list for the
 
 Each `subagent` call starts one fresh child for one task. Its only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`; `tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion. The returned result belongs only to that task.
 
-The main session owns serial dependencies: after a call returns, it decides whether to send the next complete task. Only the wrap-up spec-verification and code-review axes send multiple sibling `subagent` calls in one assistant message; Pi runs them concurrently. The extension keeps no scheduler or queue, does not cancel or retry sibling calls, does not aggregate their results, and never writes `.dev-kit/plans/*.yaml`.
+The main session owns serial dispatch: after a call returns, it mechanically checks the result before sending the next complete task, including each wrap-up axis. The extension keeps no scheduler or queue and never writes `.dev-kit/plans/*.yaml`.
 
 ## Profiles and tool resolution
 

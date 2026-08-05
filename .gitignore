@@ -1,3 +1,4 @@
 .claude/settings.local.json
 .omc/
 .dev-kit
+/docs/specs/

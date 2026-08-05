@@ -12,4 +12,4 @@ Use the tools exposed by the running Claude Code version; where a build labels `
 | Invoke a skill | `Skill` |
 | Read, edit or run commands | `Read`, `Edit`, `Write`, `Bash` |
 
-Resolve `subagent_type` and model from the agents the current installation offers; do not invent either. Dispatch is serial by default; the wrap-up spec-verification and code-review axes are the sole parallel exception, issuing multiple `Task` calls in one message. If no native `Task` or `Agent` tool is exposed, select `inline` before execution begins.
+Resolve `subagent_type` and model from the agents the current installation offers; do not invent either. Dispatch every task serially, including the wrap-up axes. If no native `Task` or `Agent` tool is exposed, select `inline` before execution begins.

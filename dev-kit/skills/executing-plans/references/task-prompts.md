@@ -16,7 +16,7 @@ Use <test-driven-development | systematic-debugging then test-driven-development
 for the missing behaviour, make the minimum GREEN change, then refactor while green.
 
 Boundaries:
-- Do only this task. Report unrelated problems; do not fix them.
+- Do only this task. Ignore unrelated non-blocking problems; report only a blocker that prevents this task.
 - Owned paths: <files>. Do not write outside them.
 - Run focused tests only; the orchestrator runs the full suite.
 - Commit this task once, by explicit path, using the project's message convention. Never use
@@ -27,15 +27,16 @@ Return before coding as `missing context` for ambiguity/unstated assumptions, or
 design decision, oversized exploration or an approach you cannot justify. State what blocks you,
 what you tried and what would unblock you.
 
-Before commit, inspect your diff for goal coverage, unrequested scope, project conventions and tests
-that would fail under a wrong implementation; fix those issues.
+Before commit, inspect your diff for goal coverage, unrequested scope, correctness, edge/error paths,
+project conventions and tests that would fail under a wrong implementation; fix every issue found
+within the task. Do not return non-blocking review advice for the orchestrator to route.
 
 Return at most 15 lines, no report file:
 - status: complete | complete with concerns | stuck | missing context
 - short commit SHA
 - the RED command, its exit code and the failure it showed
 - per goal part: one command, its exit code and the deciding observation, or the exact clause still false
-- concerns and any contradiction with plan context
+- blocking concerns and any contradiction with plan context
 ```
 
 ## Send-back
@@ -49,6 +50,9 @@ deciding observation>. Nothing else is open — do not revisit, refactor or re-c
 If the gap needs code, use test-driven-development within <files> and commit that part alone by
 explicit path, using the project's message convention. If only its evidence is missing, change no
 file and run what proves that part.
+
+Before returning, review the gap change and fix every issue within its scope. Return only a blocker;
+do not delegate non-blocking cleanup to the orchestrator.
 
 Return at most 8 lines, no report file:
 - status: complete | stuck

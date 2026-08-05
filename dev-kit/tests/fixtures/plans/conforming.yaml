@@ -45,7 +45,11 @@ tasks:
 
 review:
   status: pending
+  axis: none
+  head: null
+  receipt: null
   fixes: []
+  note: null
 
 verification:
   status: pending

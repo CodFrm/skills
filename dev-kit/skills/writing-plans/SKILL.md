@@ -1,7 +1,7 @@
 ---
 name: writing-plans
 description: >-
-  Use once a spec is approved and the change breaks into more than about three steps or spans sessions, and again when work under way decomposes differently than planned. Writes `.dev-kit/plans/<slug>.yaml`. Not for: settling what to build — that is the spec, and it comes first.
+  Use once any spec is approved: write one compact task for a small change or multiple vertical slices for longer work. Use again when work decomposes differently than planned. Writes `.dev-kit/plans/<slug>.yaml`; the spec still owns what to build.
 ---
 
 # Writing a plan
@@ -38,8 +38,12 @@ tasks:
     note: null
 
 review:
-  status: pending             # pending → passed | stopped
-  fixes: []                   # up to two wrap-up fixer SHAs
+  status: pending             # pending → running → passed | stopped
+  axis: none                  # none | spec | code
+  head: null                  # current axis pre-dispatch HEAD
+  receipt: null               # ignored .dev-kit/reviews/<slug>/<axis>.md
+  fixes: []                   # up to two wrap-up axis SHAs
+  note: null
 
 verification:
   status: pending             # pending → running → reported → accepted | blocked
@@ -50,7 +54,7 @@ verification:
 
 Record `files` wide enough to include generated files, lockfiles, manifests, fixtures, snapshots and formatter-owned output.
 
-`verification` records the runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
+`review` makes each writable axis recoverable; its receipt records the completed invocation, while only the main session writes axis state. `verification` records the runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
 
 ## Cutting the tasks
 

@@ -80,7 +80,7 @@ test('the schema keys and the fixes cap match the plan template in writing-plans
   assert.deepEqual(taskNodes(doc)[0].entries.map(e => e.key), KEYS.task)
   assert.deepEqual(entryOf(doc.root, 'review').value.entries.map(e => e.key), KEYS.review)
   assert.deepEqual(entryOf(doc.root, 'verification').value.entries.map(e => e.key), KEYS.verification)
-  assert.equal({ one: 1, two: 2, three: 3 }[/fixes:.*#\s*up to (\w+) wrap-up fixer SHAs/.exec(skill)[1]], FIXES_LIMIT)
+  assert.equal({ one: 1, two: 2, three: 3 }[/fixes:.*#\s*up to (\w+) wrap-up axis SHAs/.exec(skill)[1]], FIXES_LIMIT)
 })
 
 // --- addressing --------------------------------------------------------------------------------
@@ -290,18 +290,19 @@ test('check passes a conforming plan silently', () => {
 
 test('check calls an off-vocabulary state value an error, on its line', () => {
   const { errors, notes } = checkPlan(load('2026-07-31-pi-subagent-integration.yaml'))
-  assert.deepEqual(lines(errors), [95, 99])
+  assert.deepEqual(lines(errors), [95, 95, 99])
   assert.match(errors[0].message, /review\.status/)
   assert.match(errors[0].message, /done/)
   assert.match(errors[0].message, /passed/)  // the vocabulary it should have used
-  assert.match(errors[1].message, /verification\.status/)
+  assert.match(errors[1].message, /review\.axis/)
+  assert.match(errors[2].message, /verification\.status/)
   assert.deepEqual(lines(notes), [96])
   assert.match(notes[0].message, /fix/)
 })
 
 test('check calls an improvised key a note and does not descend into it', () => {
   const { errors, notes } = checkPlan(load('2026-08-01-dev-kit-evals.yaml'))
-  assert.deepEqual(lines(errors), [465])
+  assert.deepEqual(lines(errors), [465, 465])
   // delivery_caveats, wrapup_spec, status_note — and nothing from inside them or from the
   // hand-shaped entries under review.fixes.
   assert.deepEqual(lines(notes), [453, 466, 474])
@@ -309,7 +310,7 @@ test('check calls an improvised key a note and does not descend into it', () => 
 
 test('check reports a missing required key against the object that lacks it', () => {
   const { errors } = checkPlan(load('missing-keys.yaml'))
-  assert.deepEqual(lines(errors), [1, 8, 11])
+  assert.deepEqual(lines(errors), [1, 8, 11, 16])
   assert.match(errors[0].message, /status/)
   assert.match(errors[1].message, /status/)
   assert.match(errors[2].message, /id/)
@@ -317,14 +318,39 @@ test('check reports a missing required key against the object that lacks it', ()
 
 test('check reports a duplicated key and a duplicated task id', () => {
   const { errors } = checkPlan(load('duplicate-keys.yaml'))
-  assert.deepEqual(lines(errors), [17, 28])
+  assert.deepEqual(lines(errors), [17, 28, 39])
   assert.match(errors[0].message, /status/)
   assert.match(errors[1].message, /id 2/)
 })
 
 test('check reports a dangling dep as an error', () => {
   const { errors } = checkPlan(load('dangling-deps.yaml'))
-  assert.deepEqual(lines(errors), [22])
+  assert.deepEqual(lines(errors), [22, 31])
+})
+
+test('check requires recoverable state while a wrap-up axis is running', () => {
+  const doc = load('conforming.yaml')
+  const review = entryOf(doc.root, 'review').value
+  entryOf(review, 'status').value.text = 'running'
+  entryOf(review, 'axis').value.text = 'spec'
+  const { errors } = checkPlan(doc)
+  assert.equal(errors.length, 2)
+  assert.match(errors[0].message + errors[1].message, /review\.head/)
+  assert.match(errors[0].message + errors[1].message, /review\.receipt/)
+})
+
+test('check requires pending and passed review to clear transient axis state', () => {
+  const doc = load('conforming.yaml')
+  const review = entryOf(doc.root, 'review').value
+  entryOf(review, 'status').value.text = 'passed'
+  entryOf(review, 'axis').value.text = 'code'
+  entryOf(review, 'head').value.text = 'abc1234'
+  entryOf(review, 'receipt').value.text = '.dev-kit/reviews/example/code.md'
+  const { errors } = checkPlan(doc)
+  assert.equal(errors.length, 3)
+  assert.match(errors.map(e => e.message).join('\n'), /review\.axis/)
+  assert.match(errors.map(e => e.message).join('\n'), /review\.head/)
+  assert.match(errors.map(e => e.message).join('\n'), /review\.receipt/)
 })
 
 test('one unaddressable task does not swallow the rest of the report', () => {
@@ -332,11 +358,11 @@ test('one unaddressable task does not swallow the rest of the report', () => {
   // all, and an off-vocabulary value after all three: check is the whole-file pass, so the ones
   // it cannot address must be reported rather than end it.
   const { errors, notes } = checkPlan(load('off-shape-tasks.yaml'))
-  assert.deepEqual(lines(errors), [22, 35, 39, 46])
+  assert.deepEqual(lines(errors), [22, 35, 39, 42, 46])
   assert.deepEqual(notes, [])
   assert.match(errors[0].message, /deps/)
   assert.match(errors[1].message, /deps/)
-  assert.match(errors[3].message, /verification\.status/)
+  assert.match(errors[4].message, /verification\.status/)
 })
 
 // --- writing: encode / address / splice, as pure functions -------------------------------------
@@ -528,7 +554,8 @@ test('resolveAppend converts an inline empty list into block form, on the key\'s
   const doc = load('conforming.yaml')
   const review = entryOf(doc.root, 'review').value
   const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
-  assert.deepEqual(edit, { line: 48, endLine: 48, text: ['  fixes:', '    - abc1234'] })
+  const line = entryOf(review, 'fixes').line
+  assert.deepEqual(edit, { line, endLine: line, text: ['  fixes:', '    - abc1234'] })
 })
 
 test('resolveAppend keeps the trailing comment of the [] line it converts', () => {
@@ -541,14 +568,14 @@ test('resolveAppend keeps the trailing comment of the [] line it converts', () =
     '',
     'review:',
     '  status: pending',
-    '  fixes: []                   # up to two wrap-up fixer SHAs',
+    '  fixes: []                   # up to two wrap-up axis SHAs',
   ].join('\n'))
   const review = entryOf(doc.root, 'review').value
   const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
   assert.deepEqual(edit, {
     line: 9,
     endLine: 9,
-    text: ['  fixes:                   # up to two wrap-up fixer SHAs', '    - abc1234'],
+    text: ['  fixes:                   # up to two wrap-up axis SHAs', '    - abc1234'],
   })
 })
 
@@ -848,13 +875,9 @@ test('writing review.status and verification.status each keep their own state le
   assert.equal((await run(cwd, ['review', '--status', 'passed', '--plan', 'tpl'])).code, 0)
   assert.equal((await run(cwd, ['verification', '--status', 'running', '--plan', 'tpl'])).code, 0)
   const after = fs.readFileSync(file, 'utf8')
-  const afterLines = after.split('\n')
-  assert.equal(afterLines[21], '  status: passed             # pending → passed | stopped')
-  assert.equal(afterLines[25], '  status: running             # pending → running → reported → accepted | blocked')
-  const beforeLines = before.split('\n')
-  assert.deepEqual(afterLines.slice(0, 21), beforeLines.slice(0, 21))
-  assert.deepEqual(afterLines.slice(22, 25), beforeLines.slice(22, 25))
-  assert.deepEqual(afterLines.slice(26), beforeLines.slice(26))
+  assert.equal(after, before
+    .replace('  status: pending             # pending → running → passed | stopped', '  status: passed             # pending → running → passed | stopped')
+    .replace('  status: pending             # pending → running → reported → accepted | blocked', '  status: running             # pending → running → reported → accepted | blocked'))
 })
 
 // The write path is decision 8's temp-file-plus-rename inside writePlanFile; a filesystem error
@@ -1038,6 +1061,64 @@ test('plan review writes review.status', async () => {
   assert.equal(entryOf(review, 'status').value.text, 'passed')
 })
 
+test('plan review writes recoverable axis state atomically', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code, err } = await run(cwd, [
+    'review', '--status', 'running', '--axis', 'spec', '--head', 'abc1234',
+    '--receipt', '.dev-kit/reviews/example/spec.md', '--note', 'started', '--plan', 'live',
+  ])
+  assert.equal(err, '')
+  assert.equal(code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
+  assert.equal(entryOf(review, 'status').value.text, 'running')
+  assert.equal(entryOf(review, 'axis').value.text, 'spec')
+  assert.equal(entryOf(review, 'head').value.text, 'abc1234')
+  assert.equal(entryOf(review, 'receipt').value.text, '.dev-kit/reviews/example/spec.md')
+  assert.equal(entryOf(review, 'note').value.text, 'started')
+})
+
+test('plan review refuses an unknown axis and writes nothing', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const before = fs.readFileSync(file, 'utf8')
+  const { code, err } = await run(cwd, ['review', '--axis', 'security', '--plan', 'live'])
+  assert.equal(code, 1)
+  assert.match(err, /review\.axis/)
+  assert.equal(fs.readFileSync(file, 'utf8'), before)
+})
+
+test('plan review clears transient axis state with null flags', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  assert.equal((await run(cwd, [
+    'review', '--status', 'running', '--axis', 'code', '--head', 'abc1234',
+    '--receipt', '.dev-kit/reviews/example/code.md', '--plan', 'live',
+  ])).code, 0)
+  assert.equal((await run(cwd, [
+    'review', '--status', 'passed', '--axis', 'none', '--head', 'null',
+    '--receipt', 'null', '--note', 'null', '--plan', 'live',
+  ])).code, 0)
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
+  assert.equal(entryOf(review, 'status').value.text, 'passed')
+  assert.equal(entryOf(review, 'axis').value.text, 'none')
+  assert.equal(entryOf(review, 'head').value.text, null)
+  assert.equal(entryOf(review, 'receipt').value.text, null)
+  assert.equal(entryOf(review, 'note').value.text, null)
+  assert.deepEqual(checkPlan(parsePlan(fs.readFileSync(file, 'utf8'))).errors, [])
+})
+
+test('plan verification clears nullable fields with null flags', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  const { code } = await run(cwd, [
+    'verification', '--report', 'null', '--head', 'null', '--note', 'null', '--plan', 'live',
+  ])
+  assert.equal(code, 0)
+  const verification = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'verification').value
+  for (const key of ['report', 'head', 'note']) assert.equal(entryOf(verification, key).value.text, null)
+})
+
 test('plan review refuses an off-vocabulary status', async () => {
   const cwd = project({ live: 'conforming.yaml' })
   const { code, err } = await run(cwd, ['review', '--status', 'dong', '--plan', 'live'])
@@ -1182,15 +1263,16 @@ test('appending to a template-shaped plan keeps the legend on the [] line it con
   assert.equal(code, 0)
   const beforeLines = before.split('\n')
   const afterLines = fs.readFileSync(file, 'utf8').split('\n')
-  const legend = beforeLines[22].slice('  fixes: []'.length)
+  const fixesLine = beforeLines.findIndex(line => line.startsWith('  fixes: []'))
+  const legend = beforeLines[fixesLine].slice('  fixes: []'.length)
   assert.notEqual(legend.trim(), '', 'the fixture must carry the template legend this test is about')
-  assert.deepEqual(afterLines.slice(0, 22), beforeLines.slice(0, 22))
-  assert.equal(afterLines[22], `  fixes:${legend}`)
-  assert.equal(afterLines[23], '    - abc1234')
-  assert.deepEqual(afterLines.slice(24), beforeLines.slice(23))
+  assert.deepEqual(afterLines.slice(0, fixesLine), beforeLines.slice(0, fixesLine))
+  assert.equal(afterLines[fixesLine], `  fixes:${legend}`)
+  assert.equal(afterLines[fixesLine + 1], '    - abc1234')
+  assert.deepEqual(afterLines.slice(fixesLine + 2), beforeLines.slice(fixesLine + 1))
 })
 
-// Shared by the two tests below: a plan whose review.fixes is already at the two-fixer cap.
+// Shared by the two tests below: a plan whose review.fixes is already at the two-axis cap.
 function projectWithTwoFixes() {
   const cwd = project(null)
   fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
@@ -1390,7 +1472,7 @@ test('plan check exits zero when only improvised keys are left', async () => {
   assert.equal(err, '')
   assert.equal(code, 0)
   assert.match(out, /extra\.yaml:21/)
-  assert.match(out, /extra\.yaml:27/)
+  assert.match(out, /extra\.yaml:31/)
 })
 
 // A note that pastes a tab-indented command is legal YAML, and no plan subcommand repairs a plan,
