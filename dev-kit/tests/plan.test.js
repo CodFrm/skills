@@ -80,7 +80,7 @@ test('the schema keys and the fixes cap match the plan template in writing-plans
   assert.deepEqual(taskNodes(doc)[0].entries.map(e => e.key), KEYS.task)
   assert.deepEqual(entryOf(doc.root, 'review').value.entries.map(e => e.key), KEYS.review)
   assert.deepEqual(entryOf(doc.root, 'verification').value.entries.map(e => e.key), KEYS.verification)
-  assert.equal({ one: 1, two: 2, three: 3 }[/fixes:.*#\s*up to (\w+) wrap-up axis SHAs/.exec(skill)[1]], FIXES_LIMIT)
+  assert.equal({ one: 1, two: 2, three: 3, four: 4 }[/fixes:.*#\s*up to (\w+) wrap-up pass SHAs/.exec(skill)[1]], FIXES_LIMIT)
 })
 
 // --- addressing --------------------------------------------------------------------------------
@@ -568,14 +568,14 @@ test('resolveAppend keeps the trailing comment of the [] line it converts', () =
     '',
     'review:',
     '  status: pending',
-    '  fixes: []                   # up to two wrap-up axis SHAs',
+    '  fixes: []                   # up to four wrap-up pass SHAs',
   ].join('\n'))
   const review = entryOf(doc.root, 'review').value
   const edit = resolveAppend(doc, review, 'fixes', 'review.fixes', i => [`${' '.repeat(i)}- abc1234`])
   assert.deepEqual(edit, {
     line: 9,
     endLine: 9,
-    text: ['  fixes:                   # up to two wrap-up axis SHAs', '    - abc1234'],
+    text: ['  fixes:                   # up to four wrap-up pass SHAs', '    - abc1234'],
   })
 })
 
@@ -1272,11 +1272,11 @@ test('appending to a template-shaped plan keeps the legend on the [] line it con
   assert.deepEqual(afterLines.slice(fixesLine + 2), beforeLines.slice(fixesLine + 1))
 })
 
-// Shared by the two tests below: a plan whose review.fixes is already at the two-axis cap.
-function projectWithTwoFixes() {
+// Shared by the two tests below: a plan whose review.fixes is already at the four-pass cap.
+function projectWithFourFixes() {
   const cwd = project(null)
   fs.mkdirSync(path.join(cwd, '.dev-kit', 'plans'), { recursive: true })
-  const file = path.join(cwd, '.dev-kit', 'plans', 'twofixes.yaml')
+  const file = path.join(cwd, '.dev-kit', 'plans', 'fourfixes.yaml')
   fs.writeFileSync(file, [
     'status: running',
     'tasks:',
@@ -1289,6 +1289,8 @@ function projectWithTwoFixes() {
     '  fixes:',
     '    - abc1234',
     '    - def5678',
+    '    - fed4321',
+    '    - cab8765',
     '',
     'verification:',
     '  status: pending',
@@ -1297,19 +1299,31 @@ function projectWithTwoFixes() {
   return { cwd, file }
 }
 
-test('plan review --fix fails once two fixes already exist, and writes nothing', async () => {
-  const { cwd, file } = projectWithTwoFixes()
+test('plan review --fix fails once four fixes already exist, and writes nothing', async () => {
+  const { cwd, file } = projectWithFourFixes()
   const before = fs.readFileSync(file, 'utf8')
-  const { code, err } = await run(cwd, ['review', '--fix', 'deadbee', '--plan', 'twofixes'])
+  const { code, err } = await run(cwd, ['review', '--fix', 'deadbee', '--plan', 'fourfixes'])
   assert.equal(code, 1)
   assert.match(err, /fixes/)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
 })
 
+test('plan review --fix accepts all four wrap-up pass SHAs', async () => {
+  const cwd = project({ live: 'conforming.yaml' })
+  const file = path.join(cwd, '.dev-kit', 'plans', 'live.yaml')
+  for (const sha of ['abc1234', 'def5678', 'fed4321', 'cab8765']) {
+    const { code, err } = await run(cwd, ['review', '--fix', sha, '--plan', 'live'])
+    assert.equal(err, '')
+    assert.equal(code, 0)
+  }
+  const review = entryOf(parsePlan(fs.readFileSync(file, 'utf8')).root, 'review').value
+  assert.deepEqual(entryOf(review, 'fixes').value.items.map(i => i.text), ['abc1234', 'def5678', 'fed4321', 'cab8765'])
+})
+
 test('a --status and --fix combined where --fix is over the limit writes neither', async () => {
-  const { cwd, file } = projectWithTwoFixes()
+  const { cwd, file } = projectWithFourFixes()
   const before = fs.readFileSync(file, 'utf8')
-  const { code } = await run(cwd, ['review', '--status', 'passed', '--fix', 'deadbee', '--plan', 'twofixes'])
+  const { code } = await run(cwd, ['review', '--status', 'passed', '--fix', 'deadbee', '--plan', 'fourfixes'])
   assert.equal(code, 1)
   assert.equal(fs.readFileSync(file, 'utf8'), before)
 })

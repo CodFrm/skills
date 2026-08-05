@@ -86,13 +86,13 @@ Limits:
 | Resume commit scout | one dispatch | task `todo` |
 | `missing context` or `stuck` | one re-dispatch | task `blocked` |
 | Incomplete implementer return | one send-back | task `blocked` |
-| Wrap-up axis | one writable pass, plus one read-only confirmation when it changes HEAD | review `stopped` |
+| Wrap-up axis | at most two writable passes; the second is final | review `stopped` |
 
 ## Wrap-up: two review-and-fix axes
 
 Enter only when every task is `done`. Require both `e2e/scratch/<spec-slug>/report.md` and `.dev-kit/reviews/<spec-slug>/` to be ignored; add a missing rule through the normal implementation path before wrap-up.
 
-Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each axis reviews the whole current branch, fixes its findings, self-reviews, runs the full suite and makes at most one commit:
+Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each pass reviews the whole current branch, fixes its findings, self-reviews, runs the full suite and makes at most one commit:
 
 | Axis | Reads | Owns |
 |---|---|---|
@@ -103,7 +103,7 @@ Before each axis, require a clean tree and record `review.status: running`, its 
 
 On return or resume, require the receipt to match the recorded axis/head, report each finding and action, resolve final HEAD, leave a clean tree and carry an exit code and deciding observation for every required command. Rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session.
 
-When final HEAD differs from the recorded head, append it to `review.fixes`, record a fresh same-axis confirmation against that HEAD and dispatch the [read-only confirmation prompt](references/wrap-up-prompts.md#same-axis-confirmation). The confirmation reports remaining findings but must not change tracked files or HEAD; any finding, invalid receipt or red command sets review and plan `stopped`. A writable axis with unchanged HEAD, or its clean confirmation, completes that axis. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
+When the first pass's final HEAD differs from its recorded head, append it to `review.fixes`, record the new HEAD with a fresh `<axis>-2.md` receipt and dispatch the same writable axis once more. The second pass may fix and commit under the same contract; append its final HEAD when changed, but it never triggers a third pass. A first pass with unchanged HEAD, or any valid second pass, completes that axis. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
 
 ## Runtime verification: the main session drives it
 

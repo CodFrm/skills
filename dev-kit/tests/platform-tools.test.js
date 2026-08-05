@@ -163,7 +163,7 @@ test('every formerly open-ended subagent return has one bounded follow-up', () =
 
   assert.match(limits, /\| Resume commit scout \| one dispatch \| task `todo` \|/)
   assert.match(limits, /\| `missing context` or `stuck` \| one re-dispatch \| task `blocked` \|/)
-  assert.match(limits, /\| Wrap-up axis \| one writable pass, plus one read-only confirmation when it changes HEAD \| review `stopped` \|/)
+  assert.match(limits, /\| Wrap-up axis \| at most two writable passes; the second is final \| review `stopped` \|/)
   assert.match(readRoot('dev-kit/skills/systematic-debugging/SKILL.md'), /an inconclusive return is not re-dispatched/)
 })
 
@@ -184,16 +184,15 @@ test('implementation and wrap-up axes self-review, self-fix and return only bloc
   assert.doesNotMatch(wrapUpPrompts, /Read only|Do not modify the tree\/index\/HEAD/)
 })
 
-test('a wrap-up fix is reported and triggers one fresh same-axis confirmation', () => {
+test('a wrap-up fix is reported and triggers one fresh writable pass of the same axis', () => {
   const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
   const sharedPrompts = readRoot('dev-kit/skills/executing-plans/references/prompts.md')
   const wrapUpPrompts = readRoot('dev-kit/skills/executing-plans/references/wrap-up-prompts.md')
 
   assert.match(sharedPrompts, /each finding and the action taken/)
-  assert.match(skill, /final HEAD differs from the recorded head.*fresh same-axis confirmation/s)
-  assert.match(skill, /confirmation.*must not change tracked files or HEAD/s)
-  assert.match(wrapUpPrompts, /## Same-axis confirmation/)
-  assert.match(wrapUpPrompts, /Return `complete` only when no owned finding remains/)
+  assert.match(skill, /first pass's final HEAD differs from its recorded head.*dispatch the same writable axis once more/s)
+  assert.match(skill, /second pass.*may fix and commit.*never triggers a third pass/s)
+  assert.doesNotMatch(wrapUpPrompts, /Same-axis confirmation|Do not change tracked files, the index or HEAD/)
 })
 
 test('blocked tasks stop before wrap-up and runtime findings await a user decision', () => {
