@@ -98,7 +98,7 @@ function page(title, body, ui) {
  .toolbar{float:right;font-size:12px;opacity:.8}.toolbar a,.toolbar span{margin-left:.5rem}
  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(18rem,1fr));gap:.8rem;margin-top:.6rem}
  .card{border:1px solid var(--border);border-radius:8px;padding:.8rem .9rem;background:var(--bg)}.card.ghost{border-color:#bf8700;outline:1px dashed #bf8700}
- .cards a.card{display:block;color:inherit;text-decoration:none}.cards a.card:hover{border-color:var(--link)}
+ .cards a.card{display:block;color:inherit;text-decoration:none}.cards a.card:hover,.cards a.card:focus-visible{border-color:var(--link)}
  .root{font-size:12px;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.counts,.meta{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
  .badge{display:inline-block;padding:0 .4rem;border-radius:10px;font-size:12px;line-height:1.5;border:1px solid}.st-running{color:#1a7f37;border-color:#1a7f37}.st-ready{color:#0969da;border-color:#0969da}.st-draft{color:#6e7781;border-color:#6e7781}.st-stopped,.st-ghost{color:#bf8700;border-color:#bf8700}.st-done{color:#6e7781;border-color:var(--border);opacity:.7}.st-error{color:#cf222e;border-color:#cf222e}
  .group{margin-top:1rem}.group h3{opacity:.6;margin:0 0 .2rem;border-bottom:1px solid var(--soft)}

@@ -389,6 +389,7 @@ test('a project card is a single wrapping link, not a nested one', async () => {
   assert.ok(cards.length >= 4, 'one wrapping anchor per card')
   assert.ok(cards.every((card) => card[2].startsWith('/projects/')))
   assert.doesNotMatch(res.body, /<a class="card"[^>]*><h2><a /, 'no link nested inside a card')
+  assert.match(res.body, /\.cards a\.card:hover,\.cards a\.card:focus-visible\{border-color:var\(--link\)\}/, ':hover and :focus-visible both follow link styles')
 })
 
 test('a spec .md renders as an HTML reading page, and ?raw=1 serves the original text', async () => {
