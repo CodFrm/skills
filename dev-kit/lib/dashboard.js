@@ -454,7 +454,7 @@ async function handle(req, res, ctx = {}) {
 
   if (parts.length === 4 && parts[3] === '') return renderProject(req, res, project, ui)
   if (parts[3] === 'plans' && parts.length === 5 && parts[4]) return renderPlan(req, res, project, parts[4], ui)
-  if ((parts[3] === 'specs' || parts[3] === 'artifacts') && parts.length >= 5) {
+  if ((parts[3] === 'specs' || parts[3] === 'artifacts') && parts.length >= 4) {
     return renderStatic(req, res, project, parts[3], parts.slice(4), urlPath, ui)
   }
   return notFound(req, res, urlPath, ui)

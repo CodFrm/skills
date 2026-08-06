@@ -256,6 +256,14 @@ test('specs and artifacts browse directories, prefer index.html and apply CSP by
   assert.equal(redirect.status, 301)
   assert.equal(redirect.headers.location, '/projects/alpha%3C%26/specs/plain/?lang=en')
 
+  const face = await req('/projects/alpha%3C%26/specs')
+  assert.equal(face.status, 301)
+  assert.equal(face.headers.location, '/projects/alpha%3C%26/specs/?lang=en', 'the face root without a trailing slash redirects to the canonical form')
+
+  const artifactFace = await req('/projects/alpha%3C%26/artifacts')
+  assert.equal(artifactFace.status, 301)
+  assert.equal(artifactFace.headers.location, '/projects/alpha%3C%26/artifacts/?lang=en')
+
   const index = await req('/projects/alpha%3C%26/specs/site/')
   assert.equal(index.status, 200)
   assert.match(index.body, /site index/)
