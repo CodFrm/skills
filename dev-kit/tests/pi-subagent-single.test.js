@@ -82,7 +82,7 @@ function context(cwd) {
 function readJsonLines(file) {
   if (!fs.existsSync(file)) return []
   const content = fs.readFileSync(file, 'utf8').trim()
-  return content ? content.split('\n').map(JSON.parse) : []
+  return content ? content.split('\n').map((line) => JSON.parse(line)) : []
 }
 
 async function waitFor(predicate, timeoutMs = 2000) {
@@ -207,7 +207,7 @@ test('single write task launches with fixed tools and explicit runtime choices',
   assert.equal('mode' in finalUpdate.details, false)
   assert.equal('results' in finalUpdate.details, false)
 
-  const captures = fs.readFileSync(capturePath, 'utf8').trim().split('\n').map(JSON.parse)
+  const captures = fs.readFileSync(capturePath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
   assert.equal(captures.length, 1)
   assert.equal(captures[0].cwd, fs.realpathSync(childCwd))
   assert.deepEqual(captures[0].args.slice(0, 4), ['--mode', 'json', '-p', '--no-session'])
@@ -384,7 +384,7 @@ test('general snapshots active tools on every call, preserves first occurrence, 
   )
   assert.equal(emptyResult.isError, undefined)
 
-  const captures = fs.readFileSync(capturePath, 'utf8').trim().split('\n').map(JSON.parse)
+  const captures = fs.readFileSync(capturePath, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
   assert.deepEqual(captures[0].args.slice(captures[0].args.indexOf('--tools'), captures[0].args.indexOf('--tools') + 2), [
     '--tools',
     'artifact,read,browser',

@@ -519,7 +519,8 @@ async function cmdDashboard(argv, io = {}) {
   let port = parsed.pinned === null ? 10000 + Math.floor(Math.random() * 10000) : parsed.pinned
 
   server.on('error', (error) => {
-    if (error.code === 'EADDRINUSE' && attempts < 10) {
+    // A bind failure carries an errno .code; the http 'error' event types it as a bare Error.
+    if (/** @type {{ code?: string }} */ (error).code === 'EADDRINUSE' && attempts < 10) {
       attempts++
       port = parsed.pinned === null ? 10000 + Math.floor(Math.random() * 10000) : parsed.pinned + attempts
       if (port <= 65535) return server.listen(port, '127.0.0.1')
@@ -529,7 +530,8 @@ async function cmdDashboard(argv, io = {}) {
   })
   server.on('listening', () => {
     out(`dev-kit dashboard: ${projects.length} project${projects.length === 1 ? '' : 's'}`)
-    out(`  http://127.0.0.1:${server.address().port}/`)
+    const addr = /** @type {import('node:net').AddressInfo} */ (server.address())
+    out(`  http://127.0.0.1:${addr.port}/`)
     out('  read-only; Ctrl-C to stop.')
   })
   server.listen(port, '127.0.0.1')

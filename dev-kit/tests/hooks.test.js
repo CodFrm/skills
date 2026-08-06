@@ -27,6 +27,10 @@ test.after(() => fs.rmSync(tmp, { recursive: true, force: true }))
 // CLAUDE_PLUGIN_ROOT only selects the output shape — the script finds the bootstrap relative to its
 // own directory — and is set to the real root to match how Claude Code invokes the hook. COPILOT_CLI
 // is cleared throughout: set, it flips the Claude Code branch back to the flat shape.
+/**
+ * @param {string} [script]
+ * @param {{ pluginRoot?: string, codexPluginRoot?: string }} [opts]
+ */
 function run(script = SESSION_START, { pluginRoot, codexPluginRoot } = {}) {
   const env = { ...process.env }
   delete env.COPILOT_CLI

@@ -71,7 +71,7 @@ async function addProject(file, dirPath, opts = {}) {
   let st
   try {
     st = await fsp.stat(abs)
-  } catch (e) {
+  } catch {
     throw new RegistryError(`no such project directory: ${abs}`)
   }
   if (!st.isDirectory()) throw new RegistryError(`not a directory: ${abs}`)
@@ -141,7 +141,7 @@ async function cmdProject(argv, io = {}) {
   }
 
   if (sub === 'remove') {
-    const { positional, flags, error } = parseArgs(argv.slice(1), ['name'], [])
+    const { positional, error } = parseArgs(argv.slice(1), ['name'], [])
     if (error) { err(`devkit: ${error}\n${USAGE}`); return 1 }
     try {
       await removeProject(file, positional[0])

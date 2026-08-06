@@ -120,6 +120,10 @@ class Capture extends Writable {
   get body() { return Buffer.concat(this.chunks).toString('utf8') }
 }
 
+/**
+ * @param {string} url
+ * @param {{ method?: string, host?: string|null, localPort?: number, acceptLanguage?: string }} [opts]
+ */
 async function req(url, { method = 'GET', host = '127.0.0.1', localPort, acceptLanguage = 'en' } = {}) {
   const res = new Capture()
   const settled = new Promise((resolve) => { res.on('finish', resolve); res.on('close', resolve) })
@@ -171,7 +175,7 @@ test('empty registry and empty ready-task views render their specified empty sta
     await handle({ method: 'GET', url, headers: { host: '127.0.0.1', 'accept-language': 'en' }, socket: {} }, res, { projects: [] })
     await settled
     assert.equal(res.status, 200)
-    assert.match(res.body, message)
+    assert.match(res.body, /** @type {RegExp} */ (message))
     assert.match(res.body, /class="empty"/)
   }
 })
@@ -243,7 +247,7 @@ test('a plan missing its status gets a dash badge, not the literal "null"', asyn
 })
 
 test('a registered project page is a 404 when its root or plans directory is missing', async () => {
-  for (const [name, root] of [['ghost', ghost], ['no-plans', noPlans]]) {
+  for (const [name] of [['ghost', ghost], ['no-plans', noPlans]]) {
     const res = await req(`/projects/${name}/`)
     assert.equal(res.status, 404)
     assert.equal(res.headers['content-security-policy'], CSP_PAGE)

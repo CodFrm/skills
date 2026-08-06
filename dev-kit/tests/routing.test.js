@@ -1,10 +1,10 @@
-import assert from 'node:assert/strict'
-import fs from 'node:fs'
-import path from 'node:path'
-import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+'use strict'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+
 const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8')
 
 test('settled small changes keep the durable chain without reopening design', () => {

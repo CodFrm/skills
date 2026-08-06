@@ -1,4 +1,5 @@
 .claude/settings.local.json
 .omc/
 .dev-kit
+node_modules/
 /e2e/scratch/

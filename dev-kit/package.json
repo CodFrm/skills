@@ -10,6 +10,16 @@
   "homepage": "https://github.com/CodFrm/skills/tree/main/dev-kit",
   "repository": "https://github.com/CodFrm/skills",
   "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit --checkJs",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "eslint": "^10.0.0",
+    "typescript": "^7.0.0"
+  },
   "keywords": [
     "pi-package",
     "skills",

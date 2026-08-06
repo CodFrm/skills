@@ -177,7 +177,7 @@ test('a tab in the columns that carry the structure is still refused, on its lin
     [['status: running', 'tasks:', '\t- id: 1'], 3],
     [['status: running', 'tasks:', '  - id: 1', '    note: |-', '      body', '\tstatus: todo'], 6],
   ]) {
-    assert.throws(() => parsePlan(lines.join('\n')), err => {
+    assert.throws(() => parsePlan((/** @type {string[]} */ (lines)).join('\n')), err => {
       assert.ok(err instanceof PlanError)
       assert.equal(err.line, at)
       return true
@@ -1655,7 +1655,7 @@ test('bin/devkit plan carries the exit code of an async command', () => {
   const devkit = (args, opts) => execFileSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8', ...opts })
 
   assert.equal(devkit(['plan', 'next', '--plan', 'live']).trim(), '2  Second slice')
-  assert.throws(() => devkit(['plan', 'check', '--plan', 'pi'], { stdio: 'pipe' }), e => e.status === 1)
+  assert.throws(() => devkit(['plan', 'check', '--plan', 'pi'], { stdio: 'pipe' }), (e) => (/** @type {{ status?: number }} */ (e)).status === 1)
   assert.match(devkit(['help']), /devkit plan/)
 })
 
@@ -1664,7 +1664,7 @@ test('devkit help names every plan subcommand the CLI accepts, and no others', a
   // HELP are two hand-written copies of it. Checking them against each other would pass a
   // subcommand added to SUBS and written into neither, which is the drift that matters.
   const subs = Object.keys(SUBS).sort()
-  assert.ok(subs.length > 3, subs)
+  assert.ok(subs.length > 3, subs.join(', '))
 
   let usage = ''
   await cmdPlan([], { err: s => { usage += s } })
