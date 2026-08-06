@@ -84,3 +84,14 @@ test('identity does not fork between install manifests', () => {
 test('both marketplaces are the same marketplace', () => {
   assert.equal(codexMarketplace.name, claudeMarketplace.name)
 })
+
+test('serve is fully removed from the command surface', () => {
+  const cli = fs.readFileSync(path.join(PLUGIN_ROOT, 'bin', 'devkit'), 'utf8')
+  assert.doesNotMatch(cli, /case 'serve'|cmdServe/)
+  assert.equal(fs.existsSync(path.join(PLUGIN_ROOT, 'lib', 'serve.js')), false)
+  assert.equal(fs.existsSync(path.join(PLUGIN_ROOT, 'tests', 'serve.test.js')), false)
+  const { spawnSync } = require('node:child_process')
+  const help = spawnSync(process.execPath, ['bin/devkit', 'help'], { cwd: PLUGIN_ROOT, encoding: 'utf8' })
+  assert.equal(help.status, 0)
+  assert.doesNotMatch(help.stdout, /serve/)
+})

@@ -12,7 +12,7 @@ const fsp = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 
-const { ROOTS, PLANS, findRoot, resolveInside } = require('../lib/project')
+const { PLANS, findRoot, resolveInside } = require('../lib/project')
 
 // macOS puts temp dirs behind /var -> /private/var and resolveInside compares realpaths, so the
 // fixture root has to be realpath'd too or every assertion fails for the wrong reason.
@@ -75,12 +75,12 @@ test('resolveInside: a path that does not exist is refused, not invented', async
   assert.equal(await resolveInside(path.join(root, 'no-such-root'), 'x'), null)
 })
 
-test('the served roots are those two, and the plan directory is not one of them', () => {
-  // ROOTS is the browser's allow-list; a working plan carries the state of a running round and has
-  // no business being reachable from http://127.0.0.1:<port>/.
-  assert.deepEqual(ROOTS.map(r => r.rel), ['docs/specs', '.dev-kit/artifacts'])
+test('the plans constant stays, and ROOTS is gone with serve', () => {
+  // ROOTS was serve's browser allow-list; serve is removed, so the constant and its
+  // plan-exclusion rule are gone with it. PLANS still feeds resolveInside for the plans face.
   assert.equal(PLANS, '.dev-kit/plans')
-  assert.equal(ROOTS.some(r => r.rel === PLANS), false)
+  const source = fs.readFileSync(path.join(__dirname, '..', 'lib', 'project.js'), 'utf8')
+  assert.doesNotMatch(source, /\bROOTS\b/)
 })
 
 test('findRoot: walks up to the nearest ancestor holding .git or .dev-kit', () => {

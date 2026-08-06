@@ -1,6 +1,6 @@
 'use strict'
 
-// Project root resolution and the path allow-list.
+// Project root resolution and the path boundary.
 //
 // The security boundary: every path any command hands to the filesystem goes through
 // resolveInside() first. On its own so no command can reimplement the check, and so it can be
@@ -10,16 +10,9 @@ const fs = require('fs')
 const fsp = require('fs/promises')
 const path = require('path')
 
-// Where a file may be served from. Everything outside these is off limits.
-const ROOTS = [
-  { key: 'specs', rel: 'docs/specs', label: 'docs/specs' },
-  { key: 'artifacts', rel: '.dev-kit/artifacts', label: '.dev-kit/artifacts' },
-]
-
-// Where the plans live. Deliberately its own constant rather than a third ROOTS entry: ROOTS is
-// what `serve` hands to a browser, and a working plan is not for that. Pass it to resolveInside()
-// as the root, never as a path under the project root — inside a worktree .dev-kit is a symlink
-// back to the main repository, so the plan file's realpath is not under the worktree.
+// Where the plans live. Pass it to resolveInside() as the root, never as a path under the project
+// root — inside a worktree .dev-kit is a symlink back to the main repository, so the plan file's
+// realpath is not under the worktree.
 const PLANS = '.dev-kit/plans'
 
 // A mockup may be a real package (see brainstorming's references/mockups.md), and installed
@@ -52,4 +45,4 @@ async function resolveInside(rootDir, relPath) {
   return target
 }
 
-module.exports = { ROOTS, PLANS, SKIP_DIRS, findRoot, resolveInside }
+module.exports = { PLANS, SKIP_DIRS, findRoot, resolveInside }

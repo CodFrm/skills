@@ -13,7 +13,6 @@
 const HELP = `dev-kit — optional local helper
 
   devkit dashboard [--port <n>]    Read-only multi-project dashboard from the user registry
-  devkit serve [--port <n>]        Read-only static server over docs/specs/ and .dev-kit/artifacts/
   devkit plan next                 Ready tasks of a plan under .dev-kit/plans/: todo, deps done
   devkit plan show                 Its state summary, or with --task <id> one task's every field
   devkit plan check                Off-vocabulary state values and dangling deps as errors, keys
@@ -33,12 +32,11 @@ Every plan subcommand takes --plan <slug>; omitted, it needs exactly one plan th
 The registry lives at $XDG_CONFIG_HOME/devkit/projects.json (or ~/.config/devkit/projects.json).
 
 The project root is found by walking up from the working directory for .git or .dev-kit.
-The port defaults to a random one in 10000-20000, so several projects can be served side by side.`
+The port defaults to a random one in 10000-20000, so several projects can be browsed side by side.`
 
 function main(argv) {
   switch (argv[0]) {
     case 'dashboard': return require('../lib/dashboard').cmdDashboard(argv.slice(1))
-    case 'serve': return require('../lib/serve').cmdServe(argv.slice(1))
     case 'plan': return require('../lib/plan').cmdPlan(argv.slice(1))
     case 'project': return require('../lib/registry').cmdProject(argv.slice(1))
     case undefined: case 'help': case '-h': case '--help': console.log(HELP); return 0

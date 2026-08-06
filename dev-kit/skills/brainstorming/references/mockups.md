@@ -11,8 +11,8 @@
 
 For an artifact app, configure only the required component alias, CSS/Tailwind content roots and dev-server filesystem allowance. Do not install transitive product dependencies into the artifact.
 
-If the product cannot serve a preview, build a static bundle and run `devkit serve` (or `node "<dev-kit root>/bin/devkit" serve`). Keep asset paths relative and output directly under `mockups/`, not `dist/`/`build/`/`out/`. Do not rely on CDNs.
+If the product cannot serve a preview, build a static bundle and run `devkit dashboard` (or `node "<dev-kit root>/bin/devkit" dashboard`). `file://` blocks ES module imports, so a static mockup preview needs the dashboard. Keep asset paths relative and output directly under `mockups/`, not `dist/`/`build/`/`out/`. Do not rely on CDNs.
 
 Cover the main, loading, empty, error, narrow-viewport and keyboard-focus states that apply. Use fictional data only.
 
-Add `mockups/README.md` with the start command, imported product tokens/components, fictional-data note, and non-functional/faked boundaries. Present through the existing preview or `devkit serve`; share the whole directory or screenshots, never an isolated file with broken relative assets.
+Add `mockups/README.md` with the start command, imported product tokens/components, fictional-data note, and non-functional/faked boundaries. Present through the existing preview or `devkit dashboard`; share the whole directory or screenshots, never an isolated file with broken relative assets.
