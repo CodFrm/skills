@@ -17,9 +17,13 @@ const esc = (value) => String(value).replace(/[&<>"']/g, (char) => (
 // all javascript: and data: — is dropped and the label renders as plain text.
 const ALLOWED_SCHEMES = new Set(['http', 'https', 'mailto'])
 function safeUrl(url) {
-  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)
+  // The browser's URL parser removes ASCII tabs/newlines anywhere and strips leading/trailing C0
+  // control + space before it reads the scheme. Do the same, or an obfuscated "java\tscript:"
+  // would bypass the allow-list and resolve to a javascript: URL once the browser cleans it.
+  const cleaned = url.replace(/[\t\n\r]/g, '').replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '')
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned)
   if (scheme && !ALLOWED_SCHEMES.has(scheme[1].toLowerCase())) return null
-  return url
+  return cleaned
 }
 
 // Inline parsing on already-escaped text. Code spans are opaque; bold/italic recurse; a link whose

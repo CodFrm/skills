@@ -40,6 +40,13 @@ test('inline bold, italic, code and links render, with recursive nesting', () =>
   assert.equal(render('`a **b**`'), '<p><code>a **b**</code></p>', 'inline code content is not parsed')
 })
 
+test('control characters cannot smuggle a scheme past the allow-list', () => {
+  assert.equal(render('[x](java\tscript:alert(1))'), '<p>x</p>', 'an internal tab cannot hide javascript: — the browser strips tabs before reading the scheme')
+  assert.equal(render('[x](java\rscript:alert(1))'), '<p>x</p>', 'an internal carriage return cannot hide javascript:')
+  assert.equal(render('[x](\u0000javascript:alert(1))'), '<p>x</p>', 'a leading C0 control cannot hide javascript:')
+  assert.equal(render('[x]( https://example.com )'), '<p><a href="https://example.com">x</a></p>', 'surrounding whitespace is trimmed, scheme still allowed')
+})
+
 test('links allow http(s)/mailto/relative and reject dangerous schemes', () => {
   assert.equal(render('[x](https://example.com)'), '<p><a href="https://example.com">x</a></p>')
   assert.equal(render('[x](/relative)'), '<p><a href="/relative">x</a></p>')

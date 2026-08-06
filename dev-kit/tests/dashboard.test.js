@@ -39,7 +39,7 @@ const write = (file, body) => {
 }
 
 function plan({ status, goal, tasks, mode = 'subagent', worktree = '.dev-kit/worktrees/example' }) {
-  const taskText = tasks.map((task) => `  - id: ${task.id}\n    goal: ${task.goal}\n    deps: [${task.deps.join(', ')}]\n    files: []\n    model: cheap\n    interfaces: null\n    status: ${task.status}\n    commit: ${task.commit || 'null'}\n    note: ${task.note || 'null'}`).join('\n')
+  const taskText = tasks.map((task) => `  - id: ${task.id}\n    goal: ${task.goal === '' ? '""' : task.goal}\n    deps: [${task.deps.join(', ')}]\n    files: []\n    model: cheap\n    interfaces: null\n    status: ${task.status}\n    commit: ${task.commit || 'null'}\n    note: ${task.note === '' ? '""' : (task.note || 'null')}`).join('\n')
   return `spec: docs/specs/example.md\nstatus: ${status}\nmode: ${mode}\nworktree: ${worktree}\ngoal: >-\n  ${goal}\ncontext:\n  - baseline green\n  - keep <literal> text escaped\ntasks:\n${taskText}\nreview:\n  status: running\n  axis: code\n  head: abc123\n  receipt: .dev-kit/reviews/example/code.md\n  fixes: [fix123]\n  note: review note\nverification:\n  status: pending\n  report: null\n  head: null\n  note: verification note\n`
 }
 
@@ -75,6 +75,11 @@ test.before(() => {
   write(path.join(sharedAlpha, 'plans', 'bad.yaml'), 'spec: x\nstatus: {broken}\n')
   write(path.join(beta, '.dev-kit', 'plans', 'beta-running.yaml'), plan({
     status: 'running', goal: 'Beta work', tasks: [{ id: '7', goal: 'beta ready task', deps: [], status: 'todo' }],
+  }))
+  // A task whose goal or note is an empty string must keep the dash those cells used to show, not
+  // collapse to a blank cell once the prose went through the markdown renderer.
+  write(path.join(beta, '.dev-kit', 'plans', 'blank.yaml'), plan({
+    status: 'draft', goal: 'blank prose plan', tasks: [{ id: '1', goal: '', deps: [], status: 'blocked', note: '' }],
   }))
   // A plan that parses but carries no status: it must surface under the error group with a dash
   // badge rather than the literal word "null" that badge(status) used to render.
@@ -419,6 +424,13 @@ test('plan prose renders markdown while field keys and machine values stay unren
   assert.match(res.body, /docs\/specs\/example\.md/, 'spec path stays plain text')
   assert.match(res.body, /mode: subagent/, 'machine value stays plain')
   assert.match(res.body, /baseline green/, 'context prose still visible')
+})
+
+test('an empty task goal or note keeps its dash instead of a blank cell', async () => {
+  const res = await req('/projects/beta/plans/blank')
+  assert.equal(res.status, 200)
+  assert.match(res.body, /<td class="goal">—<\/td>/, 'empty goal renders a dash')
+  assert.match(res.body, /<td class="dim">—<\/td>/, 'empty note renders a dash')
 })
 
 function listen(server) {

@@ -163,6 +163,10 @@ function md(raw) {
   try { return renderMarkdown(raw == null ? '' : raw) } catch { return esc(raw) }
 }
 
+// An empty prose value keeps the dash display() used to render, so a blank goal or note does not
+// collapse to an empty cell now that prose goes through the markdown renderer.
+const mdCell = (value) => (value == null || value === '') ? '—' : md(value)
+
 async function resolvedProjectRoot(project) {
   return resolveInside(project.root, '')
 }
@@ -321,13 +325,13 @@ function mapValue(node, key) {
 function mapLine(node, keys) {
   return keys.map((key) => {
     const value = mapValue(node, key)
-    return `${key}: ${key === 'note' ? (value == null || value === '' ? '—' : md(value)) : display(value)}`
+    return `${key}: ${key === 'note' ? mdCell(value) : display(value)}`
   }).join(' · ')
 }
 
 function renderContext(doc) {
   const values = scalarValues(doc.root, 'context')
-  return values.length ? `<ul>${values.map((value) => `<li>${md(value)}</li>`).join('')}</ul>` : '<span class="dim">—</span>'
+  return values.length ? `<ul>${values.map((value) => `<li>${mdCell(value)}</li>`).join('')}</ul>` : '<span class="dim">—</span>'
 }
 
 function depsText(task) {
@@ -344,7 +348,7 @@ function renderTasksTable(doc) {
     const task = taskNode(doc, id)
     const status = textOf(task, 'status')
     const style = status === 'doing' ? 'running' : status === 'done' ? 'done' : status === 'blocked' ? 'stopped' : readyIds.has(id) ? 'ready' : 'draft'
-    return `<tr><td>${display(id)}</td><td>${badge(style, status)}</td><td class="goal">${md(textOf(task, 'goal'))}</td><td>${esc(depsText(task))}</td><td class="dim">${display(textOf(task, 'commit'))}</td><td class="dim">${md(textOf(task, 'note'))}</td></tr>`
+    return `<tr><td>${display(id)}</td><td>${badge(style, status)}</td><td class="goal">${mdCell(textOf(task, 'goal'))}</td><td>${esc(depsText(task))}</td><td class="dim">${display(textOf(task, 'commit'))}</td><td class="dim">${mdCell(textOf(task, 'note'))}</td></tr>`
   })
   return `<table class="table"><tr><th>id</th><th>status</th><th>goal</th><th>deps</th><th>commit</th><th>note</th></tr>${rows.join('')}</table>`
 }
@@ -375,7 +379,7 @@ async function renderPlan(req, res, project, slug, ui) {
     const body = `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${ui.href(back)}">← ${esc(project.name)}</a></p>
 <div class="meta">${badge(status)}<span class="badge">mode: ${display(textOf(doc.root, 'mode'))}</span><span class="badge">worktree: ${display(textOf(doc.root, 'worktree'))}</span></div>
 <dl class="kv"><dt>spec</dt><dd>${display(textOf(doc.root, 'spec'))}</dd><dt>review</dt><dd>${mapLine(review, ['status', 'axis'])}</dd><dt>verification</dt><dd>${display(verification && textOf(verification, 'status'))}</dd></dl>
-<div class="sec"><h3>${strings.goalSection}</h3><div class="md">${md(textOf(doc.root, 'goal'))}</div></div>
+<div class="sec"><h3>${strings.goalSection}</h3><div class="md">${mdCell(textOf(doc.root, 'goal'))}</div></div>
 <div class="sec"><h3>${strings.contextSection}</h3>${renderContext(doc)}</div>
 <div class="sec"><h3>${strings.tasksSection}</h3>${renderTasksTable(doc)}</div>
 <div class="sec"><h3>${strings.reviewSection}</h3><div class="body">${mapLine(review, ['status', 'axis', 'head', 'receipt', 'fixes', 'note'])}</div></div>
