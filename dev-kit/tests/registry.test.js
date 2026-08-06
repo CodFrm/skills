@@ -105,6 +105,16 @@ test('addProject: a duplicate name is refused even from a different root', async
   assert.deepEqual(await loadRegistry(file), [{ name: 'tag', root: path.join(tmp, 'first') }])
 })
 
+test('addProject: a slashed or dot-like --name is refused; an empty one falls back to basename', async () => {
+  const file = path.join(tmp, 'badnames.json')
+  for (const bad of ['a/b', '.', '..']) {
+    await assert.rejects(addProject(file, project('ok'), { name: bad }), /single path segment/, JSON.stringify(bad))
+  }
+  // An empty --name is the existing default: basename wins.
+  await addProject(file, project('fallback'), { name: '' })
+  assert.deepEqual(await loadRegistry(file), [{ name: 'fallback', root: path.join(tmp, 'fallback') }])
+})
+
 test('addProject: --name overrides the basename default', async () => {
   const file = path.join(tmp, 'named.json')
   const root = project('renamed')

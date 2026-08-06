@@ -78,6 +78,12 @@ async function addProject(file, dirPath, opts = {}) {
   if (!hasGit && !hasDevKit) throw new RegistryError(`${abs} has neither .git nor .dev-kit; not a project`)
   const root = await fsp.realpath(abs)
   const name = opts.name || path.basename(root)
+  // A name must be one URL path segment: an empty or slashed name registers a project the
+  // dashboard can never route to (/projects// or /projects/a/b), and '.'/'..' would alias the
+  // project page itself.
+  if (!name || name === '.' || name === '..' || name.includes('/')) {
+    throw new RegistryError(`project name must be non-empty and a single path segment: "${name}"`)
+  }
   const entries = await loadRegistry(file)
   if (entries.some(e => e.root === root)) throw new RegistryError(`root ${root} is already registered`)
   if (entries.some(e => e.name === name)) throw new RegistryError(`name "${name}" is already registered`)

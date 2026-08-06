@@ -135,8 +135,7 @@ function errorText(error) {
 }
 
 function badge(status, label = status) {
-  const known = ['running', 'ready', 'draft', 'stopped', 'done']
-  const cls = known.includes(status) ? status : status === 'disconnected' ? 'ghost' : 'error'
+  const cls = PLAN_STATUSES.includes(status) ? status : status === 'disconnected' ? 'ghost' : 'error'
   return `<span class="badge st-${cls}">${esc(label)}</span>`
 }
 
@@ -439,7 +438,7 @@ async function handle(req, res, ctx = {}) {
   const theme = resolveTheme(url.searchParams.get('theme'))
   const qs = (l, t) => `lang=${l}${t ? `&theme=${t}` : ''}`
   const ui = {
-    lang, theme, strings: STRINGS[lang], path: urlPath, encPath: url.pathname, qs: qs(lang, theme),
+    lang, theme, strings: STRINGS[lang], encPath: url.pathname, qs: qs(lang, theme),
     href: (p) => `${p}${p.includes('?') ? '&' : '?'}${qs(lang, theme)}`,
   }
 
