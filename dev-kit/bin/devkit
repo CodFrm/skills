@@ -3,11 +3,12 @@
 
 // dev-kit's optional CLI — argument dispatch only.
 //
-// Zero dependencies, one project. The only thing it writes is the execution-time mutable fields of
-// .dev-kit/plans/*.yaml; every other path it touches it reads. Each command lives in its own module
-// under ../lib/: add one by adding a file and a line to the switch, never by growing this file.
-// Every path it serves to a browser or writes is resolved by ../lib/project.js first, against
-// serve's browser allow-list or the plans root, which are separate boundaries there.
+// Zero dependencies, one project. Every command lives in its own module under ../lib/: add one by
+// adding a file and a line to the switch, never by growing this file. The CLI writes only the
+// execution-time mutable fields of .dev-kit/plans/*.yaml (lib/plan.js) and the user-level project
+// registry (lib/registry.js); every other path it touches it reads. Every path it serves to a
+// browser is resolved by ../lib/project.js first, against serve's browser allow-list or the plans
+// root, which are separate boundaries there.
 
 const HELP = `dev-kit — optional local helper
 
@@ -21,9 +22,14 @@ const HELP = `dev-kit — optional local helper
   devkit plan review               Write --status, or append a --fix <sha> to fixes
   devkit plan context              Append --add <text> as a context entry
   devkit plan verification         Write --status, --report, --head or --note
+  devkit project add <path> [--name <n>]  Register a project directory in the user registry
+  devkit project list                    List registered projects, "name  root" per line
+  devkit project remove <name>           Remove a registered entry, leaving project files
   devkit help                      This text
 
 Every plan subcommand takes --plan <slug>; omitted, it needs exactly one plan that is not done.
+
+The registry lives at $XDG_CONFIG_HOME/devkit/projects.json (or ~/.config/devkit/projects.json).
 
 The project root is found by walking up from the working directory for .git or .dev-kit.
 The port defaults to a random one in 10000-20000, so several projects can be served side by side.`
@@ -32,6 +38,7 @@ function main(argv) {
   switch (argv[0]) {
     case 'serve': return require('../lib/serve').cmdServe(argv.slice(1))
     case 'plan': return require('../lib/plan').cmdPlan(argv.slice(1))
+    case 'project': return require('../lib/registry').cmdProject(argv.slice(1))
     case undefined: case 'help': case '-h': case '--help': console.log(HELP); return 0
     default:
       console.error(`devkit: unknown command "${argv[0]}"\n`)
