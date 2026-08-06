@@ -134,11 +134,14 @@ function renderBlocks(lines) {
 
     if (isUl(line) || isOl(line)) {
       const tag = isUl(line) ? 'ul' : 'ol'
+      const isCurrentKind = tag === 'ul' ? isUl : isOl
       const run = []
-      while (i < lines.length && (isUl(lines[i]) || isOl(lines[i]))) {
+      while (i < lines.length && isCurrentKind(lines[i])) {
         run.push(`<li>${inlineEsc(lines[i].replace(/^(\s*[-*]|\s*\d+\.)\s+/, ''))}</li>`)
         i++
       }
+      // A changed marker kind ends this list; the next line starts its own ul/ol so ordered items
+      // keep their numbering instead of being folded into a mislabelled unordered list.
       out.push(`<${tag}>${run.join('')}</${tag}>`)
       continue
     }

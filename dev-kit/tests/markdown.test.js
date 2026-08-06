@@ -31,6 +31,7 @@ test('unordered and ordered lists render li items', () => {
   assert.equal(render('- a\n- b'), '<ul><li>a</li><li>b</li></ul>')
   assert.equal(render('* a\n* b'), '<ul><li>a</li><li>b</li></ul>')
   assert.equal(render('1. a\n2. b'), '<ol><li>a</li><li>b</li></ol>')
+  assert.equal(render('- a\n1. b\n- c'), '<ul><li>a</li></ul>\n<ol><li>b</li></ol>\n<ul><li>c</li></ul>', 'a changed marker kind ends the current list so numbering survives')
 })
 
 test('inline bold, italic, code and links render, with recursive nesting', () => {
