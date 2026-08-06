@@ -16,6 +16,7 @@ const path = require('node:path')
 const { PLANS, SKIP_DIRS, resolveInside } = require('./project')
 const { loadRegistry, registryPath } = require('./registry')
 const { STRINGS, resolveLang, resolveTheme } = require('./i18n')
+const { render: renderMarkdown } = require('./markdown')
 const {
   parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks,
 } = require('./plan')
@@ -97,6 +98,7 @@ function page(title, body, ui) {
  .toolbar{float:right;font-size:12px;opacity:.8}.toolbar a,.toolbar span{margin-left:.5rem}
  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(18rem,1fr));gap:.8rem;margin-top:.6rem}
  .card{border:1px solid var(--border);border-radius:8px;padding:.8rem .9rem;background:var(--bg)}.card.ghost{border-color:#bf8700;outline:1px dashed #bf8700}
+ .cards a.card{display:block;color:inherit;text-decoration:none}.cards a.card:hover{border-color:var(--link)}
  .root{font-size:12px;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.counts,.meta{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
  .badge{display:inline-block;padding:0 .4rem;border-radius:10px;font-size:12px;line-height:1.5;border:1px solid}.st-running{color:#1a7f37;border-color:#1a7f37}.st-ready{color:#0969da;border-color:#0969da}.st-draft{color:#6e7781;border-color:#6e7781}.st-stopped,.st-ghost{color:#bf8700;border-color:#bf8700}.st-done{color:#6e7781;border-color:var(--border);opacity:.7}.st-error{color:#cf222e;border-color:#cf222e}
  .group{margin-top:1rem}.group h3{opacity:.6;margin:0 0 .2rem;border-bottom:1px solid var(--soft)}
@@ -104,6 +106,7 @@ function page(title, body, ui) {
  .sec{margin:1.1rem 0}.sec h3{opacity:.6;margin:0 0 .3rem}.body{white-space:pre-wrap}.kv{display:grid;grid-template-columns:8rem 1fr;gap:.1rem .8rem;font-size:13px;margin-top:.8rem}.kv dt{opacity:.55}.kv dd{margin:0}
  .table{width:100%;border-collapse:collapse;font-size:13px}.table th{text-align:left;font-weight:600;opacity:.6;font-size:12px;padding:.3rem .5rem;border-bottom:1px solid var(--border)}.table td{padding:.35rem .5rem;border-bottom:1px solid var(--soft);vertical-align:top}.table td.goal{min-width:16rem;white-space:normal}
  .note{margin-top:.6rem;padding:.5rem .7rem;border-left:3px solid #d0921a;opacity:.85;font-size:13px}.empty{border:1px dashed var(--border);border-radius:8px;padding:1.4rem;text-align:center;opacity:.8}
+ .md{line-height:1.6;margin-top:.5rem}.md h1,.md h2,.md h3,.md h4,.md h5{margin:1.2em 0 .5em;line-height:1.3}.md h1{font-size:1.3rem}.md h2{font-size:1.15rem}.md h3{font-size:1rem}.md h4,.md h5{font-size:.9rem;text-transform:none}.md p{margin:.5em 0}.md ul,.md ol{margin:.5em 0;padding-left:1.4rem}.md ul{list-style:disc}.md ol{list-style:decimal}.md li{padding:.1rem 0}.md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:rgba(128,128,128,.12);padding:.1em .3em;border-radius:3px}.md pre{margin:.7em 0;padding:.7em .9em;background:rgba(128,128,128,.1);border-radius:6px;overflow-x:auto}.md pre code{background:none;padding:0}.md blockquote{margin:.7em 0;padding:.2em .9em;border-left:3px solid #d0921a;opacity:.9}.md table{border-collapse:collapse;margin:.7em 0;font-size:13px}.md th,.md td{border:1px solid var(--border);padding:.3rem .6rem;text-align:left}.md th{font-weight:600;opacity:.85}
 </style></head><body><div class="dash">${toggle}${body}</div></body></html>`
 }
 
@@ -152,6 +155,12 @@ function scalarValues(node, key) {
 
 function display(value) {
   return value === null || value === undefined || value === '' ? '—' : esc(value)
+}
+
+// Markdown prose with degradation: a renderer failure falls back to the escaped original, so a page
+// never breaks because one field's source was not really markdown.
+function md(raw) {
+  try { return renderMarkdown(raw == null ? '' : raw) } catch { return esc(raw) }
 }
 
 async function resolvedProjectRoot(project) {
@@ -222,14 +231,14 @@ async function renderHome(req, res, projects, ui) {
   const cards = states.map((state) => {
     if (state.disconnected) {
       disconnected++
-      return `<div class="card ghost"><h2><a href="${ui.href(projectPath(state.project))}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)} — ${strings.disconnected}</div><div class="counts">${badge('disconnected', strings.disconnected)}</div></div>`
+      return `<a class="card ghost" href="${ui.href(projectPath(state.project))}"><h2>${esc(state.project.name)}</h2><div class="root">${esc(state.project.root)} — ${strings.disconnected}</div><div class="counts">${badge('disconnected', strings.disconnected)}</div></a>`
     }
     const { counts, errors } = statusCounts(state.plans)
     running += counts.get('running')
     ready += state.plans.reduce((total, plan) => total + (plan.ready ? plan.ready.length : 0), 0)
     const badges = PLAN_STATUSES.flatMap((status) => counts.get(status) ? [badge(status, `${status} ${counts.get(status)}`)] : [])
     if (errors) badges.push(badge('error', strings.unableToParse(errors)))
-    return `<div class="card"><h2><a href="${ui.href(projectPath(state.project))}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)}</div><div class="counts">${badges.join('')}</div></div>`
+    return `<a class="card" href="${ui.href(projectPath(state.project))}"><h2>${esc(state.project.name)}</h2><div class="root">${esc(state.project.root)}</div><div class="counts">${badges.join('')}</div></a>`
   })
   const body = `<h1>${esc(strings.dashboard)}</h1><p class="sub">${strings.projectsSummary(projects.length, running, disconnected)}</p><a class="tasks-link" href="${ui.href('/tasks')}">${strings.readyTasksEntry(ready)}</a><div class="cards">${cards.join('')}</div>`
   return send(req, res, 200, 'text/html; charset=utf-8', page(strings.dashboard, body, ui))
@@ -310,12 +319,15 @@ function mapValue(node, key) {
 }
 
 function mapLine(node, keys) {
-  return keys.map((key) => `${key}: ${display(mapValue(node, key))}`).join(' · ')
+  return keys.map((key) => {
+    const value = mapValue(node, key)
+    return `${key}: ${key === 'note' ? (value == null || value === '' ? '—' : md(value)) : display(value)}`
+  }).join(' · ')
 }
 
 function renderContext(doc) {
   const values = scalarValues(doc.root, 'context')
-  return values.length ? `<ul>${values.map((value) => `<li>${display(value)}</li>`).join('')}</ul>` : '<span class="dim">—</span>'
+  return values.length ? `<ul>${values.map((value) => `<li>${md(value)}</li>`).join('')}</ul>` : '<span class="dim">—</span>'
 }
 
 function depsText(task) {
@@ -332,7 +344,7 @@ function renderTasksTable(doc) {
     const task = taskNode(doc, id)
     const status = textOf(task, 'status')
     const style = status === 'doing' ? 'running' : status === 'done' ? 'done' : status === 'blocked' ? 'stopped' : readyIds.has(id) ? 'ready' : 'draft'
-    return `<tr><td>${display(id)}</td><td>${badge(style, status)}</td><td class="goal">${display(textOf(task, 'goal'))}</td><td>${esc(depsText(task))}</td><td class="dim">${display(textOf(task, 'commit'))}</td><td class="dim">${display(textOf(task, 'note'))}</td></tr>`
+    return `<tr><td>${display(id)}</td><td>${badge(style, status)}</td><td class="goal">${md(textOf(task, 'goal'))}</td><td>${esc(depsText(task))}</td><td class="dim">${display(textOf(task, 'commit'))}</td><td class="dim">${md(textOf(task, 'note'))}</td></tr>`
   })
   return `<table class="table"><tr><th>id</th><th>status</th><th>goal</th><th>deps</th><th>commit</th><th>note</th></tr>${rows.join('')}</table>`
 }
@@ -363,7 +375,7 @@ async function renderPlan(req, res, project, slug, ui) {
     const body = `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${ui.href(back)}">← ${esc(project.name)}</a></p>
 <div class="meta">${badge(status)}<span class="badge">mode: ${display(textOf(doc.root, 'mode'))}</span><span class="badge">worktree: ${display(textOf(doc.root, 'worktree'))}</span></div>
 <dl class="kv"><dt>spec</dt><dd>${display(textOf(doc.root, 'spec'))}</dd><dt>review</dt><dd>${mapLine(review, ['status', 'axis'])}</dd><dt>verification</dt><dd>${display(verification && textOf(verification, 'status'))}</dd></dl>
-<div class="sec"><h3>${strings.goalSection}</h3><div class="body">${display(textOf(doc.root, 'goal'))}</div></div>
+<div class="sec"><h3>${strings.goalSection}</h3><div class="md">${md(textOf(doc.root, 'goal'))}</div></div>
 <div class="sec"><h3>${strings.contextSection}</h3>${renderContext(doc)}</div>
 <div class="sec"><h3>${strings.tasksSection}</h3>${renderTasksTable(doc)}</div>
 <div class="sec"><h3>${strings.reviewSection}</h3><div class="body">${mapLine(review, ['status', 'axis', 'head', 'receipt', 'fixes', 'note'])}</div></div>
@@ -414,7 +426,16 @@ async function renderStatic(req, res, project, face, rest, urlPath, ui) {
   if (!target) return notFound(req, res, urlPath, ui)
   let stat
   try { stat = await fsp.stat(target) } catch { return notFound(req, res, urlPath, ui) }
-  if (!stat.isDirectory()) return serveFile(req, res, target)
+  if (!stat.isDirectory()) {
+    // A spec markdown file renders as a reading page unless ?raw=1 asks for the original text.
+    if (face === 'specs' && path.extname(target).toLowerCase() === '.md' && !ui.raw) {
+      let source
+      try { source = await fsp.readFile(target, 'utf8') } catch { return notFound(req, res, urlPath, ui) }
+      const title = path.basename(target)
+      return send(req, res, 200, 'text/html; charset=utf-8', page(title, `<div class="md">${md(source)}</div>`, ui))
+    }
+    return serveFile(req, res, target)
+  }
   if (!urlPath.endsWith('/')) {
     // Keep the language/theme across the trailing-slash redirect.
     return send(req, res, 301, 'text/plain; charset=utf-8', '', CSP_PAGE, { location: encodePath(urlPath + '/') + `?${ui.qs}` })
@@ -441,7 +462,7 @@ async function handle(req, res, ctx = {}) {
   const theme = resolveTheme(url.searchParams.get('theme'))
   const qs = (l, t) => `lang=${l}${t ? `&theme=${t}` : ''}`
   const ui = {
-    lang, theme, strings: STRINGS[lang], encPath: url.pathname, qs: qs(lang, theme),
+    lang, theme, strings: STRINGS[lang], encPath: url.pathname, qs: qs(lang, theme), raw: url.searchParams.get('raw') === '1',
     href: (p) => `${p}${p.includes('?') ? '&' : '?'}${qs(lang, theme)}`,
   }
 

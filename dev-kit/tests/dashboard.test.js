@@ -140,7 +140,7 @@ test('home renders project cards, plan counts, aggregate summary and disconnecte
   assert.match(res.body, /4 projects · 2 running · 2 disconnected/)
   assert.match(res.body, /class="cards"/)
   assert.match(res.body, /grid-template-columns:repeat\(auto-fill,minmax\(18rem,1fr\)\)/)
-  assert.match(res.body, /<a href="\/projects\/alpha%3C%26\/\?lang=en">alpha&lt;&amp;<\/a>/)
+  assert.match(res.body, /<a class="card" href="\/projects\/alpha%3C%26\/\?lang=en"><h2>alpha&lt;&amp;<\/h2>/)
   assert.match(res.body, /<a class="tasks-link" href="\/tasks\?lang=en">→ Ready tasks \(3\)<\/a>/)
   assert.match(res.body, /running 1/)
   assert.match(res.body, /ready 1/)
@@ -377,6 +377,43 @@ test('the toggle keeps the page and the other parameter; internal links carry th
   const homeHrefs = [...home.body.matchAll(/<a[^>]*href="([^"]*)"/g)].map((m) => m[1])
   assert.ok(homeHrefs.includes('/tasks?lang=zh&theme=dark'), 'tasks link carries both params')
   assert.ok(homeHrefs.includes('/projects/alpha%3C%26/?lang=zh&theme=dark'), 'card link carries both params')
+})
+
+test('a project card is a single wrapping link, not a nested one', async () => {
+  const res = await req('/')
+  const cards = [...res.body.matchAll(/<a class="card( ghost)?" href="([^"]*)">/g)]
+  assert.ok(cards.length >= 4, 'one wrapping anchor per card')
+  assert.ok(cards.every((card) => card[2].startsWith('/projects/')))
+  assert.doesNotMatch(res.body, /<a class="card"[^>]*><h2><a /, 'no link nested inside a card')
+})
+
+test('a spec .md renders as an HTML reading page, and ?raw=1 serves the original text', async () => {
+  const rendered = await req('/projects/alpha%3C%26/specs/design.md')
+  assert.equal(rendered.status, 200)
+  assert.equal(rendered.headers['content-type'], 'text/html; charset=utf-8')
+  assert.equal(rendered.headers['content-security-policy'], CSP_PAGE)
+  assert.match(rendered.body, /<h1>design<\/h1>/, 'markdown heading is rendered')
+  assert.match(rendered.body, /class="md"/)
+
+  const raw = await req('/projects/alpha%3C%26/specs/design.md?raw=1')
+  assert.equal(raw.status, 200)
+  assert.equal(raw.headers['content-type'], 'text/plain; charset=utf-8')
+  assert.equal(raw.body, '# design\n')
+  assert.doesNotMatch(raw.body, /<h1>/)
+})
+
+test('spec listing links to .md keep the current lang/theme params', async () => {
+  const res = await req('/projects/alpha%3C%26/specs/?lang=zh&theme=dark')
+  const hrefs = [...res.body.matchAll(/<a href="([^"]*)"/g)].map((m) => m[1])
+  assert.ok(hrefs.includes('/projects/alpha%3C%26/specs/design.md?lang=zh&theme=dark'))
+})
+
+test('plan prose renders markdown while field keys and machine values stay unrendered', async () => {
+  const res = await req('/projects/alpha%3C%26/plans/running')
+  assert.match(res.body, /<p>Ship &lt;script&gt;alert\(1\)&lt;\/script&gt; safely<\/p>/, 'goal is markdown-rendered and escaped')
+  assert.match(res.body, /docs\/specs\/example\.md/, 'spec path stays plain text')
+  assert.match(res.body, /mode: subagent/, 'machine value stays plain')
+  assert.match(res.body, /baseline green/, 'context prose still visible')
 })
 
 function listen(server) {
