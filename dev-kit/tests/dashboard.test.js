@@ -76,6 +76,9 @@ test.before(() => {
   write(path.join(beta, '.dev-kit', 'plans', 'beta-running.yaml'), plan({
     status: 'running', goal: 'Beta work', tasks: [{ id: '7', goal: 'beta ready task', deps: [], status: 'todo' }],
   }))
+  // A plan that parses but carries no status: it must surface under the error group with a dash
+  // badge rather than the literal word "null" that badge(status) used to render.
+  write(path.join(beta, '.dev-kit', 'plans', 'nostatus.yaml'), 'spec: s.md\ngoal: g\ntasks: []\n')
 
   write(path.join(alpha, 'docs', 'specs', 'design.md'), '# design\n')
   write(path.join(alpha, 'docs', 'specs', 'mock.html'), '<style>body{color:red}</style><script>document.title="ran"</script>')
@@ -221,6 +224,22 @@ test('unknown projects and plans are generated 404 pages', async () => {
     assert.equal(res.status, 404, url)
     assert.equal(res.headers['content-security-policy'], CSP_PAGE, url)
   }
+})
+
+test('a no-slash project URL redirects to its canonical trailing-slash form, keeping lang/theme', async () => {
+  const res = await req('/projects/alpha%3C%26')
+  assert.equal(res.status, 301)
+  assert.equal(res.headers.location, '/projects/alpha%3C%26/?lang=en')
+  assert.equal(res.headers['content-security-policy'], CSP_PAGE)
+  const zh = await req('/projects/alpha%3C%26?lang=zh&theme=dark')
+  assert.equal(zh.status, 301)
+  assert.equal(zh.headers.location, '/projects/alpha%3C%26/?lang=zh&theme=dark')
+})
+
+test('a plan missing its status gets a dash badge, not the literal "null"', async () => {
+  const res = await req('/projects/beta/')
+  assert.match(res.body, /st-error">—</, 'the missing-status badge renders a dash')
+  assert.doesNotMatch(res.body, /badge st-error">null</)
 })
 
 test('a registered project page is a 404 when its root or plans directory is missing', async () => {

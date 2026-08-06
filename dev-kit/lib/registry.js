@@ -12,6 +12,8 @@ const fsp = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 
+const { parseArgs } = require('./plan')
+
 // The path only the CLI's default binding uses; the tests and the dashboard pass their own file.
 function registryPath(env = process.env, home = os.homedir()) {
   const base = env.XDG_CONFIG_HOME ? path.resolve(env.XDG_CONFIG_HOME) : path.join(home, '.config')
@@ -114,24 +116,7 @@ const USAGE = `devkit project add <path> [--name <n>]   Register a project direc
 devkit project list                     List registered projects, one "name  root" per line
 devkit project remove <name>            Remove a registered project's entry (leaves the project files)`
 
-// Positionals first, then flags — the same rule lib/plan.js's parseArgs follows.
-function parseArgs(argv, positionalNames, allowedFlags) {
-  const positional = []
-  let i = 0
-  for (; i < positionalNames.length; i++) {
-    if (i >= argv.length || argv[i].startsWith('--')) {
-      return { error: `needs ${positionalNames.length} argument${positionalNames.length === 1 ? '' : 's'}: ${positionalNames.join(' ')}` }
-    }
-    positional.push(argv[i])
-  }
-  const flags = {}
-  for (; i < argv.length; i++) {
-    if (!allowedFlags.includes(argv[i])) return { error: `unexpected argument "${argv[i]}"` }
-    if (i + 1 >= argv.length) return { error: `${argv[i]} needs a value` }
-    flags[argv[i].slice(2)] = argv[++i]
-  }
-  return { positional, flags }
-}
+// Positionals first, then flags — parseArgs is lib/plan.js's, shared so the two CLIs cannot drift.
 
 async function cmdProject(argv, io = {}) {
   const out = io.out || (s => console.log(s))

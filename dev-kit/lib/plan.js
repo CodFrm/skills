@@ -839,5 +839,5 @@ function showPlan(doc, chosen, flags, out, err) {
 
 module.exports = {
   VOCAB, KEYS, SUBS, FIXES_LIMIT, PlanError, parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks, checkPlan, cmdPlan,
-  encodeScalar, resolveEdits, applyEdits, resolveAppend,
+  encodeScalar, resolveEdits, applyEdits, resolveAppend, parseArgs,
 }

@@ -136,7 +136,10 @@ function errorText(error) {
 
 function badge(status, label = status) {
   const cls = PLAN_STATUSES.includes(status) ? status : status === 'disconnected' ? 'ghost' : 'error'
-  return `<span class="badge st-${cls}">${esc(label)}</span>`
+  // A plan/task that parsed but carries no status value has label null; render that as a dash
+  // rather than the literal word the String() coercion of null would show.
+  const text = label === null || label === undefined ? '—' : label
+  return `<span class="badge st-${cls}">${esc(text)}</span>`
 }
 
 function scalarValues(node, key) {
@@ -450,6 +453,12 @@ async function handle(req, res, ctx = {}) {
   if (parts[1] !== 'projects' || !parts[2]) return notFound(req, res, urlPath, ui)
   const project = projects.find((entry) => entry.name === parts[2])
   if (!project) return notFound(req, res, urlPath, ui)
+
+  // A project URL without its trailing slash gets the same canonical-form redirect the specs and
+  // artifacts faces get, keeping the current lang/theme across it.
+  if (parts.length === 3) {
+    return send(req, res, 301, 'text/plain; charset=utf-8', '', CSP_PAGE, { location: encodePath(urlPath + '/') + `?${ui.qs}` })
+  }
 
   if (parts.length === 4 && parts[3] === '') return renderProject(req, res, project, ui)
   if (parts[3] === 'plans' && parts.length === 5 && parts[4]) return renderPlan(req, res, project, parts[4], ui)
