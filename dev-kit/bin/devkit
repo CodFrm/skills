@@ -7,11 +7,12 @@
 // adding a file and a line to the switch, never by growing this file. The CLI writes only the
 // execution-time mutable fields of .dev-kit/plans/*.yaml (lib/plan.js) and the user-level project
 // registry (lib/registry.js); every other path it touches it reads. Every path it serves to a
-// browser is resolved by ../lib/project.js first, against serve's browser allow-list or the plans
-// root, which are separate boundaries there.
+// browser is resolved by ../lib/project.js first, against the specs, artifacts or plans boundary
+// that owns that URL face.
 
 const HELP = `dev-kit — optional local helper
 
+  devkit dashboard [--port <n>]    Read-only multi-project dashboard from the user registry
   devkit serve [--port <n>]        Read-only static server over docs/specs/ and .dev-kit/artifacts/
   devkit plan next                 Ready tasks of a plan under .dev-kit/plans/: todo, deps done
   devkit plan show                 Its state summary, or with --task <id> one task's every field
@@ -36,6 +37,7 @@ The port defaults to a random one in 10000-20000, so several projects can be ser
 
 function main(argv) {
   switch (argv[0]) {
+    case 'dashboard': return require('../lib/dashboard').cmdDashboard(argv.slice(1))
     case 'serve': return require('../lib/serve').cmdServe(argv.slice(1))
     case 'plan': return require('../lib/plan').cmdPlan(argv.slice(1))
     case 'project': return require('../lib/registry').cmdProject(argv.slice(1))
