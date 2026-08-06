@@ -223,12 +223,11 @@ test('unknown projects and plans are generated 404 pages', async () => {
   }
 })
 
-test('a registered project is disconnected when its root or plans directory is missing', async () => {
+test('a registered project page is a 404 when its root or plans directory is missing', async () => {
   for (const [name, root] of [['ghost', ghost], ['no-plans', noPlans]]) {
     const res = await req(`/projects/${name}/`)
-    assert.equal(res.status, 200)
-    assert.match(res.body, /disconnected/)
-    assert.match(res.body, new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    assert.equal(res.status, 404)
+    assert.equal(res.headers['content-security-policy'], CSP_PAGE)
   }
 })
 

@@ -273,8 +273,10 @@ async function renderProject(req, res, project, ui) {
   const strings = ui.strings
   const state = await plansFor(project)
   if (state.disconnected) {
-    return send(req, res, 200, 'text/html; charset=utf-8', page(project.name,
-      `<h1>${esc(project.name)}</h1><p class="sub">${esc(project.root)}</p><p class="note">${strings.disconnectedNote(PLANS)}</p><p><a href="${ui.href('/')}">${strings.backToProjects}</a></p>`, ui))
+    // The registered root or its plans directory is gone: the home card already carries the 失联
+    // marker and the root path, so entering the project page is a 404 per the failure/recovery
+    // contract.
+    return notFound(req, res, project.name, ui)
   }
 
   const groups = []
