@@ -3,6 +3,10 @@
 // `devkit dashboard` — a user-registry-backed, read-only view of projects, plans, specs and
 // artifacts. Static-serving and security helpers live here rather than importing lib/serve.js:
 // dashboard replaces that command in the next slice and must remain complete after serve is gone.
+//
+// Every generated page is localised (en/zh) and theme-aware (?theme= pins light/dark; otherwise the
+// client's prefers-color-scheme decides). State lives in URL query params: the page is zero-JS and
+// switching language or theme is a link that keeps the other parameter.
 
 const fs = require('node:fs')
 const fsp = require('node:fs/promises')
@@ -11,6 +15,7 @@ const path = require('node:path')
 
 const { PLANS, SKIP_DIRS, resolveInside } = require('./project')
 const { loadRegistry, registryPath } = require('./registry')
+const { STRINGS, resolveLang, resolveTheme } = require('./i18n')
 const {
   parsePlan, entryOf, textOf, taskNodes, taskNode, readyTasks,
 } = require('./plan')
@@ -57,28 +62,49 @@ function hostAllowed(req) {
   return !bound || !match[2] || Number(match[2]) === bound
 }
 
-function page(title, body) {
-  return `<!doctype html><html><head><meta charset="utf-8">
+// The top-right toggle: current language/theme is plain dim text, the alternatives are links that
+// keep the current page and the other parameter. "System" means no theme parameter at all.
+function toggleHTML(ui) {
+  const { lang, theme, encPath, strings } = ui
+  const to = (l, t) => `${encPath}?lang=${l}${t ? `&theme=${t}` : ''}`
+  const langLink = (label, value) => (lang === value ? `<span class="dim">${label}</span>` : `<a href="${to(value, theme)}">${label}</a>`)
+  const themeLink = (label, value) => (theme === value ? `<span class="dim">${label}</span>` : `<a href="${to(lang, value)}">${label}</a>`)
+  const system = theme === null ? `<span class="dim">${strings.themeSystem}</span>` : `<a href="${to(lang, null)}">${strings.themeSystem}</a>`
+  return `<div class="toolbar">${langLink(strings.langZh, 'zh')}${langLink(strings.langEn, 'en')} · ${system}${themeLink(strings.themeLight, 'light')}${themeLink(strings.themeDark, 'dark')}</div>`
+}
+
+// Palette is expressed as custom properties: the base (light) is overridden by the client's dark
+// media query, and an explicit data-theme always beats the media query because it is a selector on
+// the html element itself.
+function page(title, body, ui) {
+  const lang = ui && ui.lang === 'zh' ? 'zh-CN' : 'en'
+  const themeAttr = ui && ui.theme ? ` data-theme="${ui.theme}"` : ''
+  const toggle = ui ? toggleHTML(ui) : ''
+  return `<!doctype html><html lang="${lang}"${themeAttr}><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <style>
- body{font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#1a1a1a;background:#fff}
- @media (prefers-color-scheme:dark){body{color:#e6e6e6;background:#161616}a{color:#79b8ff}.card{background:#161616;border-color:#30363d}.row,.group h3,.table td{border-color:#2d2d2d}.table th{border-color:#30363d}.empty{border-color:#30363d}}
+ :root{--bg:#fff;--fg:#1a1a1a;--link:#0366d6;--border:#d0d7de;--soft:#eaeef2}
+ html[data-theme="light"]{--bg:#fff;--fg:#1a1a1a;--link:#0366d6;--border:#d0d7de;--soft:#eaeef2}
+ @media (prefers-color-scheme:dark){:root{--bg:#161616;--fg:#e6e6e6;--link:#79b8ff;--border:#30363d;--soft:#2d2d2d}}
+ html[data-theme="dark"]{--bg:#161616;--fg:#e6e6e6;--link:#79b8ff;--border:#30363d;--soft:#2d2d2d}
+ body{font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;max-width:52rem;margin:2rem auto;padding:0 1rem;color:var(--fg);background:var(--bg)}
  h1{font-size:1rem;font-weight:600;margin:0 0 .4rem} h2{font-size:.95rem;margin:0 0 .2rem}
  h3{font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
  ul{list-style:none;padding:0;margin:0} li{padding:.15rem 0}
- a{color:#0366d6;text-decoration:none} a:hover{text-decoration:underline}
+ a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
  .sub{opacity:.55;margin:0 0 1rem}.dim{opacity:.55}.tasks-link{display:block;margin:1rem 0 .4rem;font-size:13px}
+ .toolbar{float:right;font-size:12px;opacity:.8}.toolbar a,.toolbar span{margin-left:.5rem}
  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(18rem,1fr));gap:.8rem;margin-top:.6rem}
- .card{border:1px solid #d0d7de;border-radius:8px;padding:.8rem .9rem;background:#fff}.card.ghost{border-color:#bf8700;outline:1px dashed #bf8700}
+ .card{border:1px solid var(--border);border-radius:8px;padding:.8rem .9rem;background:var(--bg)}.card.ghost{border-color:#bf8700;outline:1px dashed #bf8700}
  .root{font-size:12px;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.counts,.meta{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
- .badge{display:inline-block;padding:0 .4rem;border-radius:10px;font-size:12px;line-height:1.5;border:1px solid}.st-running{color:#1a7f37;border-color:#1a7f37}.st-ready{color:#0969da;border-color:#0969da}.st-draft{color:#6e7781;border-color:#6e7781}.st-stopped,.st-ghost{color:#bf8700;border-color:#bf8700}.st-done{color:#6e7781;border-color:#d0d7de;opacity:.7}.st-error{color:#cf222e;border-color:#cf222e}
- .group{margin-top:1rem}.group h3{opacity:.6;margin:0 0 .2rem;border-bottom:1px solid #eaeef2}
- .row{padding:.5rem .2rem;border-bottom:1px solid #eaeef2;display:flex;align-items:baseline;gap:.6rem}.row:last-child{border-bottom:0}.slug{font-weight:600;min-width:0}.goal{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8}.prog{font-size:12px;opacity:.55;white-space:nowrap}
+ .badge{display:inline-block;padding:0 .4rem;border-radius:10px;font-size:12px;line-height:1.5;border:1px solid}.st-running{color:#1a7f37;border-color:#1a7f37}.st-ready{color:#0969da;border-color:#0969da}.st-draft{color:#6e7781;border-color:#6e7781}.st-stopped,.st-ghost{color:#bf8700;border-color:#bf8700}.st-done{color:#6e7781;border-color:var(--border);opacity:.7}.st-error{color:#cf222e;border-color:#cf222e}
+ .group{margin-top:1rem}.group h3{opacity:.6;margin:0 0 .2rem;border-bottom:1px solid var(--soft)}
+ .row{padding:.5rem .2rem;border-bottom:1px solid var(--soft);display:flex;align-items:baseline;gap:.6rem}.row:last-child{border-bottom:0}.slug{font-weight:600;min-width:0}.goal{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8}.prog{font-size:12px;opacity:.55;white-space:nowrap}
  .sec{margin:1.1rem 0}.sec h3{opacity:.6;margin:0 0 .3rem}.body{white-space:pre-wrap}.kv{display:grid;grid-template-columns:8rem 1fr;gap:.1rem .8rem;font-size:13px;margin-top:.8rem}.kv dt{opacity:.55}.kv dd{margin:0}
- .table{width:100%;border-collapse:collapse;font-size:13px}.table th{text-align:left;font-weight:600;opacity:.6;font-size:12px;padding:.3rem .5rem;border-bottom:1px solid #d0d7de}.table td{padding:.35rem .5rem;border-bottom:1px solid #eaeef2;vertical-align:top}.table td.goal{min-width:16rem;white-space:normal}
- .note{margin-top:.6rem;padding:.5rem .7rem;border-left:3px solid #d0921a;opacity:.85;font-size:13px}.empty{border:1px dashed #d0d7de;border-radius:8px;padding:1.4rem;text-align:center;opacity:.8}
-</style></head><body><div class="dash">${body}</div></body></html>`
+ .table{width:100%;border-collapse:collapse;font-size:13px}.table th{text-align:left;font-weight:600;opacity:.6;font-size:12px;padding:.3rem .5rem;border-bottom:1px solid var(--border)}.table td{padding:.35rem .5rem;border-bottom:1px solid var(--soft);vertical-align:top}.table td.goal{min-width:16rem;white-space:normal}
+ .note{margin-top:.6rem;padding:.5rem .7rem;border-left:3px solid #d0921a;opacity:.85;font-size:13px}.empty{border:1px dashed var(--border);border-radius:8px;padding:1.4rem;text-align:center;opacity:.8}
+</style></head><body><div class="dash">${toggle}${body}</div></body></html>`
 }
 
 function send(req, res, status, type, body, csp = CSP_PAGE, extra = {}) {
@@ -92,10 +118,12 @@ function send(req, res, status, type, body, csp = CSP_PAGE, extra = {}) {
   res.end(req.method === 'HEAD' ? '' : body)
 }
 
-const notFound = (req, res, what) => send(
-  req, res, 404, 'text/html; charset=utf-8',
-  page('not found', `<h1>404</h1><p>${esc(what)}</p><p><a href="/">Back to projects</a></p>`),
-)
+const notFound = (req, res, what, ui) => {
+  const strings = (ui && ui.strings) || STRINGS.en
+  const back = (ui && ui.href) ? ui.href('/') : '/'
+  return send(req, res, 404, 'text/html; charset=utf-8',
+    page(strings.notFound, `<h1>404</h1><p>${esc(what)}</p><p><a href="${back}">${strings.backToProjects}</a></p>`, ui))
+}
 
 function errorName(error) {
   return error && error.name ? error.name : 'Error'
@@ -178,10 +206,11 @@ async function projectStates(projects) {
   return states
 }
 
-async function renderHome(req, res, projects) {
+async function renderHome(req, res, projects, ui) {
+  const strings = ui.strings
   if (projects.length === 0) {
-    return send(req, res, 200, 'text/html; charset=utf-8', page('dev-kit dashboard',
-      '<h1>dev-kit dashboard</h1><p class="sub">No registered projects</p><div class="empty">Use <code>devkit project add &lt;path&gt;</code> to add the first project</div>'))
+    return send(req, res, 200, 'text/html; charset=utf-8', page(strings.dashboard,
+      `<h1>${esc(strings.dashboard)}</h1><p class="sub">${strings.noProjects}</p><div class="empty">${strings.addFirstProject}</div>`, ui))
   }
 
   const states = await projectStates(projects)
@@ -191,20 +220,21 @@ async function renderHome(req, res, projects) {
   const cards = states.map((state) => {
     if (state.disconnected) {
       disconnected++
-      return `<div class="card ghost"><h2><a href="${projectPath(state.project)}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)} — disconnected</div><div class="counts">${badge('disconnected')}</div></div>`
+      return `<div class="card ghost"><h2><a href="${ui.href(projectPath(state.project))}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)} — ${strings.disconnected}</div><div class="counts">${badge('disconnected', strings.disconnected)}</div></div>`
     }
     const { counts, errors } = statusCounts(state.plans)
     running += counts.get('running')
     ready += state.plans.reduce((total, plan) => total + (plan.ready ? plan.ready.length : 0), 0)
     const badges = PLAN_STATUSES.flatMap((status) => counts.get(status) ? [badge(status, `${status} ${counts.get(status)}`)] : [])
-    if (errors) badges.push(badge('error', `unable to parse ${errors}`))
-    return `<div class="card"><h2><a href="${projectPath(state.project)}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)}</div><div class="counts">${badges.join('')}</div></div>`
+    if (errors) badges.push(badge('error', strings.unableToParse(errors)))
+    return `<div class="card"><h2><a href="${ui.href(projectPath(state.project))}">${esc(state.project.name)}</a></h2><div class="root">${esc(state.project.root)}</div><div class="counts">${badges.join('')}</div></div>`
   })
-  const body = `<h1>dev-kit dashboard</h1><p class="sub">${projects.length} projects · ${running} running · ${disconnected} disconnected</p><a class="tasks-link" href="/tasks">→ Ready tasks (${ready})</a><div class="cards">${cards.join('')}</div>`
-  return send(req, res, 200, 'text/html; charset=utf-8', page('dev-kit dashboard', body))
+  const body = `<h1>${esc(strings.dashboard)}</h1><p class="sub">${strings.projectsSummary(projects.length, running, disconnected)}</p><a class="tasks-link" href="${ui.href('/tasks')}">${strings.readyTasksEntry(ready)}</a><div class="cards">${cards.join('')}</div>`
+  return send(req, res, 200, 'text/html; charset=utf-8', page(strings.dashboard, body, ui))
 }
 
-async function renderTasks(req, res, projects) {
+async function renderTasks(req, res, projects, ui) {
+  const strings = ui.strings
   const states = await projectStates(projects)
   const rows = []
   for (const state of states) {
@@ -215,15 +245,15 @@ async function renderTasks(req, res, projects) {
         const node = taskNode(plan.doc, task.id)
         const deps = scalarValues(node, 'deps')
         const depText = deps.length ? deps.map(display).join(', ') : '—'
-        rows.push(`<div class="row">${badge('ready')}<span class="slug">${esc(state.project.name)}</span><span class="goal">/ <a href="${projectPath(state.project)}plans/${encodeURIComponent(plan.slug)}">${esc(plan.slug)}</a> / task ${esc(task.id)}: ${display(task.goal)} · deps: ${depText}</span></div>`)
+        rows.push(`<div class="row">${badge('ready')}<span class="slug">${esc(state.project.name)}</span><span class="goal">/ <a href="${ui.href(`${projectPath(state.project)}plans/${encodeURIComponent(plan.slug)}`)}">${esc(plan.slug)}</a> / ${strings.taskWord(esc(task.id))}: ${display(task.goal)} · ${strings.depsWord(depText)}</span></div>`)
       }
     }
   }
   const content = rows.length
-    ? `<div class="group"><h3>Ready — ${rows.length}</h3>${rows.join('')}</div>`
-    : '<div class="empty">No ready tasks</div>'
-  return send(req, res, 200, 'text/html; charset=utf-8', page('Ready tasks',
-    `<h1>Ready tasks</h1><p class="sub"><a href="/">← Back to projects</a></p>${content}`))
+    ? `<div class="group"><h3>${strings.readyCount(rows.length)}</h3>${rows.join('')}</div>`
+    : `<div class="empty">${strings.noReadyTasks}</div>`
+  return send(req, res, 200, 'text/html; charset=utf-8', page(strings.readyTasks,
+    `<h1>${esc(strings.readyTasks)}</h1><p class="sub"><a href="${ui.href('/')}">${strings.backToProjects}</a></p>${content}`, ui))
 }
 
 function planProgress(plan) {
@@ -231,32 +261,34 @@ function planProgress(plan) {
   return `${tasks.filter((task) => textOf(task, 'status') === 'done').length}/${tasks.length}`
 }
 
-function planRow(project, plan) {
+function planRow(project, plan, ui) {
+  const strings = ui.strings
   if (plan.error) {
-    return `<div class="row">${badge('error', 'unable to parse')}<span class="slug"><a href="${projectPath(project)}plans/${encodeURIComponent(plan.slug)}">${esc(plan.slug)}</a></span><span class="goal">${esc(errorText(plan.error))}</span></div>`
+    return `<div class="row">${badge('error', strings.unableToParseLabel)}<span class="slug"><a href="${ui.href(`${projectPath(project)}plans/${encodeURIComponent(plan.slug)}`)}">${esc(plan.slug)}</a></span><span class="goal">${esc(errorText(plan.error))}</span></div>`
   }
-  return `<div class="row">${badge(plan.status)}<span class="slug"><a href="${projectPath(project)}plans/${encodeURIComponent(plan.slug)}">${esc(plan.slug)}</a></span><span class="goal">${display(plan.goal)}</span><span class="prog">${planProgress(plan)}</span></div>`
+  return `<div class="row">${badge(plan.status)}<span class="slug"><a href="${ui.href(`${projectPath(project)}plans/${encodeURIComponent(plan.slug)}`)}">${esc(plan.slug)}</a></span><span class="goal">${display(plan.goal)}</span><span class="prog">${planProgress(plan)}</span></div>`
 }
 
-async function renderProject(req, res, project) {
+async function renderProject(req, res, project, ui) {
+  const strings = ui.strings
   const state = await plansFor(project)
   if (state.disconnected) {
     return send(req, res, 200, 'text/html; charset=utf-8', page(project.name,
-      `<h1>${esc(project.name)}</h1><p class="sub">${esc(project.root)}</p><p class="note">This registered project is disconnected: its root or ${esc(PLANS)} directory does not exist.</p><p><a href="/">← Back to projects</a></p>`))
+      `<h1>${esc(project.name)}</h1><p class="sub">${esc(project.root)}</p><p class="note">${strings.disconnectedNote(PLANS)}</p><p><a href="${ui.href('/')}">${strings.backToProjects}</a></p>`, ui))
   }
 
   const groups = []
   for (const status of PLAN_STATUSES) {
     const plans = state.plans.filter((plan) => !plan.error && plan.status === status)
-    if (plans.length) groups.push(`<div class="group"><h3>${status[0].toUpperCase() + status.slice(1)}</h3>${plans.map((plan) => planRow(project, plan)).join('')}</div>`)
+    if (plans.length) groups.push(`<div class="group"><h3>${status[0].toUpperCase() + status.slice(1)}</h3>${plans.map((plan) => planRow(project, plan, ui)).join('')}</div>`)
   }
   const errors = state.plans.filter((plan) => plan.error || !PLAN_STATUSES.includes(plan.status))
-  if (errors.length) groups.push(`<div class="group"><h3>Unable to parse</h3>${errors.map((plan) => planRow(project, plan)).join('')}</div>`)
-  if (!groups.length) groups.push('<div class="empty">No plans</div>')
+  if (errors.length) groups.push(`<div class="group"><h3>${strings.unableToParseGroup}</h3>${errors.map((plan) => planRow(project, plan, ui)).join('')}</div>`)
+  if (!groups.length) groups.push(`<div class="empty">${strings.noPlans}</div>`)
 
   const base = projectPath(project)
-  const body = `<h1>${esc(project.name)}</h1><p class="sub">${esc(project.root)} · <a href="${base}specs/">docs/specs/</a> · <a href="${base}artifacts/">.dev-kit/artifacts/</a> · <a href="/">projects</a></p>${groups.join('')}`
-  return send(req, res, 200, 'text/html; charset=utf-8', page(project.name, body))
+  const body = `<h1>${esc(project.name)}</h1><p class="sub">${esc(project.root)} · <a href="${ui.href(`${base}specs/`)}">docs/specs/</a> · <a href="${ui.href(`${base}artifacts/`)}">.dev-kit/artifacts/</a> · <a href="${ui.href('/')}">${strings.projectsWord}</a></p>${groups.join('')}`
+  return send(req, res, 200, 'text/html; charset=utf-8', page(project.name, body, ui))
 }
 
 function nestedNode(doc, key) {
@@ -301,21 +333,22 @@ function renderTasksTable(doc) {
   return `<table class="table"><tr><th>id</th><th>status</th><th>goal</th><th>deps</th><th>commit</th><th>note</th></tr>${rows.join('')}</table>`
 }
 
-async function renderPlan(req, res, project, slug) {
+async function renderPlan(req, res, project, slug, ui) {
+  const strings = ui.strings
   const planDir = path.join(project.root, PLANS)
   const resolvedDir = await resolveInside(planDir, '')
-  if (!resolvedDir) return notFound(req, res, slug)
+  if (!resolvedDir) return notFound(req, res, slug, ui)
   const cleanSlug = slug.replace(/\.yaml$/, '')
   const name = `${cleanSlug}.yaml`
   let names
-  try { names = await fsp.readdir(resolvedDir) } catch { return notFound(req, res, slug) }
-  if (!names.includes(name)) return notFound(req, res, slug)
+  try { names = await fsp.readdir(resolvedDir) } catch { return notFound(req, res, slug, ui) }
+  if (!names.includes(name)) return notFound(req, res, slug, ui)
   const record = await readPlan(planDir, name)
-  if (!record || record.slug !== cleanSlug) return notFound(req, res, slug)
+  if (!record || record.slug !== cleanSlug) return notFound(req, res, slug, ui)
   const back = projectPath(project)
   if (record.error) {
     return send(req, res, 200, 'text/html; charset=utf-8', page(cleanSlug,
-      `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${back}">← ${esc(project.name)}</a></p><p class="note">${esc(errorText(record.error))}</p>`))
+      `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${ui.href(back)}">← ${esc(project.name)}</a></p><p class="note">${esc(errorText(record.error))}</p>`, ui))
   }
 
   try {
@@ -323,38 +356,38 @@ async function renderPlan(req, res, project, slug) {
     const review = nestedNode(doc, 'review')
     const verification = nestedNode(doc, 'verification')
     const status = textOf(doc.root, 'status')
-    const body = `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${back}">← ${esc(project.name)}</a></p>
+    const body = `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${ui.href(back)}">← ${esc(project.name)}</a></p>
 <div class="meta">${badge(status)}<span class="badge">mode: ${display(textOf(doc.root, 'mode'))}</span><span class="badge">worktree: ${display(textOf(doc.root, 'worktree'))}</span></div>
 <dl class="kv"><dt>spec</dt><dd>${display(textOf(doc.root, 'spec'))}</dd><dt>review</dt><dd>${mapLine(review, ['status', 'axis'])}</dd><dt>verification</dt><dd>${display(verification && textOf(verification, 'status'))}</dd></dl>
-<div class="sec"><h3>Goal</h3><div class="body">${display(textOf(doc.root, 'goal'))}</div></div>
-<div class="sec"><h3>Context</h3>${renderContext(doc)}</div>
-<div class="sec"><h3>Tasks</h3>${renderTasksTable(doc)}</div>
-<div class="sec"><h3>Review</h3><div class="body">${mapLine(review, ['status', 'axis', 'head', 'receipt', 'fixes', 'note'])}</div></div>
-<div class="sec"><h3>Verification</h3><div class="body">${mapLine(verification, ['status', 'report', 'head', 'note'])}</div></div>`
-    return send(req, res, 200, 'text/html; charset=utf-8', page(cleanSlug, body))
+<div class="sec"><h3>${strings.goalSection}</h3><div class="body">${display(textOf(doc.root, 'goal'))}</div></div>
+<div class="sec"><h3>${strings.contextSection}</h3>${renderContext(doc)}</div>
+<div class="sec"><h3>${strings.tasksSection}</h3>${renderTasksTable(doc)}</div>
+<div class="sec"><h3>${strings.reviewSection}</h3><div class="body">${mapLine(review, ['status', 'axis', 'head', 'receipt', 'fixes', 'note'])}</div></div>
+<div class="sec"><h3>${strings.verificationSection}</h3><div class="body">${mapLine(verification, ['status', 'report', 'head', 'note'])}</div></div>`
+    return send(req, res, 200, 'text/html; charset=utf-8', page(cleanSlug, body, ui))
   } catch (error) {
     return send(req, res, 200, 'text/html; charset=utf-8', page(cleanSlug,
-      `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${back}">← ${esc(project.name)}</a></p><p class="note">${esc(errorText(error))}</p>`))
+      `<h1>${esc(cleanSlug)}</h1><p class="sub"><a href="${ui.href(back)}">← ${esc(project.name)}</a></p><p class="note">${esc(errorText(error))}</p>`, ui))
   }
 }
 
-async function renderDir(req, res, dirPath, urlPath) {
+async function renderDir(req, res, dirPath, urlPath, ui) {
   let entries
-  try { entries = await fsp.readdir(dirPath, { withFileTypes: true }) } catch { return notFound(req, res, urlPath) }
+  try { entries = await fsp.readdir(dirPath, { withFileTypes: true }) } catch { return notFound(req, res, urlPath, ui) }
   entries = entries.filter((entry) => !(entry.isDirectory() && SKIP_DIRS.has(entry.name)))
   entries.sort((a, b) => (b.isDirectory() - a.isDirectory()) || a.name.localeCompare(b.name))
   const truncated = entries.length > MAX_ENTRIES
   const shown = truncated ? entries.slice(0, MAX_ENTRIES) : entries
   const parent = urlPath.replace(/\/$/, '').split('/').slice(0, -1).join('/') + '/'
   const rows = shown.map((entry) => {
-    const href = encodePath(urlPath + entry.name + (entry.isDirectory() ? '/' : ''))
+    const href = ui.href(encodePath(urlPath + entry.name + (entry.isDirectory() ? '/' : '')))
     return `<li><a href="${href}">${esc(entry.name)}${entry.isDirectory() ? '/' : ''}</a></li>`
   })
   const note = truncated
-    ? `<p class="note">Showing the first ${MAX_ENTRIES} of ${entries.length} entries — the rest are not listed. Directories like node_modules and dist are skipped entirely.</p>`
+    ? `<p class="note">${ui.strings.truncatedNote(MAX_ENTRIES, entries.length)}</p>`
     : ''
   return send(req, res, 200, 'text/html; charset=utf-8', page(urlPath,
-    `<h1>${esc(urlPath)}</h1><ul><li><a href="${encodePath(parent)}">../</a></li>${rows.join('')}</ul>${note}`))
+    `<h1>${esc(urlPath)}</h1><ul><li><a href="${ui.href(encodePath(parent))}">../</a></li>${rows.join('')}</ul>${note}`, ui))
 }
 
 function serveFile(req, res, filePath) {
@@ -369,49 +402,60 @@ function serveFile(req, res, filePath) {
   fs.createReadStream(filePath).on('error', () => res.destroy()).pipe(res)
 }
 
-async function renderStatic(req, res, project, face, rest, urlPath) {
+async function renderStatic(req, res, project, face, rest, urlPath, ui) {
   const rel = face === 'specs' ? path.join('docs', 'specs') : path.join('.dev-kit', 'artifacts')
   const root = path.join(project.root, rel)
   const relPath = rest.join('/')
   const target = await resolveInside(root, relPath)
-  if (!target) return notFound(req, res, urlPath)
+  if (!target) return notFound(req, res, urlPath, ui)
   let stat
-  try { stat = await fsp.stat(target) } catch { return notFound(req, res, urlPath) }
+  try { stat = await fsp.stat(target) } catch { return notFound(req, res, urlPath, ui) }
   if (!stat.isDirectory()) return serveFile(req, res, target)
   if (!urlPath.endsWith('/')) {
-    return send(req, res, 301, 'text/plain; charset=utf-8', '', CSP_PAGE, { location: encodePath(urlPath + '/') })
+    // Keep the language/theme across the trailing-slash redirect.
+    return send(req, res, 301, 'text/plain; charset=utf-8', '', CSP_PAGE, { location: encodePath(urlPath + '/') + `?${ui.qs}` })
   }
   const indexRel = relPath ? path.join(relPath, 'index.html') : 'index.html'
   const index = await resolveInside(root, indexRel)
   if (index) {
     try { if ((await fsp.stat(index)).isFile()) return serveFile(req, res, index) } catch {}
   }
-  return renderDir(req, res, target, urlPath)
+  return renderDir(req, res, target, urlPath, ui)
 }
 
 async function handle(req, res, ctx = {}) {
   if (!hostAllowed(req)) return send(req, res, 403, 'text/plain; charset=utf-8', 'devkit dashboard answers to 127.0.0.1 and localhost only\n')
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(req, res, 405, 'text/plain; charset=utf-8', 'read-only\n')
 
+  let url
+  try { url = new URL(req.url, 'http://localhost') } catch { return notFound(req, res, req.url, null) }
   let urlPath
-  try { urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname) } catch { return notFound(req, res, req.url) }
-  if (urlPath.includes('\0')) return notFound(req, res, req.url)
+  try { urlPath = decodeURIComponent(url.pathname) } catch { return notFound(req, res, req.url, null) }
+  if (urlPath.includes('\0')) return notFound(req, res, req.url, null)
+
+  const lang = resolveLang(req.headers['accept-language'], url.searchParams.get('lang'))
+  const theme = resolveTheme(url.searchParams.get('theme'))
+  const qs = (l, t) => `lang=${l}${t ? `&theme=${t}` : ''}`
+  const ui = {
+    lang, theme, strings: STRINGS[lang], path: urlPath, encPath: url.pathname, qs: qs(lang, theme),
+    href: (p) => `${p}${p.includes('?') ? '&' : '?'}${qs(lang, theme)}`,
+  }
 
   const projects = ctx.projects || await loadRegistry(ctx.registryFile || registryPath())
-  if (urlPath === '/') return renderHome(req, res, projects)
-  if (urlPath === '/tasks') return renderTasks(req, res, projects)
+  if (urlPath === '/') return renderHome(req, res, projects, ui)
+  if (urlPath === '/tasks') return renderTasks(req, res, projects, ui)
 
   const parts = urlPath.split('/')
-  if (parts[1] !== 'projects' || !parts[2]) return notFound(req, res, urlPath)
+  if (parts[1] !== 'projects' || !parts[2]) return notFound(req, res, urlPath, ui)
   const project = projects.find((entry) => entry.name === parts[2])
-  if (!project) return notFound(req, res, urlPath)
+  if (!project) return notFound(req, res, urlPath, ui)
 
-  if (parts.length === 4 && parts[3] === '') return renderProject(req, res, project)
-  if (parts[3] === 'plans' && parts.length === 5 && parts[4]) return renderPlan(req, res, project, parts[4])
+  if (parts.length === 4 && parts[3] === '') return renderProject(req, res, project, ui)
+  if (parts[3] === 'plans' && parts.length === 5 && parts[4]) return renderPlan(req, res, project, parts[4], ui)
   if ((parts[3] === 'specs' || parts[3] === 'artifacts') && parts.length >= 5) {
-    return renderStatic(req, res, project, parts[3], parts.slice(4), urlPath)
+    return renderStatic(req, res, project, parts[3], parts.slice(4), urlPath, ui)
   }
-  return notFound(req, res, urlPath)
+  return notFound(req, res, urlPath, ui)
 }
 
 function parsePort(argv) {

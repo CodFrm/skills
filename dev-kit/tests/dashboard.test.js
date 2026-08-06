@@ -117,10 +117,11 @@ class Capture extends Writable {
   get body() { return Buffer.concat(this.chunks).toString('utf8') }
 }
 
-async function req(url, { method = 'GET', host = '127.0.0.1', localPort } = {}) {
+async function req(url, { method = 'GET', host = '127.0.0.1', localPort, acceptLanguage = 'en' } = {}) {
   const res = new Capture()
   const settled = new Promise((resolve) => { res.on('finish', resolve); res.on('close', resolve) })
   const headers = host === null ? {} : { host }
+  if (acceptLanguage !== null) headers['accept-language'] = acceptLanguage
   await handle({ method, url, headers, socket: localPort ? { localPort } : {} }, res, { projects })
   await settled
   return res
@@ -136,8 +137,8 @@ test('home renders project cards, plan counts, aggregate summary and disconnecte
   assert.match(res.body, /4 projects · 2 running · 2 disconnected/)
   assert.match(res.body, /class="cards"/)
   assert.match(res.body, /grid-template-columns:repeat\(auto-fill,minmax\(18rem,1fr\)\)/)
-  assert.match(res.body, /<a href="\/projects\/alpha%3C%26\/">alpha&lt;&amp;<\/a>/)
-  assert.match(res.body, /<a class="tasks-link" href="\/tasks">→ Ready tasks \(3\)<\/a>/)
+  assert.match(res.body, /<a href="\/projects\/alpha%3C%26\/\?lang=en">alpha&lt;&amp;<\/a>/)
+  assert.match(res.body, /<a class="tasks-link" href="\/tasks\?lang=en">→ Ready tasks \(3\)<\/a>/)
   assert.match(res.body, /running 1/)
   assert.match(res.body, /ready 1/)
   assert.match(res.body, /draft 1/)
@@ -164,7 +165,7 @@ test('empty registry and empty ready-task views render their specified empty sta
   for (const [url, message] of [['/', /devkit project add &lt;path&gt;/], ['/tasks', /No ready tasks/]]) {
     const res = new Capture()
     const settled = new Promise((resolve) => res.on('finish', resolve))
-    await handle({ method: 'GET', url, headers: { host: '127.0.0.1' }, socket: {} }, res, { projects: [] })
+    await handle({ method: 'GET', url, headers: { host: '127.0.0.1', 'accept-language': 'en' }, socket: {} }, res, { projects: [] })
     await settled
     assert.equal(res.status, 200)
     assert.match(res.body, message)
@@ -175,8 +176,8 @@ test('empty registry and empty ready-task views render their specified empty sta
 test('project page groups plans in contract order, reports progress and links both browser faces', async () => {
   const res = await req('/projects/alpha%3C%26/')
   assert.equal(res.status, 200)
-  assert.equal(linkTo(res.body, 'docs/specs/').href, '/projects/alpha%3C%26/specs/')
-  assert.equal(linkTo(res.body, '.dev-kit/artifacts/').href, '/projects/alpha%3C%26/artifacts/')
+  assert.equal(linkTo(res.body, 'docs/specs/').href, '/projects/alpha%3C%26/specs/?lang=en')
+  assert.equal(linkTo(res.body, '.dev-kit/artifacts/').href, '/projects/alpha%3C%26/artifacts/?lang=en')
   assert.match(res.body, /running[\s\S]*running[\s\S]*1\/3/)
   assert.match(res.body, /unable to parse[\s\S]*bad/)
   const running = res.body.indexOf('<h3>Running</h3>')
@@ -235,8 +236,8 @@ test('specs and artifacts browse directories, prefer index.html and apply CSP by
   const listing = await req('/projects/alpha%3C%26/specs/')
   assert.equal(listing.status, 200)
   assert.equal(listing.headers['content-security-policy'], CSP_PAGE)
-  assert.equal(linkTo(listing.body, 'a#b.md').href, '/projects/alpha%3C%26/specs/a%23b.md')
-  assert.equal(linkTo(listing.body, '../').href, '/projects/alpha%3C%26/')
+  assert.equal(linkTo(listing.body, 'a#b.md').href, '/projects/alpha%3C%26/specs/a%23b.md?lang=en')
+  assert.equal(linkTo(listing.body, '../').href, '/projects/alpha%3C%26/?lang=en')
 
   const html = await req('/projects/alpha%3C%26/specs/mock.html')
   assert.equal(html.status, 200)
@@ -254,7 +255,7 @@ test('specs and artifacts browse directories, prefer index.html and apply CSP by
 
   const redirect = await req('/projects/alpha%3C%26/specs/plain')
   assert.equal(redirect.status, 301)
-  assert.equal(redirect.headers.location, '/projects/alpha%3C%26/specs/plain/')
+  assert.equal(redirect.headers.location, '/projects/alpha%3C%26/specs/plain/?lang=en')
 
   const index = await req('/projects/alpha%3C%26/specs/site/')
   assert.equal(index.status, 200)
@@ -268,7 +269,7 @@ test('specs and artifacts browse directories, prefer index.html and apply CSP by
   assert.doesNotMatch(skips.body, />dist\//)
 
   const many = await req('/projects/alpha%3C%26/specs/many/')
-  assert.equal(links(many.body).filter((link) => link.text !== '../').length, 500)
+  assert.equal(links(many.body).filter((link) => /^f\d{3}\.md$/.test(link.text)).length, 500)
   assert.match(many.body, /first 500 of 501 entries/)
 })
 
@@ -301,6 +302,55 @@ test('Host and method checks run before routing, and HEAD is bodyless', async ()
   const head = await req('/projects/alpha%3C%26/specs/design.md', { method: 'HEAD' })
   assert.equal(head.status, 200)
   assert.equal(head.body, '')
+})
+
+test('lang follows ?lang, then Accept-Language, then zh fallback; chrome localises but plan data and badges stay machine vocabulary', async () => {
+  const zhParam = await req('/?lang=zh', { acceptLanguage: 'en-US,en;q=0.9' })
+  assert.equal(zhParam.status, 200)
+  assert.match(zhParam.body, /<html lang="zh-CN"/)
+  assert.match(zhParam.body, /4 个项目 · 2 个进行中 · 2 个失联/)
+  assert.match(zhParam.body, /当前可跑任务/)
+  assert.match(zhParam.body, /running 1/, 'status badges stay machine values')
+  assert.match(zhParam.body, /无法解析 1/)
+  assert.doesNotMatch(zhParam.body, /projects ·/)
+
+  const zhHeader = await req('/tasks', { acceptLanguage: 'zh-CN,zh;q=0.9' })
+  assert.match(zhHeader.body, /可跑 — 3/)
+  assert.match(zhHeader.body, /任务 2/)
+
+  const enWins = await req('/?lang=en', { acceptLanguage: 'zh-CN,zh;q=0.9' })
+  assert.match(enWins.body, /4 projects · 2 running · 2 disconnected/, 'query beats the header')
+
+  const fallback = await req('/', { acceptLanguage: null })
+  assert.match(fallback.body, /4 个项目 · 2 个进行中 · 2 个失联/, 'no header falls back to zh')
+
+  const planZh = await req('/projects/alpha%3C%26/plans/running?lang=zh')
+  assert.match(planZh.body, /目标/, 'section header localises')
+  assert.match(planZh.body, /mode: subagent/, 'plan field names stay machine')
+  assert.match(planZh.body, /running[\s\S]*worktree/, 'status badge and worktree data stay machine')
+})
+
+test('theme pins data-theme only when ?theme= is present; otherwise the system media query decides', async () => {
+  const dark = await req('/?theme=dark')
+  assert.match(dark.body, /<html lang="en" data-theme="dark"/)
+  const light = await req('/?theme=light')
+  assert.match(light.body, /<html lang="en" data-theme="light"/)
+  const system = await req('/')
+  assert.doesNotMatch(system.body, /<html lang="en" data-theme=/, 'no data-theme attribute on the html element means the media query decides')
+})
+
+test('the toggle keeps the page and the other parameter; internal links carry the current params', async () => {
+  const res = await req('/projects/alpha%3C%26/?lang=zh&theme=dark')
+  const hrefs = [...res.body.matchAll(/<a[^>]*href="([^"]*)"/g)].map((m) => m[1])
+  assert.ok(hrefs.includes('/projects/alpha%3C%26/?lang=en&theme=dark'), 'EN keeps the dark theme')
+  assert.ok(hrefs.includes('/projects/alpha%3C%26/?lang=zh'), 'System drops the theme')
+  assert.ok(hrefs.includes('/projects/alpha%3C%26/?lang=zh&theme=light'), 'Light keeps the lang')
+  assert.ok(hrefs.includes('/projects/alpha%3C%26/plans/running?lang=zh&theme=dark'), 'plan link carries both params')
+
+  const home = await req('/?lang=zh&theme=dark')
+  const homeHrefs = [...home.body.matchAll(/<a[^>]*href="([^"]*)"/g)].map((m) => m[1])
+  assert.ok(homeHrefs.includes('/tasks?lang=zh&theme=dark'), 'tasks link carries both params')
+  assert.ok(homeHrefs.includes('/projects/alpha%3C%26/?lang=zh&theme=dark'), 'card link carries both params')
 })
 
 function listen(server) {
