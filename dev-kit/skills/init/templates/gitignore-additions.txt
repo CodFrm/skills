@@ -1,0 +1,16 @@
+# Append only selected entries to the project .gitignore; do not overwrite it.
+
+# Dev-kit plans/artifacts/worktrees. No trailing slash: linked worktrees use a symlink.
+.dev-kit
+
+# One-off local runtime verification and evidence; excluded from CI.
+e2e/scratch/
+
+# Real-target verification credentials/config.
+.env
+
+# Test/build/lint output.
+<test-results directory>
+<report directory>
+<coverage directory>
+<cache files>

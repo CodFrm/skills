@@ -1,0 +1,38 @@
+# Line endings are load-bearing in this repository.
+#
+# dev-kit's hooks are bash scripts, and Git for Windows checks out with core.autocrlf=true by
+# default — so without this file, `claude plugin install` on Windows lands a CRLF copy of
+# hooks/session-start. A CRLF bash script does not degrade, it dies:
+# `set -euo pipefail\r` is an "invalid option name", and the `-e` that was already applied
+# turns that into an immediate exit. The hook then injects nothing, silently, and the whole
+# thing looks like "the plugin just doesn't do anything on Windows".
+#
+# So: LF in the working tree, on every platform.
+* text=auto eol=lf
+
+# hooks/run-hook.cmd stays LF **deliberately**, even though it is a batch file, and this line
+# is here to stop anyone "correcting" it to eol=crlf.
+#
+# It is a cmd/bash polyglot, and the bash half is the half that cannot survive CRLF: `fi\r`
+# is an outright syntax error, and `SCRIPT_DIR="$(...)"\r` picks up a trailing CR that makes
+# the exec'd path unopenable. cmd.exe, in contrast, reads LF-only batch files fine — the
+# construct that genuinely breaks there is a label / `goto`, because cmd seeks to labels by
+# byte offset. Hence the standing rule for run-hook.cmd: **no labels, no `goto`.**
+*.cmd text eol=lf
+*.bat text eol=lf
+
+# Binaries, should any ever land here: never touch them. Evidence directories (screenshots,
+# screen recordings) are gitignored in consuming projects, but templates and fixtures may
+# eventually carry an image.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.mp4 binary
+*.webm binary
+*.woff binary
+*.woff2 binary

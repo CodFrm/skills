@@ -1,0 +1,57 @@
+<!-- Copy to project root. Replace placeholders; delete unused routes/principles and this comment. Keep only verified project facts, conditional routes, selected principles and a quick map. -->
+
+# AGENTS.md
+
+`CLAUDE.md` imports this file; keep agent rules here only.
+
+## Read before changing
+
+| When | Read | It owns |
+|---|---|---|
+| Before code | [`docs/develop.md`](docs/develop.md) | commands, structure, style, enforced rules, commit flow |
+| Before tests | [`docs/testing.md`](docs/testing.md) | boundary, coverage, fixtures/mocks, exceptions, commands |
+| Before runtime verification | [`docs/verification.md`](docs/verification.md) | real-target scratch workflow and report |
+| Before UI | [`docs/design.md`](docs/design.md) | tokens, components, themes, states, accessibility |
+| Before observability work | [`docs/observability.md`](docs/observability.md) | levels, instrumentation and sensitive-data rules |
+| Before contributor docs | [`docs/documentation.md`](docs/documentation.md) | ownership and fact checks |
+
+Delete routes whose documents were not generated. Index: [`docs/README.md`](docs/README.md).
+
+## Project overview
+
+<project name> — <one sentence>.
+
+- Stack: <language/framework/tooling and versions>
+- Package manager: <name and enforcement>
+- Module/package: `<name>`
+- Output: <artifact>
+
+## Engineering principles
+
+<!-- Keep only user-selected or scan-supported entries. Rewrite onto real repository seams. Tag each enforced by <gate> or review-only. -->
+
+- **TDD first for observable behaviour.** [`docs/testing.md`](docs/testing.md) owns boundaries and exceptions. <enforcement tag>
+- **Reproduce a bug before fixing it.** Require a matching failure and root cause; otherwise stop. <enforcement tag>
+- **Fix the source boundary, not repeated consumers.** <project-specific seam and why>. <enforcement tag>
+- **Limit scope to the requested producer and its tests.** Report unrelated cleanup. <enforcement tag>
+- **Reuse `<project entry points>` before adding another implementation.** <decidable reuse rule and why>. <enforcement tag>
+- **Extend through `<interface/registry>`; do not branch in `<shared dispatcher>`.** <why>. <enforcement tag>
+- **Validate at `<external boundaries>`; propagate internal errors.** <why>. <enforcement tag>
+- **Replace `<old system>` directly unless both implementations coexist at runtime.** <why>. <enforcement tag>
+- **Keep credentials/personal data out of repository, logs and reports.** Use <approved mechanism/redaction>. <enforcement tag>
+- **Instrument `<critical flows>` through `<logger>` with correlation ids.** <enforcement tag>
+
+## Architecture
+
+> Details: [`docs/architecture.md`](docs/architecture.md).
+
+```text
+<main modules/layers and call direction>
+```
+
+- `<module>` — <responsibility>
+
+### Key constraints
+
+- <decidable dependency rule and real paths/interfaces>
+- <migration/generated-output/logging rule and its gate>

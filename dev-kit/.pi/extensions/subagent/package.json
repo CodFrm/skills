@@ -1,0 +1,31 @@
+{
+  "name": "dev-kit-pi-subagent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional self-contained Pi subagent delegation for dev-kit.",
+  "author": {
+    "name": "CodFrm",
+    "url": "https://github.com/CodFrm"
+  },
+  "homepage": "https://github.com/CodFrm/skills/tree/main/dev-kit/.pi/extensions/subagent",
+  "repository": "https://github.com/CodFrm/skills",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "subagent",
+    "delegation",
+    "dev-kit"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./subagent.ts"
+    ]
+  }
+}

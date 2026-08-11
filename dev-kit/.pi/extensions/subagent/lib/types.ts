@@ -1,0 +1,44 @@
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { Message } from "@earendil-works/pi-ai";
+
+export type Profile = "read-only" | "write" | "general";
+
+export interface TaskRequest {
+	task: string;
+	profile: Profile;
+	model?: string;
+	thinking?: string;
+	cwd?: string;
+}
+
+export type SubagentParams = TaskRequest;
+
+export interface ResolvedTaskRequest extends TaskRequest {
+	cwd: string;
+	tools: string[];
+}
+
+export interface UsageStats {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	cost: number;
+	contextTokens: number;
+	turns: number;
+}
+
+export interface TaskResult {
+	task: string;
+	profile: Profile;
+	cwd: string;
+	exitCode: number;
+	messages: Message[];
+	stderr: string;
+	usage: UsageStats;
+	model?: string;
+	stopReason?: string;
+	errorMessage?: string;
+}
+
+export type OnUpdate = (partial: AgentToolResult<TaskResult>) => void;

@@ -1,0 +1,40 @@
+{
+  "name": "dev-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Spec-driven development from agreed design through TDD implementation, independent review, runtime verification, and delivery.",
+  "author": {
+    "name": "CodFrm",
+    "url": "https://github.com/CodFrm"
+  },
+  "homepage": "https://github.com/CodFrm/skills/tree/main/dev-kit",
+  "repository": "https://github.com/CodFrm/skills",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit --checkJs",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "eslint": "^10.0.0",
+    "typescript": "^7.0.0"
+  },
+  "keywords": [
+    "pi-package",
+    "skills",
+    "development",
+    "workflow"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/dev-kit.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}

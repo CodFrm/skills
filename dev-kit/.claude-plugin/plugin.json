@@ -1,0 +1,17 @@
+{
+  "name": "dev-kit",
+  "description": "Spec-driven development, end to end. The spec settles what to build, the plan settles how: agreed design → isolated worktree → approved spec committed on its branch → plan → one serial TDD round per task → two static wrap-up reviews → main-session runtime verification and reproducible report. Plus init, for AGENTS.md, layered docs and lint guardrails wired into CI.",
+  "version": "0.1.0",
+  "author": {
+    "name": "CodFrm",
+    "url": "https://github.com/CodFrm"
+  },
+  "homepage": "https://github.com/CodFrm/skills/tree/main/dev-kit",
+  "repository": "https://github.com/CodFrm/skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "development",
+    "workflow"
+  ]
+}

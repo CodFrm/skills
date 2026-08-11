@@ -1,0 +1,37 @@
+spec: docs/specs/2026-08-02-extra-keys.md
+status: running
+mode: inline
+worktree: .dev-kit/worktrees/extra-keys
+
+goal: "A plan whose every state value is in vocabulary and which carries two improvised keys"
+
+context: []
+
+tasks:
+  - id: 1
+    goal: "Only slice"
+    deps: []
+    files: [src/a.js]
+    model: mid
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+
+delivery_caveats:
+  - "Improvised at the top level, on purpose"
+
+review:
+  status: pending
+  axis: none
+  head: null
+  receipt: null
+  fixes: []
+  note: null
+  status_note: pending
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null

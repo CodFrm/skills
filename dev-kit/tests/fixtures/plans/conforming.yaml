@@ -1,0 +1,58 @@
+spec: docs/specs/2026-08-02-example.md
+status: running               # draft → ready → running → done | stopped
+mode: subagent                # subagent | inline; user/available harness sets this at ready gate
+worktree: .dev-kit/worktrees/example
+
+goal: >-
+  One observable finish condition, folded
+  across two lines.
+
+context:
+  - "A verified fact at src/a.js:12"
+
+tasks:
+  - id: 1
+    goal: "First slice"
+    deps: []
+    files: [src/a.js]
+    model: mid
+    interfaces: null
+    status: done              # todo → doing → done | blocked
+    commit: abc1234
+    note: >-
+      The reviewer wrote status: dong here and it is prose, not a key:
+      - files: [nope] is prose too
+  - id: 2
+    goal: "Second slice"
+    deps: [1]
+    files:
+      - src/b.js
+      - dev-kit/tests/b.test.js
+    model: null
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+  - id: 3
+    goal: "Third slice"
+    deps: [2]
+    files: [src/c.js]
+    model: strong
+    interfaces: null
+    status: todo
+    commit: null
+    note: null
+
+review:
+  status: pending
+  axis: none
+  head: null
+  receipt: null
+  fixes: []
+  note: null
+
+verification:
+  status: pending
+  report: null
+  head: null
+  note: null
