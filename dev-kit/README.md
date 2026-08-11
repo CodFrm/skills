@@ -61,8 +61,8 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 |---|---|
 | [using-dev-kit](./skills/using-dev-kit/) | 每个开发会话的开头，以及写代码、跑命令、向用户提问之前——这套 kit 的引导页 |
 | [init](./skills/init/) | 项目要立规矩，或老项目文档过期、没有护栏、同一类问题反复出现 |
-| [brainstorming](./skills/brainstorming/) | 所有 tracked change 先形成获批 spec；需求已定案时走 compact path，不重开设计 |
-| [writing-plans](./skills/writing-plans/) | 每份获批 spec 都形成 plan；小改动写一个 compact task，较长改动拆 vertical slices |
+| [brainstorming](./skills/brainstorming/) | 行为、UI、合约、范围或其他需求边界尚未定案时形成获批 spec |
+| [writing-plans](./skills/writing-plans/) | 获批 spec 形成 plan；小改动写一个 compact task，较长改动拆 vertical slices |
 | [using-git-worktrees](./skills/using-git-worktrees/) | 用户确认 spec 草稿没有问题、要把它和实现放进独立分支时，以及分支收尾交付时 |
 | [executing-plans](./skills/executing-plans/) | 已有定稿的 `.dev-kit/plans/*.yaml` 要推进或收尾 |
 | [test-driven-development](./skills/test-driven-development/) | 实现新行为、修可复现的 bug、改公开契约——在写生产代码之前 |
@@ -70,7 +70,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 ## 链路
 
-Every tracked change follows `brainstorming` (compact when already settled) → `using-git-worktrees` → `writing-plans` (one task for a small change) → `test-driven-development` inside `executing-plans` → two-axis review-and-fix wrap-up → main-session runtime verification → `using-git-worktrees` for delivery.
+Unsettled work follows `brainstorming` → `using-git-worktrees` → `writing-plans` → `test-driven-development` inside `executing-plans` → two-axis review-and-fix wrap-up → main-session runtime verification → `using-git-worktrees` for delivery. 已定案的小改动直接走 TDD 或项目检查；只要还有会改变结果的需求或边界未决，就进 `brainstorming`。
 
 Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns subagent review boundaries. `init` triggers independently.
 

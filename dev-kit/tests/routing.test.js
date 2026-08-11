@@ -7,16 +7,15 @@ const path = require('node:path')
 
 const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8')
 
-test('settled small changes keep the durable chain without reopening design', () => {
+test('settled small changes bypass brainstorming', () => {
   const router = read('skills/using-dev-kit/SKILL.md')
   const brainstorming = read('skills/brainstorming/SKILL.md')
   const readme = read('README.md')
 
   assert.match(router, /Settled small change/)
-  assert.match(router, /Every tracked change uses the spec\/workspace\/plan chain/)
-  assert.match(brainstorming, /For a settled request, omit steps 3–5/)
-  assert.match(brainstorming, /one compact TDD slice/)
-  assert.match(readme, /需求已定案时走 compact path/)
-  assert.match(readme, /小改动写一个 compact task/)
-  assert.doesNotMatch(readme, /直接进入 TDD/)
+  assert.match(router, /Use `test-driven-development` for behaviour/)
+  assert.match(router, /If any requirement or boundary is undecided, route to `brainstorming`/)
+  assert.doesNotMatch(brainstorming, /compact path when the request is already settled/)
+  assert.match(readme, /已定案的小改动直接走 TDD 或项目检查/)
+  assert.doesNotMatch(readme, /Every tracked change follows `brainstorming`/)
 })

@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: >-
-  Use before a tracked change to produce its approved spec: explore undecided behaviour, UI or contracts, or take the compact path when the request is already settled. Use again when an agreement turns out wrong. Not for factual Q&A or read-only investigation.
+  Use before a tracked change when behaviour, UI, contracts, scope or another requirement boundary remains undecided, and again when an agreement turns out wrong. Produces an approved spec. Not for settled small changes, factual Q&A or read-only investigation.
 ---
 
 # Requirements exploration and specification (brainstorming)
@@ -16,7 +16,7 @@ Write the spec and every later report in the user's language, unless the reposit
 
 ## Order
 
-Follow the order below. For a settled request, omit steps 3–5: verify repository facts and any necessary split, then write the smallest complete spec, self-check it and obtain explicit approval without reopening design.
+Follow the order below.
 
 1. Read project instructions, relevant code/tests and recent related commits. Record verified facts, user statements and unknowns. Fix the slug now: `YYYY-MM-DD-<lowercase-short-name>`.
 2. If the request contains independently shippable subsystems, propose the split and dependency order; continue with one spec.
