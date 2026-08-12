@@ -33,7 +33,8 @@ function assertPiSingleTaskMapping(mapping) {
   assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
   assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
   assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
-  assert.match(dispatch, /main session owns serial dispatch/)
+  assert.match(dispatch, /main session owns scheduling/)
+  assert.match(dispatch, /safe implementation batch/)
   assert.doesNotMatch(dispatch, /parallel-is-proved-not-assumed|exact current HEAD|approves parallel dispatch|parallel_evidence/)
   assert.match(dispatch, /keeps no scheduler or queue/)
   assert.match(dispatch, /never writes `\.dev-kit\/plans\/\*\.yaml`/)
@@ -83,7 +84,8 @@ test('Codex mapping uses the collaboration tools exposed by the current harness'
     assert.match(mapping, new RegExp(`\\b${tool}\\b`))
   }
   assert.doesNotMatch(mapping, /\bclose_agent\b/)
-  assert.match(mapping, /Dispatch every task serially, including the wrap-up axes\./)
+  assert.match(mapping, /safe implementation batch before waiting/)
+  assert.match(mapping, /wrap-up axes/)
   assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
@@ -91,7 +93,8 @@ test('Claude mapping keeps native subagents and task tracking distinct', () => {
   const mapping = read('references/claude-tools.md')
   assert.match(mapping, /`Task`/)
   assert.match(mapping, /`TodoWrite`/)
-  assert.match(mapping, /Dispatch every task serially, including the wrap-up axes\./)
+  assert.match(mapping, /safe implementation batch in the background before waiting/)
+  assert.match(mapping, /wrap-up axes/)
   assert.doesNotMatch(mapping, /gate-approved parallel batch|concurrency gate|parallel-is-proved-not-assumed/)
 })
 
@@ -203,20 +206,27 @@ test('blocked tasks stop before wrap-up and runtime findings await a user decisi
   assert.match(skill, /Only explicit acceptance sets verification `accepted` and plan `done`/)
 })
 
-test('AGENTS.md and executing-plans require every dispatch to be serial', () => {
-  assert.match(readRoot('AGENTS.md'), /派发全部串行/)
-  assert.match(
-    readRoot('dev-kit/skills/executing-plans/SKILL.md'),
-    /Dispatch is serial — one subagent, its return recorded and mechanically checked, then the next/,
-  )
+test('AGENTS.md and executing-plans allow only write-disjoint implementation batches to run concurrently', () => {
+  const writing = readRoot('dev-kit/skills/writing-plans/SKILL.md')
+  const executing = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+  const taskPrompt = readRoot('dev-kit/skills/executing-plans/references/task-prompts.md')
+
+  assert.match(readRoot('AGENTS.md'), /只有 `subagent` 实现任务可在依赖满足且写路径互斥时成批并发/)
+  assert.match(writing, /run one scheduling pass before writing `ready`/)
+  assert.match(writing, /compare every such pair's `files`/)
+  assert.match(executing, /maximal ready batch whose declared `files` are pairwise disjoint/)
+  assert.match(executing, /Launch every task in that batch before waiting for any return/)
+  assert.match(executing, /concurrent implementers leave their owned changes uncommitted/)
+  assert.match(taskPrompt, /leave all\s+changes uncommitted because this task is in a concurrent batch/)
+  assert.match(executing, /all other dispatch, including retries and wrap-up axes, is serial/)
 })
 
-test('Pi public guidance preserves installation and attribution while rejecting the old contract', () => {
+test('Pi public guidance preserves single-call installation and keeps scheduling in the main session', () => {
   const catalog = readRoot('README.md')
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
   const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
 
-  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话全程串行派发.*基础 dev-kit 仍保持 inline/)
+  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话可并发派发写路径互斥的实现任务.*基础 dev-kit 仍保持 inline/)
   assert.doesNotMatch(catalog, /single、parallel 与 chain|获准的并行|并行批次/)
 
   assert.match(packageReadme, /基础 `dev-kit\/package\.json` 不引用本包/)
@@ -231,10 +241,10 @@ test('Pi public guidance preserves installation and attribution while rejecting 
   assert.match(contract, /`tasks`、`chain`、`tools` 以及其他未知字段都会在启动前拒绝，不做兼容转换/)
 
   const orchestration = section(packageReadme, '编排边界')
-  assert.match(orchestration, /主会话串行处理所有依赖和 wrap-up 两轴/)
+  assert.match(orchestration, /主会话分析依赖与写路径.*先发出同一安全实现批次的所有独立调用再等待.*wrap-up 两轴保持串行/)
   assert.doesNotMatch(orchestration, /parallel-is-proved-not-assumed|当前精确 HEAD|批准并行派发/)
   assert.match(orchestration, /不保留 scheduler 或 queue.*不写 `\.dev-kit\/plans\/\*\.yaml`/)
-  assert.match(orchestration, /前一个调用返回后.*新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
+  assert.match(orchestration, /有依赖的后续任务只在前序完成后形成新的完整 task.*不会机械传递前序输出或自行选择后续步骤/)
 
   const profiles = section(packageReadme, 'Profiles and tool resolution')
   assert.match(profiles, /`write`.*实现、退回补齐与 wrap-up 审查修复这类不需要项目自定义工具的落盘任务/)

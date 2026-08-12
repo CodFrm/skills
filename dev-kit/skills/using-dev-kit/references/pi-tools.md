@@ -24,7 +24,7 @@ Before a plan ready gate, inspect the current session's actual tool list for the
 
 Each `subagent` call starts one fresh child for one task. Its only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`; `tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion. The returned result belongs only to that task.
 
-The main session owns serial dispatch: after a call returns, it mechanically checks the result before sending the next complete task, including each wrap-up axis. The extension keeps no scheduler or queue and never writes `.dev-kit/plans/*.yaml`.
+The main session owns scheduling. For an `executing-plans` safe implementation batch, issue all independent calls before waiting when the running harness accepts concurrent tool calls; otherwise each call completes before the next. All other dispatch, including each wrap-up axis, is serial. The extension keeps no scheduler or queue and never writes `.dev-kit/plans/*.yaml`.
 
 ## Profiles and tool resolution
 

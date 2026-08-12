@@ -41,7 +41,7 @@ DevKit 应写成流程控制和状态机，不写成教程或百科：
 
 以下属于流程承重边界，不因精简删除：用户审批及破坏性/外部副作用授权、TDD 与 systematic debugging、plan 单写者、wrap-up 两轴独立审查与各自修复、主会话亲自跑的 runtime verification、证据真实性，以及两条编排硬约束：
 
-1. 派发全部串行，wrap-up 两轴也不例外。
+1. 只有 `subagent` 实现任务可在依赖满足且写路径互斥时成批并发；其他派发串行，wrap-up 两轴也不例外。
 2. `subagent` 模式下主会话不审 source、commit 或 diff；它只依据结构化返回、wrap-up receipt、自己的 runtime 观察和机械检查，按 `executing-plans` 有界退回或恢复，不自行补审。runtime verification 由主会话亲自跑；为驱动目标而读启动方式、接口和选择器不算审查。
 
 写 `SKILL.md` 及其引用文件时，每句话过三关。

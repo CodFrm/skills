@@ -88,6 +88,8 @@ Explain that `subagent` runs each dispatched step in a fresh context, while `inl
 
 Wait for both decisions. A recut plan repeats the complete gate. Write `status: ready` and `mode` only from the answer, except a harness with no native dispatch forces `inline`.
 
+When the user selects `subagent`, run one scheduling pass before writing `ready`: derive which tasks can become ready together from `deps`, then compare every such pair's `files`, including parent/child paths and indirectly shared generated artifacts, lockfiles, registries, snapshots, translations and configuration. Add a dependency for every write conflict; do not add ordering between disjoint tasks. Report the resulting concurrent batches. If this changes a task goal or boundary, repeat the complete gate; a dependency-only correction does not require another approval.
+
 Once ready, execution may write statuses, commits, notes, review/verification state and new verified context. Goals, deps, files and model tiers remain frozen until the user approves a recut. A changed requirement returns to `brainstorming`; a changed decomposition returns here.
 
 Then hand the ready plan to [`executing-plans`](../executing-plans/SKILL.md).
@@ -98,4 +100,5 @@ Then hand the ready plan to [`executing-plans`](../executing-plans/SKILL.md).
 - [ ] Context facts are currently verified; no requirement is duplicated into the plan
 - [ ] Every task is one observable vertical slice with complete deps and wide files
 - [ ] Cross-task interfaces are recorded on consumers; model values are tiers or null
+- [ ] In `subagent` mode, a second scheduling pass made every potentially co-ready pair write-disjoint or dependency-ordered
 - [ ] The user approved both the current breakdown and available execution mode

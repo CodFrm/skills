@@ -14,7 +14,7 @@ The main session is the orchestrator:
 
 1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
 2. It records and routes each return immediately; a finished task does not pause the loop.
-3. Dispatch is serial — one subagent, its return recorded and mechanically checked, then the next.
+3. In `subagent` mode it dispatches a whole safe implementation batch before waiting; all other dispatch, including retries and wrap-up axes, is serial.
 4. In `subagent` mode it never reviews source, commits or diffs. It decides from structured returns, ignored wrap-up receipts, runtime observations and mechanical state checks. A lost wrap-up invocation resumes the same recorded axis; it is not a replacement or another review pass.
 5. Work is not complete after task implementation: two-axis review-and-fix wrap-up → runtime verification.
 
@@ -38,33 +38,35 @@ Verify the recorded workspace is the current checkout, the spec is tracked on it
 
 ```text
 collect ready tasks
-  → select one
-  → write doing state
-  → implement (TDD; debug first for faults)
+  → select a safe batch
+  → write every selected task doing
+  → implement concurrently in subagent mode (TDD; debug first for faults)
   → record a command, exit code and deciding observation per goal part
-  → done
+  → commit and mark each task done
   → full suite
   → repeat
 ```
 
 Ready means `status: todo` and all `deps` are `done`.
 
+`inline` selects one ready task. `subagent` selects a maximal ready batch whose declared `files` are pairwise disjoint, treating parent/child paths and indirectly shared generated artifacts, lockfiles, registries, snapshots, translations and configuration as overlaps. Launch every task in that batch before waiting for any return. If no pair is safe, select one. The scheduling pass in `writing-plans` is the design-time check; repeat the same comparison against the frozen plan at runtime rather than assuming it stayed safe.
+
 ### Dispatch implementation
 
-Before dispatch, write the selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan and commits only its task by path. In `inline` mode the main session is the implementer, against the same prompt and the same structured return.
+Before dispatch, write every selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier, commit policy and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan. A single-task dispatch commits by explicit path; concurrent implementers leave their owned changes uncommitted because a shared Git index and branch HEAD cannot safely accept sibling commits. In `inline` mode the main session is the implementer, against the same prompt and the same structured return.
 
 A structured return is routing input:
 
 | Status | Transition |
 |---|---|
-| `complete` | `git cat-file -e <sha>^{commit}` must resolve; record the SHA |
+| `complete` | For a single task, `git cat-file -e <sha>^{commit}` must resolve; for a concurrent batch, mechanically verify its changed paths stay within `files`, then the main session commits those paths and records that SHA |
 | `complete with concerns` | Same, and append only blocking concerns verbatim to the task `note` |
 | `missing context` | Add verified missing context and re-dispatch once; a second return marks the task `blocked`, while a contradiction requiring a decision goes to the user |
 | `stuck` | Change something once before retry: add context, raise tier or recut the plan; a second return marks the task `blocked` |
 
 ### What makes a task `done`
 
-A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. In neither mode does it read source, commits or diffs to complete that record. Then write `done` and run the full suite; diagnose red before selecting the next task.
+A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. In neither mode does it review source, commits or diffs to complete that record. For a concurrent return, it may only run mechanical path checks, stage the task's explicit `files`, commit them alone, and record the SHA. Route and commit every returned task before selecting another batch. Then write `done` and run the full suite; diagnose red before selecting the next task.
 
 A return that declares a goal part incomplete, or leaves one without that record, goes back once for the named part alone through [the send-back prompt](references/task-prompts.md#send-back) — both causes draw on that single send-back, and a second short return marks the task `blocked`.
 

@@ -19,8 +19,8 @@ Boundaries:
 - Do only this task. Ignore unrelated non-blocking problems; report only a blocker that prevents this task.
 - Owned paths: <files>. Do not write outside them.
 - Run focused tests only; the orchestrator runs the full suite.
-- Commit this task once, by explicit path, using the project's message convention. Never use
-  `git add -A` or `git add .`; on index.lock wait and retry.
+- Commit policy: <commit once by explicit path using the project's message convention | leave all
+  changes uncommitted because this task is in a concurrent batch>. Never use `git add -A` or `git add .`.
 - Do not edit the plan or set status.
 
 Return before coding as `missing context` for ambiguity/unstated assumptions, or `stuck` for a
@@ -33,7 +33,7 @@ within the task. Do not return non-blocking review advice for the orchestrator t
 
 Return at most 15 lines, no report file:
 - status: complete | complete with concerns | stuck | missing context
-- short commit SHA
+- short commit SHA, or `uncommitted` for a concurrent batch
 - the RED command, its exit code and the failure it showed
 - per goal part: one command, its exit code and the deciding observation, or the exact clause still false
 - blocking concerns and any contradiction with plan context

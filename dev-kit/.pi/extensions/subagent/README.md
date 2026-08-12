@@ -37,9 +37,9 @@ subagent({
 
 ## 编排边界
 
-主会话串行处理所有依赖和 wrap-up 两轴。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限，也不写 `.dev-kit/plans/*.yaml`。
+主会话分析依赖与写路径；运行 harness 接受并发 tool call 时，它先发出同一安全实现批次的所有独立调用再等待，其他派发及 wrap-up 两轴保持串行。每个调用独立启动、流式更新、失败和返回；extension 不读取 plan、不判断依赖、不保留 scheduler 或 queue、不设置并发上限，也不写 `.dev-kit/plans/*.yaml`。
 
-前一个调用返回后，主会话负责判断是否继续，并为串行依赖形成新的完整 task；工具不会机械传递前序输出或自行选择后续步骤。
+每个返回都由主会话独立判断；有依赖的后续任务只在前序完成后形成新的完整 task。工具不会机械传递前序输出或自行选择后续步骤。
 
 ## Profiles and tool resolution
 
