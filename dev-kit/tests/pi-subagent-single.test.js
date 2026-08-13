@@ -339,6 +339,52 @@ test('single task exposes its final model-visible output, tool call, usage, and 
   assert.equal(updates.at(-1).content[0].text, 'inspected the file')
 })
 
+test('a transient stream error followed by a clean retry clears the stale error message', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-retry-'))
+  const fakePi = path.join(root, 'fake-pi-retry.js')
+  const failedAttempt = {
+    role: 'assistant',
+    content: [{ type: 'text', text: '' }],
+    usage: { input: 5, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0 }, totalTokens: 5 },
+    model: 'fake-provider/retry-model',
+    stopReason: 'error',
+    errorMessage: 'Stream ended without finish_reason',
+  }
+  const recovered = {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'recovered output' }],
+    usage: { input: 21, output: 8, cacheRead: 5, cacheWrite: 3, cost: { total: 0.0456 }, totalTokens: 37 },
+    model: 'fake-provider/retry-model',
+    stopReason: 'stop',
+  }
+  fs.writeFileSync(
+    fakePi,
+    `'use strict'\nconst failedAttempt = ${JSON.stringify(failedAttempt)}\nconst recovered = ${JSON.stringify(recovered)}\nprocess.stdout.write(JSON.stringify({ type: 'message_end', message: failedAttempt }) + '\\n')\nprocess.stdout.write(JSON.stringify({ type: 'message_end', message: recovered }) + '\\n')\n`,
+  )
+
+  const previousArgv1 = process.argv[1]
+  process.argv[1] = fakePi
+  t.after(() => {
+    process.argv[1] = previousArgv1
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  const tool = await loadTool()
+  const result = await tool.execute(
+    'retry-recovered',
+    { task: 'Recover from a transient stream error', profile: 'read-only' },
+    undefined,
+    undefined,
+    context(root),
+  )
+
+  assert.equal(result.isError, undefined)
+  assert.equal(result.content[0].text, 'recovered output')
+  assert.equal(result.details.stopReason, 'stop')
+  assert.equal(result.details.errorMessage, undefined)
+  assert.equal(result.details.messages.at(-1).content[0].text, 'recovered output')
+})
+
 test('general snapshots active tools on every call, preserves first occurrence, and excludes subagent', async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dev-kit-subagent-general-'))
   const capturePath = path.join(root, 'capture.jsonl')

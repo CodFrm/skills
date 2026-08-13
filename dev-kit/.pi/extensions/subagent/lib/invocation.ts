@@ -133,7 +133,13 @@ function spawnAndCollect(
 					}
 					if (event.message.model) result.model = event.message.model;
 					if (event.message.stopReason) result.stopReason = event.message.stopReason;
-					if (event.message.errorMessage) result.errorMessage = event.message.errorMessage;
+					if (event.message.errorMessage) {
+						result.errorMessage = event.message.errorMessage;
+					} else if (event.message.stopReason === "stop") {
+						// A later turn that stopped cleanly resolves an earlier transient
+						// stream error (e.g. "Stream ended without finish_reason").
+						result.errorMessage = undefined;
+					}
 				}
 				onUpdate?.({
 					content: [{ type: "text", text: getFinalOutput(result.messages) || "(running...)" }],
