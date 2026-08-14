@@ -121,7 +121,8 @@ test('optional package registers subagent without widening the base dev-kit pack
   assert.equal(optionalPackage.peerDependencies['@earendil-works/pi-coding-agent'], '*')
   assert.equal(optionalPackage.peerDependencies['@earendil-works/pi-tui'], '*')
   assert.equal(optionalPackage.peerDependencies.typebox, '*')
-  assert.deepEqual(basePackage.pi.extensions, ['./.pi/extensions/dev-kit.ts'])
+  assert.equal(basePackage.pi.extensions, undefined, 'installing subagent must not add an extension to the base package')
+  assert.deepEqual(basePackage.pi.skills, ['./skills'])
 
   const tool = await loadTool()
   assert.equal(tool.name, 'subagent')

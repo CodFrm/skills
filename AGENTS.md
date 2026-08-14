@@ -7,9 +7,9 @@
 | 要动 | 读 | 它管什么 |
 |---|---|---|
 | 任何 `SKILL.md`，以及它引用的文件 | 本文件的三关 | 每句话留不留 |
-| `dev-kit` 的 hook、插件清单、CLI | [dev-kit/README.md](./dev-kit/README.md) | 两种装法为什么不能并存、改完什么时候生效、怎么跑测试 |
+| `dev-kit` 的插件清单、CLI | [dev-kit/README.md](./dev-kit/README.md) | 两种装法为什么不能并存、改完什么时候生效、怎么跑测试 |
 | `dev-kit/bin` 或 `dev-kit/lib` | [lib/project.js](./dev-kit/lib/project.js) 顶部注释 | 路径边界为什么只有一处、谁必须过它 |
-| `hooks/run-hook.cmd`，或任何会碰到行尾的改动 | [.gitattributes](./.gitattributes) 里的注释 | LF 为什么是承重的、那份文件里为什么不能有 label 或 `goto` |
+| 新增脚本，或任何会碰到行尾的改动 | [.gitattributes](./.gitattributes) 里的注释 | LF 为什么是承重的 |
 
 ## 结构
 
@@ -21,10 +21,8 @@ dev-kit/                         唯一带可执行代码的合集；根 .claude
 ├── .claude-plugin/plugin.json   Claude Code 插件清单
 ├── .codex-plugin/plugin.json    Codex 插件清单
 ├── package.json                 Pi package 清单与 skill 发现
-├── .pi/extensions/dev-kit.ts    Pi 的会话引导
-├── hooks/                       SessionStart 把 using-dev-kit 的正文注入会话
 ├── bin/devkit + lib/            可选 CLI，零依赖
-└── tests/                       node --test，覆盖 hooks、Pi extension、lib 和上面这些清单
+└── tests/                       node --test，覆盖 Pi extension、lib 和上面这些清单
 ```
 
 `version` 和作者身份在 marketplace、两份 `plugin.json` 与 Pi `package.json` 里各有一份；Claude marketplace/plugin 共用长 description，Codex/Pi 共用短 description。由 `dev-kit/tests/manifests.test.js` 断言相等。

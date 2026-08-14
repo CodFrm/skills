@@ -12,14 +12,16 @@ Require an approved spec committed in the prepared round workspace. Without eith
 
 The spec owns requirements. The plan owns route, dependencies, dispatch state and recovery. It uses the spec slug and lives at `.dev-kit/plans/<spec-slug>.yaml` (gitignored).
 
-Before writing, read the whole spec, affected modules, existing tests and project precedent. Every `context` fact needs `file:line` or a command result.
+Read the current harness [mapping](../using-dev-kit/SKILL.md#platform-tools) and set `mode` from the tool list it names: `subagent` when that tool is exposed, `inline` otherwise. The user does not choose it.
+
+Every `context` fact needs `file:line` or a command result.
 
 ## The file
 
 ```yaml
 spec: docs/specs/2026-07-30-oauth-login.md
 status: draft                 # draft → ready → running → done | stopped
-mode: null                    # subagent | inline; user/available harness sets this at ready gate
+mode: null                    # subagent | inline; the harness tool list sets this before the cut
 worktree: .dev-kit/worktrees/oauth-login  # or "none: <reason>"
 
 goal: "<one observable finish condition>"
@@ -42,7 +44,7 @@ review:
   axis: none                  # none | spec | code
   head: null                  # current axis pre-dispatch HEAD
   receipt: null               # ignored .dev-kit/reviews/<slug>/<axis>.md
-  fixes: []                   # up to four wrap-up pass SHAs
+  fixes: []                   # up to two wrap-up pass SHAs
   note: null
 
 verification:
@@ -52,9 +54,17 @@ verification:
   note: null
 ```
 
-Record `files` wide enough to include generated files, lockfiles, manifests, fixtures, snapshots and formatter-owned output.
+Record `files` wide enough to cover every shared-write path: generated artifacts, lockfiles, manifests, fixtures, snapshots, registries, translations, configuration and formatter-owned output. Two tasks overlap when their `files` name one path, one contains the other, or both reach one shared-write path.
 
 `review` makes each writable axis recoverable; its receipt records the completed invocation, while only the main session writes axis state. `verification` records the runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
+
+## Exploring before the cut
+
+Under `mode: inline`, read the whole spec, affected modules, existing tests and project precedent yourself.
+
+Under `mode: subagent`, dispatch one read-only [planning scout](references/planning-scout.md) at `strong` instead. It returns `context` facts, a proposed breakdown and this project's shared-write inventory.
+
+Check that return mechanically before any of it reaches the plan: every cited `file:line` resolves, every proposed goal names an observable result, every `files` list covers the inventory paths that task touches, and `deps` has no cycle. Re-dispatch once against the named failure; a second failure means you cut the tasks yourself. A `stuck` return naming a spec/code contradiction goes back to `brainstorming`, not to a re-dispatch.
 
 ## Cutting the tasks
 
@@ -73,22 +83,21 @@ Record `files` wide enough to include generated files, lockfiles, manifests, fix
 | Design judgement or broad code reading remains | `strong` |
 | Inherit the parent session | `null` |
 
-The executor resolves tiers against models available at dispatch time.
+## Scheduling the batches
+
+Under `mode: subagent`, run one scheduling pass before the gate: derive which tasks can become ready together from `deps`, then compare every such pair's `files` under [the overlap rule](#the-file). Add a dependency for every overlap; do not add ordering between disjoint tasks.
+
+The main session runs this pass itself, whatever the scout proposed: a wrong "disjoint" puts two implementers on one file, and nothing downstream reports it.
 
 ## The gate, then freeze
 
 Run the checklist, then send one message containing:
 
 - plan slug, workspace and task count;
-- every task's id, goal and deps;
-- a request to approve or recut the breakdown;
-- execution-mode choices: `subagent` and `inline` when the current harness exposes native dispatch, otherwise only `inline`.
+- every task's id, goal and deps, plus the resulting concurrent batches under `mode: subagent`;
+- a request to approve or recut the breakdown.
 
-Explain that `subagent` runs each dispatched step in a fresh context, while `inline` runs the same steps in the main context, where no review is independent of the work it reviews. Runtime verification runs in the main session under either mode.
-
-Wait for both decisions. A recut plan repeats the complete gate. Write `status: ready` and `mode` only from the answer, except a harness with no native dispatch forces `inline`.
-
-When the user selects `subagent`, run one scheduling pass before writing `ready`: derive which tasks can become ready together from `deps`, then compare every such pair's `files`, including parent/child paths and indirectly shared generated artifacts, lockfiles, registries, snapshots, translations and configuration. Add a dependency for every write conflict; do not add ordering between disjoint tasks. Report the resulting concurrent batches. If this changes a task goal or boundary, repeat the complete gate; a dependency-only correction does not require another approval.
+A recut repeats everything from [exploration](#exploring-before-the-cut) on, carrying the recut reason. Write `status: ready` only from that answer.
 
 Once ready, execution may write statuses, commits, notes, review/verification state and new verified context. Goals, deps, files and model tiers remain frozen until the user approves a recut. A changed requirement returns to `brainstorming`; a changed decomposition returns here.
 
@@ -100,5 +109,6 @@ Then hand the ready plan to [`executing-plans`](../executing-plans/SKILL.md).
 - [ ] Context facts are currently verified; no requirement is duplicated into the plan
 - [ ] Every task is one observable vertical slice with complete deps and wide files
 - [ ] Cross-task interfaces are recorded on consumers; model values are tiers or null
-- [ ] In `subagent` mode, a second scheduling pass made every potentially co-ready pair write-disjoint or dependency-ordered
-- [ ] The user approved both the current breakdown and available execution mode
+- [ ] `mode` came from the harness tool list; any scout return passed the mechanical check before reaching the plan
+- [ ] In `subagent` mode, the scheduling pass made every potentially co-ready pair write-disjoint or dependency-ordered
+- [ ] The user approved the current breakdown

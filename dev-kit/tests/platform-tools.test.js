@@ -28,8 +28,8 @@ function section(markdown, heading) {
 function assertPiSingleTaskMapping(mapping) {
   const dispatch = section(mapping, 'Optional dev-kit subagent')
   assert.match(dispatch, /actual tool list for the exact tool name `subagent`/)
-  assert.match(dispatch, /When `subagent` is absent, offer only `inline`/)
-  assert.match(dispatch, /When `subagent` is present, offer `subagent` and `inline`/)
+  assert.match(dispatch, /When `subagent` is absent, `mode` is `inline`/)
+  assert.match(dispatch, /When `subagent` is present, `mode` is `subagent`/)
   assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
   assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
   assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
@@ -117,7 +117,7 @@ test('Pi mapping asserts the single-task runtime contract rather than keyword co
 test('Pi mapping contract rejects legacy batch guidance even when current keywords are present', () => {
   const staleMapping = `
 ## Optional dev-kit subagent
-Inspect the actual tool list for the exact tool name \`subagent\`. When \`subagent\` is absent, offer only \`inline\`. When \`subagent\` is present, offer \`subagent\` and \`inline\`.
+Inspect the actual tool list for the exact tool name \`subagent\`. When \`subagent\` is absent, \`mode\` is \`inline\`. When \`subagent\` is present, \`mode\` is \`subagent\`.
 One task can be sent directly, or \`tasks\` can send a batch and \`chain\` can pass prior output. The main session owns serial work and may make multiple \`subagent\` calls. Invalid \`tasks\`, \`chain\`, and \`tools\` values reject. Fields include \`task\`, \`profile\`, \`model\`, \`thinking\`, and \`cwd\`.
 ## Profiles and tool resolution
 Profiles are read-only, write, and general. Active tools are deduplicated. It is not an OS sandbox.
@@ -166,7 +166,7 @@ test('every formerly open-ended subagent return has one bounded follow-up', () =
 
   assert.match(limits, /\| Resume commit scout \| one dispatch \| task `todo` \|/)
   assert.match(limits, /\| `missing context` or `stuck` \| one re-dispatch \| task `blocked` \|/)
-  assert.match(limits, /\| Wrap-up axis \| at most two writable passes; the second is final \| review `stopped` \|/)
+  assert.match(limits, /\| Wrap-up axis \| one writable pass, and it is final \| review `stopped` \|/)
   assert.match(readRoot('dev-kit/skills/systematic-debugging/SKILL.md'), /an inconclusive return is not re-dispatched/)
 })
 
@@ -187,15 +187,33 @@ test('implementation and wrap-up axes self-review, self-fix and return only bloc
   assert.doesNotMatch(wrapUpPrompts, /Read only|Do not modify the tree\/index\/HEAD/)
 })
 
-test('a wrap-up fix is reported and triggers one fresh writable pass of the same axis', () => {
+test('a wrap-up axis reviews its own fixes inside its single pass', () => {
   const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
   const sharedPrompts = readRoot('dev-kit/skills/executing-plans/references/prompts.md')
   const wrapUpPrompts = readRoot('dev-kit/skills/executing-plans/references/wrap-up-prompts.md')
 
   assert.match(sharedPrompts, /each finding and the action taken/)
-  assert.match(skill, /first pass's final HEAD differs from its recorded head.*dispatch the same writable axis once more/s)
-  assert.match(skill, /second pass.*may fix and commit.*never triggers a third pass/s)
+  assert.match(sharedPrompts, /This is the axis's only pass: review your own fixes here/)
+  assert.match(skill, /Each axis gets exactly one writable pass.*reviews its own fixes/s)
+  assert.match(skill, /Never dispatch the same axis again to re-check its own fixes/)
+  assert.doesNotMatch(skill, /second pass|third pass|<axis>-2/)
   assert.doesNotMatch(wrapUpPrompts, /Same-axis confirmation|Do not change tracked files, the index or HEAD/)
+})
+
+test('runtime verification runs only after one question that also covers real dependencies', () => {
+  const skill = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+  const verification = section(skill, 'Runtime verification: the main session drives it')
+
+  assert.match(skill, /then puts \[the verification question\]\(#runtime-verification-the-main-session-drives-it\) to the user/)
+  assert.match(verification, /Once review is `passed`, run nothing until the user answers one message that asks both halves together/)
+  assert.match(verification, /whether to run runtime verification on this branch now, or hand straight to delivery/)
+  assert.match(verification, /whose real dependency `\.env` does not configure or whose effect is outside the authorization list/)
+  assert.match(verification, /\| straight to delivery \| set verification `blocked` and plan `stopped`.*\[hand back\]\(#handing-it-back\)/)
+  // The menu itself stays in using-git-worktrees; this question only routes to it.
+  assert.doesNotMatch(verification, /open a PR|Merge into|Leave the branch/)
+  assert.match(verification, /Never dispatch the run/)
+  assert.match(readRoot('dev-kit/skills/executing-plans/references/runtime-verification.md'), /The question that started this run already carried both/)
+  assert.match(readRoot('dev-kit/skills/using-git-worktrees/SKILL.md'), /runtime verification has run or the user declined it/)
 })
 
 test('blocked tasks stop before wrap-up and runtime findings await a user decision', () => {
@@ -212,13 +230,42 @@ test('AGENTS.md and executing-plans allow only write-disjoint implementation bat
   const taskPrompt = readRoot('dev-kit/skills/executing-plans/references/task-prompts.md')
 
   assert.match(readRoot('AGENTS.md'), /只有 `subagent` 实现任务可在依赖满足且写路径互斥时成批并发/)
-  assert.match(writing, /run one scheduling pass before writing `ready`/)
+  assert.match(writing, /run one scheduling pass before the gate/)
   assert.match(writing, /compare every such pair's `files`/)
   assert.match(executing, /maximal ready batch whose declared `files` are pairwise disjoint/)
   assert.match(executing, /Launch every task in that batch before waiting for any return/)
   assert.match(executing, /concurrent implementers leave their owned changes uncommitted/)
   assert.match(taskPrompt, /leave all\s+changes uncommitted because this task is in a concurrent batch/)
   assert.match(executing, /all other dispatch, including retries and wrap-up axes, is serial/)
+})
+
+test('the plan mode is derived from the harness tool list, never asked', () => {
+  const writing = readRoot('dev-kit/skills/writing-plans/SKILL.md')
+  const executing = readRoot('dev-kit/skills/executing-plans/SKILL.md')
+
+  assert.match(writing, /set `mode` from the tool list it names/)
+  assert.match(writing, /The user does not choose it\./)
+  assert.doesNotMatch(writing, /execution-mode choices|Wait for both decisions|When the user selects `subagent`/)
+  assert.match(executing, /A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask\./)
+  assert.match(read('SKILL.md'), /A mapping exposing no native subagent makes the plan `mode: inline`/)
+})
+
+test('a planning scout proposes the cut while the main session keeps the batching', () => {
+  const writing = readRoot('dev-kit/skills/writing-plans/SKILL.md')
+  const scout = readRoot('dev-kit/skills/writing-plans/references/planning-scout.md')
+
+  assert.match(writing, /dispatch one read-only \[planning scout\]\(references\/planning-scout\.md\) at `strong`/)
+  assert.match(writing, /every cited `file:line` resolves/)
+  assert.match(scout, /read-only dispatch: do not write, create or modify any file/)
+  assert.match(scout, /do not decide which tasks run concurrently/)
+  // The scout may propose ordering, never the concurrency verdict: a wrong "disjoint" is silent.
+  assert.match(writing, /The main session runs this pass itself/)
+  assert.doesNotMatch(scout, /concurrent batch|pairwise disjoint|write conflict/)
+})
+
+test('the resume commit scout is dispatched at the cheapest tier', () => {
+  const resume = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'Resume state')
+  assert.match(resume, /dispatch one read-only scout at `cheap` that identifies the commit without judging it/)
 })
 
 test('Pi public guidance preserves single-call installation and keeps scheduling in the main session', () => {
@@ -233,7 +280,7 @@ test('Pi public guidance preserves single-call installation and keeps scheduling
   assert.match(packageReadme, /pi install \/path\/to\/skills\/dev-kit\/\.pi\/extensions\/subagent/)
   assert.match(packageReadme, /执行 `\/reload` 后检查当前工具列表/)
   assert.match(packageReadme, /pi list\npi remove <pi list 中显示的本地 source>/)
-  assert.match(packageReadme, /未安装、禁用、移除或尚未 reload 时只提供 `inline`/)
+  assert.match(packageReadme, /未安装、禁用、移除或尚未 reload 时 `mode` 只能是 `inline`/)
 
   const contract = section(packageReadme, '调用契约')
   assert.match(contract, /```ts\nsubagent\(\{\n  task: string,\n  profile: "read-only" \| "write" \| "general",\n  model\?: string,\n  thinking\?: string,\n  cwd\?: string\n\}\)\n```/)

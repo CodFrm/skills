@@ -19,6 +19,7 @@ Hard gates:
 
 - Scan writes nothing.
 - Implement only recommendations the user selects.
+- Overwrite an existing file only after the user picks `overwrite` for that path and `git status` shows it clean.
 - Generate only files whose project-specific content can be verified; delete unfillable sections.
 - Each fact/rule has one owning file. Link from every other layer.
 - Documentation-only conventions remain `review-only`; call a guardrail enforced only after its real gate and guard test pass.
@@ -71,6 +72,18 @@ Apply these gates in order:
 
 Always ask which recommendation rows are in/out. On an existing project, also ask which findings are deliberate trade-offs. Ask other questions only when their answers change selected work. Then stop; no project file changes before the user answers.
 
+### Existing files the round would rewrite
+
+Every file this round would generate that already exists gets its own decision row, presented with the recommendation rows:
+
+| File | What is there now | Proposed | Basis |
+|---|---|---|---|
+| `<path>` | `<line count, shape and staleness evidence>` | `overwrite`/`merge`/`keep` | `<why that one>` |
+
+Propose `overwrite`. Propose `merge` instead when the existing file holds project-specific content no template section covers, or when this round cannot verify enough facts to regenerate the whole file; say which in the row. [Dispositions](#dispositions) define the three.
+
+Report any listed path carrying uncommitted changes in the same message; it cannot be overwritten until the user commits or discards it.
+
 ## Step 3 · Generate selected documents
 
 | File | Owner | Generate when |
@@ -84,7 +97,7 @@ Always ask which recommendation rows are in/out. On an existing project, also as
 | `docs/documentation.md`; `docs/README.md` | maintenance/ownership; index | documentation set warrants them |
 | `e2e/README.md`; `.env.example`; ignore entries | harness; real-target variables; local artifacts | selected e2e track needs them |
 
-Copy only selected files from `templates/`, preserving their target layout. Rename `AGENTS.md.template`, `CLAUDE.md.template` and `env.example` at landing. Delete template comments, unused sections and unresolved placeholders.
+Copy only selected files from `templates/`, preserving their target layout, and land each existing path under the [disposition](#dispositions) the user chose. Rename `AGENTS.md.template`, `CLAUDE.md.template` and `env.example` at landing. Delete template comments, unused sections and unresolved placeholders.
 
 The main session writes documents. If dispatch is necessary, do one document serially with explicit ownership.
 
@@ -137,8 +150,17 @@ Under 15 lines, report only what the diff cannot show:
 - gate-2 decisions made for the user and their basis;
 - selected recommendations not completed and why;
 - whether guardrails truly block merge, run only locally/pre-commit, or have no gate;
-- existing-project conventions that overrode a template assumption.
+- existing-project conventions that overrode a template assumption;
+- files overwritten, and each rule carried forward out of the content they replaced.
 
-## Fill-in mode
+## Dispositions
 
-Preserve existing wording, structure and order. Add rather than overwrite. Follow project style. Where a template conflicts with an established convention, the project wins and the conflict appears in the delivery note. Never convert a deliberate trade-off before the user answers step 2.
+| Disposition | Landing |
+|---|---|
+| `overwrite` | Regenerate the file from the template and this round's verified facts; the previous content is gone. |
+| `merge` | Preserve existing wording, structure and order; add only what is missing. |
+| `keep` | Leave the file untouched this round. |
+
+Under `overwrite`, step 3's rules for a new file still hold, and every project-specific rule the old file owned that no template section covers is carried into the new one.
+
+Under `merge`, follow project style. Where a template conflicts with an established convention, the project wins and the conflict appears in the delivery note.

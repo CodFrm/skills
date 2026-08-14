@@ -9,7 +9,7 @@ goal: >-
 
 context:
   - "测试风格：CommonJS + node:test + node:assert/strict，见 dev-kit/tests/platform-tools.test.js:1-6"
-  - "临时目录手法全仓统一：fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-...')))，见 dev-kit/tests/project.test.js:19 与 dev-kit/tests/hooks.test.js:21"
+  - "临时目录手法全仓统一：fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'devkit-...')))，见 dev-kit/tests/project.test.js:19"
   - "替身可执行文件的既有手法：dev-kit/tests/fixtures/fake-pi.js 把 argv/cwd/system prompt 写进 FAKE_PI_CAPTURE 指定的 jsonl，测试侧读它做断言，见 dev-kit/tests/pi-subagent-single.test.js:64-70"
   - "跑测试必须带 glob：node --test dev-kit/tests/*.test.js；写成目录会以 MODULE_NOT_FOUND 失败，见 dev-kit/README.md 末节"
   - "bin/devkit 是纯参数分发、零依赖、只读，每个命令一个 lib/ 模块，见 dev-kit/bin/devkit:4-8。eval runner 会起进程并写临时目录，不进这个 CLI，按 spec 落在 dev-kit/evals/ 下自成入口"

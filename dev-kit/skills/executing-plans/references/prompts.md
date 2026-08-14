@@ -7,7 +7,7 @@
 
 ## What every dispatch shares
 
-- Fill every `<>` slot from the plan/spec. Point to files instead of pasting session history.
+- Fill every `<>` slot from the spec, plan or workspace. Point to files instead of pasting session history.
 - Resolve `cheap` / `mid` / `strong` against models available now; never invent a model id.
 - Bound the return to findings/evidence/status, not a working transcript.
 - A subagent reports; it never sets plan state or declares the round done.
@@ -22,7 +22,8 @@ invocation resumes that receipt and existing axis work; it does not restart revi
 
 Fix all owned findings and non-blocking cleanup. Use RED first for observable behaviour; use the
 project's documented TDD exception and proportionate verification for behaviour-preserving work.
-Self-review, run focused checks and `<full-suite>`, and resolve regressions caused by the axis. Make
+This is the axis's only pass: review your own fixes here and leave nothing for a later one.
+Run focused checks and `<full-suite>`, and resolve regressions caused by the axis. Make
 no empty commit; when tracked changes are needed, commit them together once by explicit path under
 `<write boundary>` and `<commit convention>`. Do not write the plan, runtime report or external systems.
 

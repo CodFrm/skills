@@ -12,7 +12,7 @@
 pi install /path/to/skills/dev-kit
 ```
 
-执行 `/reload` 后，Pi 加载 bootstrap extension 与共享 skills。基础包不包含进程派发工具，计划 ready 闸门只提供 `inline`。
+执行 `/reload` 后，Pi 加载共享 skills。基础包不包含进程派发工具，计划 `mode` 只能是 `inline`。
 
 需要 subagent 时再单独安装可选包：
 
@@ -20,7 +20,7 @@ pi install /path/to/skills/dev-kit
 pi install /path/to/skills/dev-kit/.pi/extensions/subagent
 ```
 
-当前会话的工具集合要到 `/reload` 后才更新；工具列表出现 `subagent` 后，后续 ready 闸门才同时提供 `subagent` 与 `inline`。移除时用 `pi remove <pi list 中显示的本地 source>`，再执行 `/reload`。
+当前会话的工具集合要到 `/reload` 后才更新；工具列表出现 `subagent` 后，后续计划的 `mode` 才会是 `subagent`。移除时用 `pi remove <pi list 中显示的本地 source>`，再执行 `/reload`。
 
 该包不创建或读取用户/项目 agent profile，也不保存 `cheap / mid / strong` 模型映射。主会话在每次派发时从当前可用模型中选择真实 `provider/model`。参数、权限 profile 与安全边界见[包内 README](./.pi/extensions/subagent/README.md)。
 
@@ -38,12 +38,12 @@ pi install /path/to/skills/dev-kit/.pi/extensions/subagent
 插件安装是**拷贝**目录到 `~/.claude/plugins/cache/`，工作区里未提交的改动它一律看不见。软链接过去，加载的就是工作区本身：
 
 ```bash
-ln -s /path/to/skills/dev-kit ~/.claude/skills/dev-kit          # skill 正文 + SessionStart hook
+ln -s /path/to/skills/dev-kit ~/.claude/skills/dev-kit          # skill 正文
 ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；换成你 PATH 上的目录
 ```
 
 - **两种装法不能并存，冲突时不报错。** 插件按名字抢先，软链接那份会在 `claude plugin list` 里变成 `✘ Not loaded`，症状只是「改动突然不生效了」。先 `claude plugin uninstall dev-kit@codfrm-skills`。
-- 生效时机分三档：**skill 正文**下次 invoke 即生效；**hook 注入的引导**是会话开始时的快照，要新会话或 `/clear`；**改 `hooks.json` 本身**要重启 Claude Code。
+- 改完下次 invoke 即生效，不用重启，也不用开新会话。
 
 ### 只装某几个 Skill
 
@@ -53,7 +53,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 帮我安装这个 skill：https://github.com/CodFrm/skills/tree/main/dev-kit/skills/brainstorming
 ```
 
-这样只拿到 skill 正文，没有下面的 SessionStart hook 和 `devkit` 命令。
+这样只拿到 skill 正文，没有 `devkit` 命令。
 
 ## 包含的 Skills
 
@@ -79,10 +79,6 @@ Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`
 `devkit dashboard [--port <n>]`——从用户注册表（`devkit project add`）起一个只读 dashboard，跨项目浏览 plan 与任务、预览 `docs/specs/` 和 `.dev-kit/artifacts/` 下的 mockup。装成 plugin 后会话内直接可用，否则按路径 `node <plugin 根目录>/bin/devkit dashboard`。
 
 `devkit plan <子命令> [--plan <slug>]`——读写 `.dev-kit/plans/` 下的 plan：`next` 列 ready 任务，`show` 出状态摘要或单个任务，`check` 把坏状态值与悬空 deps 报为错误、schema 外的键报为提示；`set`、`task`、`review`、`context`、`verification` 写回执行期可变字段——替换只改被寻址那个值所占的行（折叠标量会收成一行），追加插入新行、并把模板出厂的空列表 `[]` 那一行改写成键行，其余字节不变。逐条 flag 见 `devkit help`。
-
-## SessionStart hook
-
-插件通过 `hooks/hooks.json` 注册，在会话 startup / clear / compact 时把 `using-dev-kit` 引导注入上下文，省掉每次手动唤起。
 
 ## 跑测试
 

@@ -23,7 +23,7 @@ review:
   axis: none                  # none | spec | code
   head: null                  # current axis pre-dispatch HEAD
   receipt: null               # ignored .dev-kit/reviews/<slug>/<axis>.md
-  fixes: []                   # up to four wrap-up pass SHAs
+  fixes: []                   # up to two wrap-up pass SHAs
   note: null
 
 verification:

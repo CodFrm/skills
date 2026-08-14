@@ -49,7 +49,7 @@ A service `.env` does not configure is asked for, not arranged: starting the dep
 
 ## 7. Configure evidence output
 
-[`verification-report-template.md`](../templates/docs/references/verification-report-template.md) owns directory layout and evidence forms. Configure every artifact under the supplied scenario root. Enable video only when sequence matters; keep decisive still frames.
+[`verification-report-template.md`](../templates/docs/references/verification-report-template.md) owns directory layout and evidence forms. Configure every harness-produced artifact under the supplied scenario root; a verification driven by hand writes its screenshots and oracle output there itself, before the run's temporary state is removed. Enable video only when sequence matters; keep decisive still frames.
 
 ## 8. Match driver to runtime
 

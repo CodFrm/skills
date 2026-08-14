@@ -17,10 +17,10 @@ The base allowlist is `read,bash,edit,write,grep,find,ls`. Do not recursively la
 
 ## Optional dev-kit subagent
 
-Before a plan ready gate, inspect the current session's actual tool list for the exact tool name `subagent`:
+Before cutting a plan's tasks, inspect the current session's actual tool list for the exact tool name `subagent`:
 
-- When `subagent` is absent, offer only `inline`.
-- When `subagent` is present, offer `subagent` and `inline`; dispatch and wait through that tool rather than shell-launching Pi.
+- When `subagent` is absent, `mode` is `inline`.
+- When `subagent` is present, `mode` is `subagent`; dispatch and wait through that tool rather than shell-launching Pi.
 
 Each `subagent` call starts one fresh child for one task. Its only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`; `tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion. The returned result belongs only to that task.
 

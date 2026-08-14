@@ -636,8 +636,8 @@ const SUBS = {
 }
 const USAGE = `usage: devkit plan <next|show|check|set|task|review|context|verification> [--plan <slug>] ...`
 
-// Two optional commits per wrap-up axis make review.fixes at most four entries.
-const FIXES_LIMIT = 4
+// One optional commit per wrap-up axis makes review.fixes at most two entries.
+const FIXES_LIMIT = 2
 
 const scalarItem = value => itemIndent => [`${' '.repeat(itemIndent)}- ${encodeScalar(value)}`]
 const nullableFlag = value => value === 'null' ? null : value

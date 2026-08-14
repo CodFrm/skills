@@ -10,7 +10,7 @@
 pi install /path/to/skills/dev-kit/.pi/extensions/subagent
 ```
 
-执行 `/reload` 后检查当前工具列表。只有真实出现 `subagent` 时，dev-kit 的 plan ready 闸门才提供 `subagent`；未安装、禁用、移除或尚未 reload 时只提供 `inline`。
+执行 `/reload` 后检查当前工具列表。只有真实出现 `subagent` 时，dev-kit 的 plan 才会写 `mode: subagent`；未安装、禁用、移除或尚未 reload 时 `mode` 只能是 `inline`。
 
 ```bash
 pi list

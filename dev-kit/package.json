@@ -30,9 +30,6 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
-    "extensions": [
-      "./.pi/extensions/dev-kit.ts"
-    ],
     "skills": [
       "./skills"
     ]

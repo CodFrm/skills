@@ -20,9 +20,9 @@ The main session is the orchestrator:
 
 ## Resume state
 
-- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch one read-only scout that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA or an inconclusive scout → `todo`. Never re-dispatch an implementer whose commit exists.
+- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch one read-only scout at `cheap` that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA or an inconclusive scout → `todo`. Never re-dispatch an implementer whose commit exists.
 - `review.running`: validate its receipt; route a complete/blocked receipt, or resume the recorded axis against `review.head` without starting another pass.
-- `review.passed` with `verification.pending`: enter runtime verification.
+- `review.passed` with `verification.pending`: put [the verification question](#runtime-verification-the-main-session-drives-it) to the user.
 - `verification.running`: resume from the partial scratch evidence, covering every requirement still without a verdict.
 - `verification.reported`: inspect the report/evidence, never the branch diff.
 - `verification.accepted`: hand back.
@@ -30,7 +30,7 @@ The main session is the orchestrator:
 
 ## Starting the run
 
-`mode` normally arrives from [`writing-plans`](../writing-plans/SKILL.md#the-gate-then-freeze). If a ready legacy plan has `mode: null`, ask only the mode half of that gate before starting.
+`mode` arrives from [`writing-plans`](../writing-plans/SKILL.md#entry-gate). A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask.
 
 Verify the recorded workspace is the current checkout, the spec is tracked on its branch, `.dev-kit` resolves, and setup recorded a baseline. Route mismatches to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change). Then set plan `status: running`.
 
@@ -49,7 +49,7 @@ collect ready tasks
 
 Ready means `status: todo` and all `deps` are `done`.
 
-`inline` selects one ready task. `subagent` selects a maximal ready batch whose declared `files` are pairwise disjoint, treating parent/child paths and indirectly shared generated artifacts, lockfiles, registries, snapshots, translations and configuration as overlaps. Launch every task in that batch before waiting for any return. If no pair is safe, select one. The scheduling pass in `writing-plans` is the design-time check; repeat the same comparison against the frozen plan at runtime rather than assuming it stayed safe.
+`inline` selects one ready task. `subagent` selects a maximal ready batch whose declared `files` are pairwise disjoint under [the overlap rule](../writing-plans/SKILL.md#the-file). Launch every task in that batch before waiting for any return. If no pair is safe, select one. The scheduling pass in `writing-plans` is the design-time check; repeat it against the frozen plan before every batch.
 
 ### Dispatch implementation
 
@@ -88,13 +88,13 @@ Limits:
 | Resume commit scout | one dispatch | task `todo` |
 | `missing context` or `stuck` | one re-dispatch | task `blocked` |
 | Incomplete implementer return | one send-back | task `blocked` |
-| Wrap-up axis | at most two writable passes; the second is final | review `stopped` |
+| Wrap-up axis | one writable pass, and it is final | review `stopped` |
 
 ## Wrap-up: two review-and-fix axes
 
-Enter only when every task is `done`. Require both `e2e/scratch/<spec-slug>/report.md` and `.dev-kit/reviews/<spec-slug>/` to be ignored; add a missing rule through the normal implementation path before wrap-up.
+Enter only when every task is `done`. Require both `.dev-kit/reviews/<spec-slug>/` and the evidence directory [runtime verification](references/runtime-verification.md#before-running) resolves to be ignored; add a missing rule through the normal implementation path before wrap-up.
 
-Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each pass reviews the whole current branch, fixes its findings, self-reviews, runs the full suite and makes at most one commit:
+Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each axis gets exactly one writable pass, which reviews the whole current branch, fixes its findings, reviews its own fixes, runs the full suite and makes at most one commit:
 
 | Axis | Reads | Owns |
 |---|---|---|
@@ -105,25 +105,33 @@ Before each axis, require a clean tree and record `review.status: running`, its 
 
 On return or resume, require the receipt to match the recorded axis/head, report each finding and action, resolve final HEAD, leave a clean tree and carry an exit code and deciding observation for every required command. Rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session.
 
-When the first pass's final HEAD differs from its recorded head, append it to `review.fixes`, record the new HEAD with a fresh `<axis>-2.md` receipt and dispatch the same writable axis once more. The second pass may fix and commit under the same contract; append its final HEAD when changed, but it never triggers a third pass. A first pass with unchanged HEAD, or any valid second pass, completes that axis. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then starts runtime verification.
+A valid pass completes its axis, whether or not it fixed anything; when its final HEAD differs from the recorded head, append that HEAD to `review.fixes`. Never dispatch the same axis again to re-check its own fixes — the pass owns that check. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then puts [the verification question](#runtime-verification-the-main-session-drives-it) to the user.
 
 ## Runtime verification: the main session drives it
 
-After wrap-up passes, verify the branch in its real runtime yourself, under either mode, following [runtime-verification.md](references/runtime-verification.md). Never dispatch it: a subagent cannot ask the user, and this step is where the user's answer is needed mid-run.
+Once review is `passed`, run nothing until the user answers one message that asks both halves together:
+
+- whether to run runtime verification on this branch now, or hand straight to delivery;
+- and, for every spec requirement whose real dependency `.env` does not configure or whose effect is outside the authorization list, the service and the absent variable names — names only — or the exact effect and what it touches.
+
+Read the spec, `docs/verification.md` and `.env` to name that second half before asking; the answer routes both:
+
+| Answer | What you do |
+|---|---|
+| straight to delivery | set verification `blocked` and plan `stopped`, that sentence verbatim as `verification.note`, then [hand back](#handing-it-back) with every requirement unobserved |
+| run it | set verification `running` and drive it yourself, under either mode, following [runtime-verification.md](references/runtime-verification.md) |
+| with `.env` filled, or a way to reach an environment or a substitute for it authorized | cover those requirements in the same run, recording the authorizing sentence verbatim in the report's authorization list; a substituted dependency reaches `holds` only with its verdict row naming what it does not cover |
+| with the missing input declined | run the rest and finish those requirements `not observed`, naming the service and absent variable names in the report |
+
+Never dispatch the run: a subagent cannot ask the user, and a gap the question did not predict still needs an answer mid-run.
 
 You may build/start the real target, drive UI/API/CLI/e2e and write only ignored scratch evidence. You must not fix code, change tracked files, weaken checks, or perform an unapproved destructive/external action. Every spec requirement receives exactly `holds`, `does not hold` or `not observed`, with runtime evidence. The report must include exact reproduction steps for the user.
 
 A target that cannot be built or started sets `verification.status: blocked` with the exact reason.
 
-A requirement `not observed` because `.env` configures no real dependency does not reach `accepted`, and you do not stand that dependency up either. Report the blocked requirements, the service and the absent variable names, then route on the answer:
+A dependency or authorization gap the question did not predict blocks those requirements alone, and you never stand that dependency up yourself. Carry every other requirement to a verdict, then ask once more in the same shape and route by the same table, resuming answered requirements alone and merging their evidence into the same `report.md`.
 
-| The user | What you do |
-|---|---|
-| fills `.env` | resume those requirements alone and merge their evidence into the same `report.md` |
-| authorizes a way to reach an environment | the same, recording that sentence verbatim in the report's authorization list; a mocked path still returns `not observed` |
-| declines | finish the report with those requirements `not observed`, keep verification `reported`, and ask whether to accept those findings for delivery |
-
-Once the report is written, set `verification.status: reported` and check it against the evidence: every requirement present; every `holds` backed by command, exit code and deciding observation; linked artifacts readable; initial/final HEAD, clean tree and plan checksum consistent. An unsupported claim is re-observed at the runtime or downgraded — never argued from source or diff.
+Once the report is written, set `verification.status: reported` and check it against the evidence: every requirement present; every `holds` backed by how the target was driven, its exit code where the form produces one, and a deciding observation; linked artifacts readable; initial/final HEAD, clean tree and plan checksum consistent. An unsupported claim is re-observed at the runtime or downgraded — never argued from source or diff.
 
 If every requirement holds, set verification `accepted` and plan `done`. Otherwise keep `reported`, state every non-hold/unobserved requirement and ask the user to choose: accept the findings for delivery, provide/authorize the missing real input, or request a separately approved correction round. Only explicit acceptance sets verification `accepted` and plan `done`; runtime verification never fixes tracked files or starts that round itself.
 

@@ -9,7 +9,7 @@ goal: >-
 
 context:
   - "The approved spec is committed as a1feb4d and owns the package boundary, dispatch contract, failure semantics, and accepted test seams at docs/specs/2026-07-31-pi-subagent-integration.md:3-132."
-  - "The base Pi package manifest exposes only ./.pi/extensions/dev-kit.ts and ./skills at dev-kit/package.json:23-27, so the optional package must remain outside that manifest."
+  - "The base Pi package manifest exposes only ./skills at dev-kit/package.json:32-36, so the optional package must remain outside that manifest."
   - "The current Pi mapping declares native dispatch unavailable and forbids recursive shell-launched Pi, while allowing an installed delegation tool to be mapped from its actual schema at dev-kit/skills/using-dev-kit/references/pi-tools.md:14-16."
   - "Plan model values are relative tiers resolved at dispatch time, never model ids, at dev-kit/skills/writing-plans/SKILL.md:101-115."
   - "The existing Pi tests load a TypeScript extension through a fake ExtensionAPI at dev-kit/tests/pi-extension.test.js:22-39, and the current mapping assertions live at dev-kit/tests/platform-tools.test.js:36-44."

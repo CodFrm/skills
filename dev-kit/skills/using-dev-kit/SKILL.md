@@ -29,6 +29,6 @@ If any requirement or boundary is undecided, route to `brainstorming`. Implement
 
 ## Platform tools
 
-Before dispatching, read exactly one current-harness mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). If it exposes no native subagent, choose "inline".
+Before dispatching, read exactly one current-harness mapping: [Codex](references/codex-tools.md), [Claude Code](references/claude-tools.md), or [Pi](references/pi-tools.md). A mapping exposing no native subagent makes the plan `mode: inline`.
 
 [dispatching.md](references/dispatching.md) owns what to delegate. [`executing-plans`](../executing-plans/SKILL.md) alone may run a write-disjoint implementation batch concurrently; it owns the task and serial wrap-up sequence. Other dispatch is serial.
