@@ -1,66 +1,47 @@
 ---
 name: init
 description: >-
-  Use when a project's constraints need establishing or filling in — development standards, engineering conventions, a contributor guide, AGENTS.md or CLAUDE.md, lint guardrails in CI, stale docs on an existing project — or when the agent keeps repeating the same class of mistake.
+  Use when a project needs a missing or stale constraint system — contributor or agent guidance, engineering conventions, guardrails, verification, or a remedy for recurring convention failures.
 ---
 
 # Project constraint initialisation (init)
 
-`init` is independent of the feature-development chain. It transitions through:
-
 ```text
-read-only scan → diagnosis/recommendations → user selection
-  → selected docs/guardrails/e2e → self-verification → delivery note
+read-only scan → quantified recommendations → user selection
+  → selected generation → self-verification → delivery note
 ```
 
-Use it for a missing or stale project constraint system or recurring convention failures. Do not invoke it for one ordinary document, one direct lint-rule change or day-to-day feature work.
-
-Hard gates:
+Do not use it for one ordinary document, one direct lint-rule change, or day-to-day feature work.
 
 - Scan writes nothing.
 - Implement only recommendations the user selects.
-- Overwrite an existing file only after the user picks `overwrite` for that path and `git status` shows it clean.
-- Generate only files whose project-specific content can be verified; delete unfillable sections.
-- Each fact/rule has one owning file. Link from every other layer.
-- Documentation-only conventions remain `review-only`; call a guardrail enforced only after its real gate and guard test pass.
+- Overwrite an existing path only when the user selects `overwrite` for that path and `git status` shows it clean.
+- Generate only project-specific content supported by repository evidence; omit unfillable sections and placeholders.
+- Give each fact or rule one owning file; other files link to it.
+- Call a convention `review-only` until a real gate and its guard test pass. State whether a passing guard blocks merge, runs only locally/pre-commit, or has no gate.
 
-Generated content follows the user's language unless the repository's contributor docs consistently establish another one.
+Use the user's language unless the repository's contributor documentation consistently establishes another one.
 
-## Step 1 · Scan (read-only, no writing)
+## 1. Scan without writing
 
-Classify the repository with tracked file/commit counts. New/small repositories run the minimal probe; established repositories also run [the complete deep scan](references/scanning-existing-projects.md).
+Classify the repository using tracked file and commit counts. Run the minimal probe below; for an established repository, also follow [scanning-existing-projects.md](references/scanning-existing-projects.md).
 
-The minimal probe must establish from repository evidence:
+Establish from tracked evidence the ecosystem and real command entry points; guidance and documentation; lint/type/format/test gates; UI/i18n; e2e/runtime verification; and observability. Record a count and representative `file:line` samples for each finding. Use one real command entry point per domain consistently.
 
-- ecosystem, package manager and real command entry points;
-- existing AGENTS/CLAUDE/contributor docs and documentation set;
-- lint/type/format/test configuration and CI/pre-commit gates;
-- UI/design-system/i18n presence;
-- e2e/runtime form and existing verification track;
-- logging/metrics/tracing entry points.
+Deep-scan dispatches are serial and read-only. Each returns a count, the first three `file:line` samples, and one conclusion; the main session compares and prioritizes them.
 
-Use `git grep`, `git ls-files` and `git ls-tree` for tracked facts. Use plain `ls` only for existence checks. Every finding carries a count plus representative `file:line` samples.
+## 2. Recommend, ask, and stop
 
-For an established repository, [scanning-existing-projects.md](references/scanning-existing-projects.md) owns the commands for project shape, constraint drift, duplicated concepts, recurring fixes, test value, e2e separation, merge gates and observability.
-
-Dispatch deep-scan items only as serial read-only tasks with a fixed return: count, first three `file:line` samples, and one conclusion. The main session compares and prioritizes the results.
-
-Choose one real command entry point per domain: package-manager script, then Make target, then bare command. Reuse it in docs, pre-commit and CI.
-
-## Step 2 · Produce the diagnosis and recommendations, then wait
-
-Output a short verdict followed by one decision row per actionable finding:
+Give a short verdict and one row per actionable finding:
 
 | Priority | Recommendation | Quantified evidence | Cost |
 |---|---|---|---|
 | P0/P1/P2 | `<specific action>` | `<count + representative file:line>` | `<effort and migration cost>` |
-| — | Not recommended: `<candidate>` | `<why current project does not need it>` | — |
+| — | Not recommended: `<candidate>` | `<why it is unnecessary now>` | — |
 
-Order recurring proven failures first, then zero-cost lock-in, breached established conventions, structural gaps and generic gaps. Do not dump raw scan output or repeat findings outside their recommendation row.
+Order proven recurring failures before cheap lock-in, breached conventions, structural gaps, and generic gaps. Keep raw findings out of the report.
 
-### Questions you need answered
-
-Apply these gates in order:
+Apply these question gates in order:
 
 | # | Criterion | Action | Evidence kept |
 |---|---|---|---|
@@ -70,97 +51,40 @@ Apply these gates in order:
 
 > This table is the standalone copy of [asking-users.md](../using-dev-kit/references/asking-users.md#three-tiers-findable--cheap-if-wrong--rework-if-wrong). Change both copies together.
 
-Always ask which recommendation rows are in/out. On an existing project, also ask which findings are deliberate trade-offs. Ask other questions only when their answers change selected work. Then stop; no project file changes before the user answers.
+Ask which recommendation rows are in or out and, for an existing project, which findings are deliberate trade-offs. Ask anything else only when it changes selected work.
 
-### Existing files the round would rewrite
+For every proposed output path that exists, present its shape and staleness, proposed disposition, and basis. Report uncommitted changes. Stop until the user selects recommendations and dispositions.
 
-Every file this round would generate that already exists gets its own decision row, presented with the recommendation rows:
+## 3. Generate the selection
 
-| File | What is there now | Proposed | Basis |
-|---|---|---|---|
-| `<path>` | `<line count, shape and staleness evidence>` | `overwrite`/`merge`/`keep` | `<why that one>` |
+Use one disposition per existing path:
 
-Propose `overwrite`. Propose `merge` instead when the existing file holds project-specific content no template section covers, or when this round cannot verify enough facts to regenerate the whole file; say which in the row. [Dispositions](#dispositions) define the three.
-
-Report any listed path carrying uncommitted changes in the same message; it cannot be overwritten until the user commits or discards it.
-
-## Step 3 · Generate selected documents
-
-| File | Owner | Generate when |
-|---|---|---|
-| `AGENTS.md`; `CLAUDE.md` | project facts/routing/principles/map; one-line Claude import | always |
-| `docs/develop.md`; `docs/testing.md` | commands/process/enforced rules; test design | always |
-| `docs/architecture.md` | layering, dependency direction, extension recipes | clear layering exists |
-| `docs/verification.md`; report template | runtime verification flow; report/verdict/evidence form | drivable runtime exists |
-| `docs/design.md` | project design system | UI exists |
-| `docs/observability.md` | selected logging/metrics/tracing conventions | recommendation selected |
-| `docs/documentation.md`; `docs/README.md` | maintenance/ownership; index | documentation set warrants them |
-| `e2e/README.md`; `.env.example`; ignore entries | harness; real-target variables; local artifacts | selected e2e track needs them |
-
-Copy only selected files from `templates/`, preserving their target layout, and land each existing path under the [disposition](#dispositions) the user chose. Rename `AGENTS.md.template`, `CLAUDE.md.template` and `env.example` at landing. Delete template comments, unused sections and unresolved placeholders.
-
-The main session writes documents. If dispatch is necessary, do one document serially with explicit ownership.
-
-### Fill the placeholders from project facts
-
-Read [filling-templates.md](references/filling-templates.md).
-
-### Write AGENTS.md
-
-Read [agents-md-authoring.md](references/agents-md-authoring.md).
-
-## Step 4 · Pin selected guardrails
-
-Read [lint-harness.md](references/lint-harness.md). It owns selection, escalation, exemptions, ratchets, pre-commit and the delivery contract. Ready-made implementations are in [TypeScript](references/lint-recipes-ts.md) and [Go](references/lint-recipes-go.md); other ecosystems use native tooling.
-
-## Step 5 · Build selected e2e tracks
-
-Keep permanent smoke e2e under committed `e2e/` and one-off runtime verification under gitignored `e2e/scratch/`. Smoke uses mocked external dependencies and only stable core flows; scratch may use an authorized real environment.
-
-Read [e2e-harness.md](references/e2e-harness.md).
-
-Ownership after generation:
-
-- `docs/verification.md`: when/how to verify;
-- `e2e/README.md`: harness setup, commands and isolation;
-- `docs/references/verification-report-template.md`: report layout, verdicts and evidence.
-
-Cross-link; do not copy rules between them.
-
-## Step 6 · Self-verification
-
-Run in order and fix failures before delivery:
-
-1. Selected lint and guard tests, including the disable/red/restore check.
-2. Every documented command.
-3. Tracked-symbol/path fact checks from each generated document.
-4. Relative-link and anchor checks.
-5. `.env.example` loading, when generated.
-6. At least one real smoke e2e, when generated.
-7. CI/pre-commit wiring and the exact merge-blocking limitation.
-8. One real emitted log matching the selected convention, when generated.
-9. The project's final full verification command.
-
-Items 3 and 4 may be serial read-only subagent tasks. Do not dispatch the guard-disable experiment; it mutates shared configuration.
-
-## Step 7 · Delivery note
-
-Under 15 lines, report only what the diff cannot show:
-
-- gate-2 decisions made for the user and their basis;
-- selected recommendations not completed and why;
-- whether guardrails truly block merge, run only locally/pre-commit, or have no gate;
-- existing-project conventions that overrode a template assumption;
-- files overwritten, and each rule carried forward out of the content they replaced.
-
-## Dispositions
-
-| Disposition | Landing |
+| Disposition | Action |
 |---|---|
-| `overwrite` | Regenerate the file from the template and this round's verified facts; the previous content is gone. |
-| `merge` | Preserve existing wording, structure and order; add only what is missing. |
-| `keep` | Leave the file untouched this round. |
+| `overwrite` | Regenerate from verified facts, while carrying forward every project-specific rule the old file owned that templates cannot represent. |
+| `merge` | Preserve existing wording, structure, and order; add only missing selected content. |
+| `keep` | Do not change the file this round. |
 
-Under `overwrite`, step 3's rules for a new file still hold, and every project-specific rule the old file owned that no template section covers is carried into the new one.
+Propose `merge` when unique project content or insufficient evidence prevents safe regeneration; otherwise propose `overwrite`. Project conventions win over templates; report conflicts at delivery.
 
-Under `merge`, follow project style. Where a template conflicts with an established convention, the project wins and the conflict appears in the delivery note.
+The main session generates documents serially. Copy selected outputs from `templates/`, preserve target layout, rename template-only filenames, and remove template comments, unused sections, and unresolved placeholders. Follow [filling-templates.md](references/filling-templates.md) and [agents-md-authoring.md](references/agents-md-authoring.md).
+
+For selected guardrails, follow [lint-harness.md](references/lint-harness.md) and the relevant [TypeScript](references/lint-recipes-ts.md) or [Go](references/lint-recipes-go.md) recipes. For selected e2e tracks, follow [e2e-harness.md](references/e2e-harness.md); keep committed smoke tests separate from authorized, gitignored real-environment verification.
+
+Stop and return to selection if generation requires an unselected file, unverifiable project policy, external side effect, destructive action, or overwrite of a dirty path.
+
+## 4. Verify
+
+Fix failures before delivery. Run selected guard and guard-disable tests; every documented command; tracked path/symbol and relative-link/anchor checks; environment-example loading; selected smoke e2e; CI/pre-commit wiring checks; selected emitted-log checks; and the project's final verification command. Report the exact merge-blocking limitation.
+
+Path/symbol and link checks may be serial read-only dispatches. The main session runs any experiment that mutates shared configuration.
+
+## 5. Deliver
+
+In at most 15 lines, report only what the diff cannot show:
+
+- gate-2 decisions and their bases;
+- selected work not completed and why;
+- each guardrail's actual enforcement scope;
+- established conventions that overrode templates;
+- overwritten files and rules carried forward from their prior content.

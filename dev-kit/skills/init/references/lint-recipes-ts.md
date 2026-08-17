@@ -2,15 +2,13 @@
 
 > The method for building guardrails is in [`lint-harness.md`](./lint-harness.md). This file is code you can copy directly.
 >
-> **Copy each block together with its guard test.**
+> Copy each block with its guard test.
 
 ## 1. Ban literal colours (the design token guardrail)
 
-Two implementations; choose by how much precision you need.
-
 ### 1a. Lightweight — pure configuration, no custom rule file
 
-`no-restricted-syntax` + a regex. Suits a project that has just established a token system and wants a guardrail up quickly.
+Use `no-restricted-syntax` plus regex for a newly established token system.
 
 ```js
 // eslint.config.js
@@ -47,7 +45,7 @@ export default tseslint.config(
 
 ### 1b. Precise — a custom rule
 
-Use this when you need to cover arbitrary hex values (`bg-[#fff]`) and variant prefixes (`dark:` / `hover:`) at the same time, and to report a precise location.
+Use a custom rule for arbitrary hex values, variant prefixes, and precise locations.
 
 ```js
 // eslint-rules/no-raw-color-classname.mjs
@@ -154,7 +152,7 @@ export default tseslint.config(
 
 ### 2b. Ban `t(key, { defaultValue })`
 
-**Why this deserves its own rule**: an i18n library returns `defaultValue` verbatim when the key is missing, leaking hardcoded text into every language; worse, the script validating key completeness usually skips calls carrying a `defaultValue` — **so this form bypasses CI's key check and lets missing keys go silently untranslated**.
+Ban this form because missing keys return `defaultValue` verbatim and can bypass key-completeness checks.
 
 ```js
 // eslint-rules/no-i18n-default-value.mjs
@@ -212,10 +210,10 @@ export default {
 
 ### 2c. The key completeness script
 
-Better suited than lint to **cross-file consistency**: every `t("ns:key")` literal in the source resolves in each locale file, and conversely the keys line up between locale files.
+Use a script for cross-file consistency: every literal `t("ns:key")` resolves in every locale and locale keys align.
 
 - Written as a standalone script (`scripts/check-i18n.mjs`), wired into the `lint` command.
-- **The script needs its own tests too** (`scripts/check-i18n.test.mjs`) — it is a guardrail, and it rots just the same.
+- Test the script (`scripts/check-i18n.test.mjs`).
 - When wiring it into pre-commit, **check the git index snapshot** rather than the working tree (see [`lint-harness.md`](./lint-harness.md#check-the-snapshot-in-the-git-index-not-the-working-tree)).
 
 ---
@@ -244,7 +242,7 @@ rules: {
 }
 ```
 
-**The crux**: the sanctioned wrapper itself (and its tests) is the **only** exemption, and that exemption goes in the configuration rather than an inline disable:
+Exempt only the sanctioned wrapper and its tests, in configuration rather than inline:
 
 ```js
 {
@@ -253,13 +251,13 @@ rules: {
 }
 ```
 
-> Note the `(#135)` in the error message — **include that issue number**.
+> Preserve the owning issue number in the diagnostic.
 
 ---
 
 ## 4. Guard tests (required)
 
-**Run by loading the project's real eslint configuration** — that verifies not just the rule's logic but that "the rule really was wired into the configuration with the right severity and scope".
+Load the project's real ESLint configuration to verify rule logic, severity, and scope.
 
 ```ts
 // src/__tests__/eslint-harness.test.ts
@@ -334,4 +332,4 @@ describe("guardrail lint rules", () => {
 
 Comment the rule out of `eslint.config.js` → run the guard test → **confirm it goes red** → restore.
 
-Without it a guard test can stay green while reporting nothing at all, because of a config filter, a file name that does not match, or a misspelled rule name.
+This detects a guard test that stays green because the rule never ran.

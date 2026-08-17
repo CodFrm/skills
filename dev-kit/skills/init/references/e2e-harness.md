@@ -1,6 +1,6 @@
 # Build the E2E harness
 
-`SKILL.md` selects smoke vs scratch. This file owns implementation. Use the repository's existing runtime/toolchain; examples use Playwright vocabulary only when applicable.
+`SKILL.md` selects smoke vs scratch. Implement with the repository's runtime/toolchain; use Playwright vocabulary only when applicable.
 
 `../templates/e2e/README.md` is the independently distributed project manual. The mechanical guarantees below are intentional copies; change both files together.
 
@@ -31,25 +31,25 @@ Add `e2e/scratch/` to `.gitignore`.
 
 ## 3. Mock external protocols, not internal code paths
 
-Each smoke dependency mock is one zero-dependency file under `e2e/fixtures/`, starts as a managed process, exposes readiness, receives its port through environment, and implements only the handshake/responses needed by the test. For programmable model/AI mocks, the spec supplies each scripted response through a control endpoint; the mock contains no scenario-specific branching.
+Each smoke dependency mock is a zero-dependency file under `e2e/fixtures/`: run it as a managed process, expose readiness, pass its port through environment, and implement only required protocol responses. Supply programmable model responses through a control endpoint, without scenario branches in the mock.
 
 ## 4. Use an independent oracle
 
-In addition to the driven UI/API, read persisted data, structured logs, a read-only endpoint or output file through a path that does not share the UI's source. A success banner alone cannot prove persistence.
+Verify through persisted data, structured logs, a read-only endpoint, or an output file independent of the driven UI/API source. A success banner does not prove persistence.
 
 ## 5. Orchestrate in a project language
 
-Use a language the repository already builds, with package/Make commands as thin entry points. The runner must create isolated state, start/stop managed processes, reap leftovers, delete temporary data, and retain logs/artifacts on failure while cleaning successful-run output.
+Use a language the repository builds, with thin package/Make entry points. The runner creates isolated state, manages and reaps processes, deletes temporary data, retains failure artifacts, and cleans successful output.
 
 ## 6. Authorize real-environment scratch runs
 
-Only scratch may load `.env`; the application and smoke suite must not. Commit `.env.example`, ignore `.env`, let real environment variables override file values, and run only user-authorized side effects with isolated test data and cleanup.
+Only scratch may load `.env`; the application and smoke suite must not. Commit `.env.example`, ignore `.env`, let environment variables override file values, and authorize side effects with isolated data and cleanup.
 
-A service `.env` does not configure is asked for, not arranged: starting the dependency or substituting a mock makes the verdict describe an environment nobody chose. Name the service and the absent variables and ask the user.
+If `.env` omits a service, name it and its missing variables and ask the user; do not start or substitute it.
 
 ## 7. Configure evidence output
 
-[`verification-report-template.md`](../templates/docs/references/verification-report-template.md) owns directory layout and evidence forms. Configure every harness-produced artifact under the supplied scenario root; a verification driven by hand writes its screenshots and oracle output there itself, before the run's temporary state is removed. Enable video only when sequence matters; keep decisive still frames.
+[`verification-report-template.md`](../templates/docs/references/verification-report-template.md) owns layout and evidence forms. Put every artifact under the scenario root before temporary state is removed. Enable video only when sequence matters; retain decisive stills.
 
 ## 8. Match driver to runtime
 
@@ -66,4 +66,4 @@ Use the cheapest form that observes the contract.
 
 ## 9. Initial smoke scope
 
-Commit only stable core flows: application identity/startup, main navigation, one core CRUD path verified by the independent oracle, and one critical data-integrity path. Everything else starts in scratch and is promoted only by a separate user/project decision.
+Commit stable core flows only: identity/startup, main navigation, one oracle-verified CRUD path, and one critical integrity path. Keep other flows in scratch until separately approved.

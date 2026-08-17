@@ -12,7 +12,7 @@ Evaluate each open item in order and stop at the first match:
 | 2 | Not findable; cheap to reverse and not user-observable | Decide, state the basis, continue | repository precedent or refutable default |
 | 3 | Wrong means user-visible rework, irreversible cost or policy choice | Ask | user's words |
 
-Evidence must match the decision:
+Match evidence to the decision:
 
 | Decision | Acceptable evidence |
 |---|---|
@@ -24,7 +24,7 @@ Evidence must match the decision:
 
 ## Ask in an executable form
 
-A question includes mutually exclusive options, recommendation first, its evidence, the effect of each choice, and whether work can continue without an answer. Batch independent questions; during `brainstorming`, ask one at a time because each answer changes the next.
+A question gives mutually exclusive options, recommendation first, its evidence, each effect and whether work can continue. Batch independent questions; `brainstorming` asks one at a time.
 
 Stop when an unanswered tier-3 choice changes the result. Do not turn silence into approval.
 

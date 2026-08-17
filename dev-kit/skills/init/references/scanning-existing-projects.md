@@ -1,6 +1,6 @@
 # Scan an existing project
 
-Run each item read-only. Return a count, first three `file:line` samples and one conclusion. Use `git grep`/`git ls-files` for tracked content; choose ecosystem-relevant commands only.
+Run each item read-only. Return a count, three `file:line` samples, and one conclusion. Use tracked content and ecosystem-relevant commands.
 
 ## 1. Project shape and commands
 
@@ -20,11 +20,11 @@ git ls-files | grep -iE '^(AGENTS|CLAUDE|CONTRIBUTING|README)\.md$|^docs/|^\.git
 wc -l AGENTS.md CLAUDE.md docs/*.md 2>/dev/null
 ```
 
-Check whether CLAUDE.md duplicates AGENTS.md. Run the repository link/anchor checker and sample documented identifiers against non-Markdown tracked code. Count broken links and stale symbols.
+Check whether CLAUDE.md duplicates AGENTS.md. Count broken links and documented identifiers absent from non-Markdown tracked code.
 
 ## 3. Repeated implementations
 
-Count matching lines and files, then inspect samples before reporting scale:
+Count matching lines and files; inspect samples before reporting scale:
 
 ```bash
 git grep -nE '#[0-9a-fA-F]{3,8}\b' -- '*.tsx' '*.jsx' '*.css' '*.vue'
@@ -34,7 +34,7 @@ git grep -nE '\bprint\(' -- '*.py'
 git grep -lniE 'logger|notify|toast|formatDate' -- '*/lib/*' '*/pkg/*' '*/utils/*'
 ```
 
-Describe `wc -l` results as matching lines, not occurrences. Landing strategy: 0 = zero-cost lock-in; 1–20 = fix then gate; 20–200 = ratchet; 200+ = first verify that a real sanctioned convention exists.
+Describe `wc -l` as matching lines, not occurrences. Recommend: 0 = lock in; 1–20 = fix then gate; 20–200 = ratchet; 200+ = first verify a sanctioned convention.
 
 ## 4. Recurring failures
 
@@ -44,7 +44,7 @@ git log --format= --name-only -300 | grep -v '^$' | sort | uniq -c | sort -rn | 
 git log --oneline -300 | grep -icE 'revert|hotfix'
 ```
 
-Group repeated fix classes and repeatedly repaired files. These outrank generic recommendations.
+Group repeated fix classes and repaired files; rank them above generic recommendations.
 
 ## 5. Tests
 
@@ -54,7 +54,7 @@ git ls-files | grep -E '\.(test|spec)\.|_test\.go$' | head -10
 git grep -lnE 'expect\(mock[A-Za-z]*\)\.toHaveBeenCalled\(\)$' -- '*.test.*'
 ```
 
-Treat suspicious patterns as sampling leads, not verdicts. Record runner, naming/location, low-value signals and shared mocks.
+Treat suspicious patterns as sampling leads. Record runner, naming/location, low-value signals, and shared mocks.
 
 ## 6. E2E and verification
 
@@ -65,7 +65,7 @@ grep -n 'testIgnore\|testDir' playwright*.config.* 2>/dev/null
 grep -n 'e2e/scratch\|^\.env$' .gitignore 2>/dev/null
 ```
 
-Record runtime form, whether smoke/scratch are mechanically separated, and whether real-runtime evidence has a report path.
+Record runtime form, mechanical smoke/scratch separation, and the real-runtime evidence path.
 
 ## 7. Gates
 
@@ -75,7 +75,7 @@ grep -rhE '^\s+- (run|uses):' .github/workflows/*.y*ml 2>/dev/null | head -20
 ls .husky 2>/dev/null && sed -n '1,80p' .husky/pre-commit 2>/dev/null
 ```
 
-Record whether CI exists, uses the same local commands and truly blocks merges.
+Record whether CI uses local commands and blocks merges.
 
 ## 8. Observability
 
@@ -86,8 +86,8 @@ git grep -nE '(logger|log)\.(Info|Warn|Error|info|warn|error)\(' | head -20
 git grep -lE 'prometheus|opentelemetry|otel' | head
 ```
 
-Identify the project-owned wrapper, current call shape, bare bypasses, and whether metrics/tracing infrastructure actually exists.
+Identify the project wrapper, call shape, bypasses, and existing metrics/tracing infrastructure.
 
 ## Convert scan to decisions
 
-Create one recommendation row only when the evidence changes an action. Each row contains action, quantified evidence and cost. Keep raw samples for challenge/verification; do not dump them into the user report. The scan itself changes no file.
+Create a recommendation row only when evidence changes an action. Include action, quantified evidence, and cost; retain raw samples for verification. The scan changes no file.

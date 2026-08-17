@@ -6,7 +6,7 @@
 
 ## 1. The architectural dependency gate (using `go test`)
 
-Check first whether an existing tool is sufficient (`depguard` inside golangci-lint can configure import bans). If it is, do not write your own. When it is not (you need directory prefixes, an exemption list, or a custom criterion), use the following.
+Use `depguard` when it can express the import ban. Use this scanner only for directory prefixes, exemptions, or custom criteria.
 
 ```go
 // internal/archtest/checker.go — or just put it in checker_test.go
@@ -86,7 +86,7 @@ func (r importBanRule) check(f *parsedFile) []violation {
 }
 ```
 
-The rule table — **each entry states its message and points back at the documentation**:
+Each rule entry states a corrective message and documentation owner:
 
 ```go
 // internal/archtest/conventions_test.go
@@ -130,7 +130,7 @@ func TestImportBans(t *testing.T) {
 
 ### The guard test (required)
 
-The rule itself gets asserted in both directions too, or a broken `applies()` silently disables the whole gate:
+Assert violations, compliant code, and exemptions so a broken `applies()` cannot disable the gate:
 
 ```go
 func TestCheckerCatchesViolation(t *testing.T) {
@@ -173,7 +173,7 @@ import "github.com/<org>/<repo>/internal/repositoryx"
 }
 ```
 
-**Verify manually once before delivering**: change one rule's `banned` to a path that does not exist → run the guard test → confirm it goes red → restore.
+Before delivery, change one `banned` path to a nonexistent path, confirm the guard test turns red, then restore it.
 
 ---
 
@@ -211,7 +211,7 @@ issues:
       # Existing debt, frozen 2026-07-18, only shrinks
 ```
 
-`desc` / `msg` is where the corrective diagnostic goes.
+Put the corrective diagnostic in `desc` / `msg`.
 
 ---
 

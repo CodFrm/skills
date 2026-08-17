@@ -8,80 +8,58 @@ description: >-
 
 ## Entry and ownership
 
-Require a `ready` plan, or resume any plan not `done`. Read the entire plan and its spec before acting.
+Require a `ready` plan, or resume one not `done`. Read its spec and plan. Verify the recorded workspace, tracked spec, `.dev-kit` and baseline; route a mismatch to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change).
 
-The main session is the orchestrator:
+Only the main session writes plan state and routes every return. `mode` comes from `writing-plans`. A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask. Set a new run to `running`.
 
-1. Only it writes the plan; when `devkit` is available, its `plan` subcommands read and write it.
-2. It records and routes each return immediately; a finished task does not pause the loop.
-3. In `subagent` mode it dispatches a whole safe implementation batch before waiting; all other dispatch, including retries and wrap-up axes, is serial.
-4. In `subagent` mode it never reviews source, commits or diffs. It decides from structured returns, ignored wrap-up receipts, runtime observations and mechanical state checks. A lost wrap-up invocation resumes the same recorded axis; it is not a replacement or another review pass.
-5. Work is not complete after task implementation: two-axis review-and-fix wrap-up → runtime verification.
+In `subagent` mode the main session dispatches every safe implementation task in a batch before waiting; all other dispatch, including retries and wrap-up axes, is serial. It never reviews source, commits or diffs, deciding from structured returns, wrap-up receipts, its runtime observations and mechanical checks. Reading launch instructions, interfaces and selectors to drive runtime verification is allowed.
 
 ## Resume state
 
-- `doing`: recover its SHA mechanically from history; if that is ambiguous, dispatch one read-only scout at `cheap` that identifies the commit without judging it. Recovered → `done` — its structured return is gone, so wrap-up is what judges it; no SHA or an inconclusive scout → `todo`. Never re-dispatch an implementer whose commit exists.
-- `review.running`: validate its receipt; route a complete/blocked receipt, or resume the recorded axis against `review.head` without starting another pass.
-- `review.passed` with `verification.pending`: put [the verification question](#runtime-verification-the-main-session-drives-it) to the user.
-- `verification.running`: resume from the partial scratch evidence, covering every requirement still without a verdict.
-- `verification.reported`: inspect the report/evidence, never the branch diff.
-- `verification.accepted`: hand back.
-- `verification.blocked`: stop and report `verification.note`.
-
-## Starting the run
-
-`mode` arrives from [`writing-plans`](../writing-plans/SKILL.md#entry-gate). A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask.
-
-Verify the recorded workspace is the current checkout, the spec is tracked on its branch, `.dev-kit` resolves, and setup recorded a baseline. Route mismatches to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change). Then set plan `status: running`.
+| Recorded state | Resume action |
+|---|---|
+| task `doing` | Recover its SHA mechanically. If ambiguous, dispatch one read-only scout at `cheap` that identifies the commit without judging it. Commit found → `done`; no commit or inconclusive scout → `todo`. Never re-run an implementer whose commit exists. |
+| `review.running` | Validate the receipt and route it, or resume that recorded axis against `review.head`. A lost invocation is not a new pass. |
+| `review.passed`, verification `pending` | Ask [the verification question](#runtime-verification-the-main-session-drives-it). |
+| verification `running` | Resume the same evidence set for requirements without verdicts. |
+| verification `reported` | Check the report and evidence, never the branch diff. |
+| verification `accepted` | Hand back for delivery. |
+| verification `blocked` | Stop and report `verification.note`. |
 
 ## The loop
 
 ```text
 collect ready tasks
-  → select a safe batch
-  → write every selected task doing
-  → implement concurrently in subagent mode (TDD; debug first for faults)
-  → record a command, exit code and deciding observation per goal part
+  → select a safe batch and mark every task doing
+  → implement with TDD; debug faults first
+  → record command, exit code and deciding observation for every goal part
   → commit and mark each task done
-  → full suite
+  → run the full suite
   → repeat
 ```
 
-Ready means `status: todo` and all `deps` are `done`.
+Ready means `todo` with every `dep` `done`. `inline` selects one task. `subagent` selects a maximal ready batch whose declared `files` are pairwise disjoint under [`writing-plans`](../writing-plans/SKILL.md#the-file). Launch every task in that batch before waiting for any return. If no pair is safe, select one. Repeat this mechanical scheduling check before every batch.
 
-`inline` selects one ready task. `subagent` selects a maximal ready batch whose declared `files` are pairwise disjoint under [the overlap rule](../writing-plans/SKILL.md#the-file). Launch every task in that batch before waiting for any return. If no pair is safe, select one. The scheduling pass in `writing-plans` is the design-time check; repeat it against the frozen plan before every batch.
+[task-prompts.md](references/task-prompts.md) owns dispatch inputs and prompts. In `inline` mode the main session is the implementer, against the same prompt and the same structured return. An implementer never writes the plan. A single task commits explicit paths; concurrent implementers leave their owned changes uncommitted because they share an index and HEAD.
 
-### Dispatch implementation
+Route each structured return before selecting more work:
 
-Before dispatch, write every selected task `doing`. Use [the implementer prompt](references/task-prompts.md#implementer) with the exact goal, served spec requirement, files, model tier, commit policy and mandatory `test-driven-development`; for a fault, require `systematic-debugging` first. The implementer never writes the plan. A single-task dispatch commits by explicit path; concurrent implementers leave their owned changes uncommitted because a shared Git index and branch HEAD cannot safely accept sibling commits. In `inline` mode the main session is the implementer, against the same prompt and the same structured return.
-
-A structured return is routing input:
-
-| Status | Transition |
+| Return | Route |
 |---|---|
-| `complete` | For a single task, `git cat-file -e <sha>^{commit}` must resolve; for a concurrent batch, mechanically verify its changed paths stay within `files`, then the main session commits those paths and records that SHA |
-| `complete with concerns` | Same, and append only blocking concerns verbatim to the task `note` |
-| `missing context` | Add verified missing context and re-dispatch once; a second return marks the task `blocked`, while a contradiction requiring a decision goes to the user |
-| `stuck` | Change something once before retry: add context, raise tier or recut the plan; a second return marks the task `blocked` |
+| `complete` | Single task: require its SHA to resolve. Concurrent task: mechanically prove changed paths stay within `files`, then commit only those paths. Record the SHA. |
+| `complete with concerns` | As above; append only blocking concerns verbatim to `note`. |
+| `missing context` | Add verified context and retry once; a second return blocks the task. A contradiction needing a decision goes to the user. |
+| `stuck` | Change context, tier or decomposition once before retry; a second return blocks the task. |
 
-### What makes a task `done`
+A task leaves `doing` only after the main session records one command, exit code and deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. A return that declares a goal part incomplete, or leaves one without that record, goes back for the named gap through the [send-back prompt](references/task-prompts.md#send-back); both causes draw on that single send-back, and another incomplete return blocks the task. In neither mode may the main session inspect code or diffs to complete this evidence.
 
-A task leaves `doing` only after the main session records, out of the structured return, one command, its exit code and the deciding observation for each part of the task goal; only a [resumed](#resume-state) task leaves without it. In neither mode does it review source, commits or diffs to complete that record. For a concurrent return, it may only run mechanical path checks, stage the task's explicit `files`, commit them alone, and record the SHA. Route and commit every returned task before selecting another batch. Then write `done` and run the full suite; diagnose red before selecting the next task.
-
-A return that declares a goal part incomplete, or leaves one without that record, goes back once for the named part alone through [the send-back prompt](references/task-prompts.md#send-back) — both causes draw on that single send-back, and a second short return marks the task `blocked`.
-
-After the task loop, any `blocked` task sets plan `status: stopped`; report its exact note and do not enter wrap-up. Only an all-`done` task set may continue.
+After each completion, write `done` and run the full suite; diagnose red before continuing. After the loop, any `blocked` task sets plan `status: stopped`; report its note and do not enter wrap-up.
 
 ## When to stop, and when not to
 
-Continue through task and green-suite boundaries. Stop for:
+Stop for a requirement or task-shape decision, unauthorized destructive/external effect, unconfigured real verification dependency, blocked task, `verification.blocked`, or review `stopped`.
 
-- a user decision that changes the agreed requirement or task shape;
-- a destructive action or an external side effect not already authorized;
-- a verification requirement left unobserved by unconfigured real environment;
-- `verification.blocked` or wrap-up `review.status: stopped`.
-
-Limits:
+These limits are final:
 
 | Scope | Limit | Exhausted state |
 |---|---|---|
@@ -90,55 +68,47 @@ Limits:
 | Incomplete implementer return | one send-back | task `blocked` |
 | Wrap-up axis | one writable pass, and it is final | review `stopped` |
 
-## Wrap-up: two review-and-fix axes
+A changed requirement returns to `brainstorming`; an approved decomposition change returns to `writing-plans`.
 
-Enter only when every task is `done`. Require both `.dev-kit/reviews/<spec-slug>/` and the evidence directory [runtime verification](references/runtime-verification.md#before-running) resolves to be ignored; add a missing rule through the normal implementation path before wrap-up.
+## Wrap-up: two independent writable axes
 
-Run the two independent axes serially at `strong`, using [separate prompts](references/wrap-up-prompts.md) and the [shared writable-axis contract](references/prompts.md#writable-wrap-up-axis). Each axis gets exactly one writable pass, which reviews the whole current branch, fixes its findings, reviews its own fixes, runs the full suite and makes at most one commit:
+Enter only when every task is `done`. Require `.dev-kit/reviews/<slug>/` and the [runtime evidence directory](references/runtime-verification.md#before-running) to resolve as ignored; add a missing rule through the normal implementation path.
 
-| Axis | Reads | Owns |
-|---|---|---|
-| Spec verification | approved spec + whole branch diff | missing/partial work, unrequested behaviour and wrong implementation of agreed behaviour |
-| Code review | whole branch diff, not the spec | correctness, edge cases, error handling, security, dead code, test value and cross-task drift |
+Run the axes serially at `strong`. Each axis gets exactly one writable pass that reviews the whole branch, fixes its own findings, reviews its own fixes, runs the full suite and makes at most one commit:
 
-Before each axis, require a clean tree and record `review.status: running`, its `axis`, exact pre-dispatch `head` and `.dev-kit/reviews/<slug>/<axis>.md` `receipt`. Give the axis the absolute workspace, branch range, pre-dispatch HEAD, receipt, full-suite command, commit convention and write boundary. Never merge the axes or put one axis's conclusions into the other prompt. In `inline` mode, perform the same state transitions and receipt writes yourself.
+| Axis | Reads and owns |
+|---|---|
+| Spec verification | Approved spec and whole branch diff; owns missing, partial, unrequested or incorrectly implemented agreed behaviour. |
+| Code review | Whole branch diff, not the spec; owns correctness, edges, error handling, security, dead code, test value and cross-task drift. |
 
-On return or resume, require the receipt to match the recorded axis/head, report each finding and action, resolve final HEAD, leave a clean tree and carry an exit code and deciding observation for every required command. Rerun the full suite. A blocked/invalid receipt or red suite sets review and plan `stopped`; do not replace the axis, dispatch a fixer or finish it in the main session.
+Before each axis require a clean tree and record `review.running`, axis, pre-dispatch HEAD and ignored receipt path. [wrap-up-prompts.md](references/wrap-up-prompts.md) and [prompts.md](references/prompts.md#writable-wrap-up-axis) own its prompt and receipt. Never merge axes or pass conclusions between them.
 
-A valid pass completes its axis, whether or not it fixed anything; when its final HEAD differs from the recorded head, append that HEAD to `review.fixes`. Never dispatch the same axis again to re-check its own fixes — the pass owns that check. A completed spec axis advances to a freshly recorded code axis; a completed code axis sets review `passed`, clears `axis/head/receipt`, then puts [the verification question](#runtime-verification-the-main-session-drives-it) to the user.
+On return or resume, require a matching receipt, final HEAD, clean tree, every finding/action and required-suite command evidence; rerun that suite. A blocked or invalid receipt, dirty tree or red suite stops review and plan. Do not replace the axis, dispatch a fixer or finish it in the main session.
+
+A valid pass completes the axis whether or not it changed code; append a changed final HEAD to `review.fixes`. Never dispatch the same axis again to re-check its own fixes. Spec completion advances to a freshly recorded code axis. Code completion sets review `passed`, clears its active fields, then puts [the verification question](#runtime-verification-the-main-session-drives-it) to the user.
 
 ## Runtime verification: the main session drives it
 
 Once review is `passed`, run nothing until the user answers one message that asks both halves together:
 
-- whether to run runtime verification on this branch now, or hand straight to delivery;
-- and, for every spec requirement whose real dependency `.env` does not configure or whose effect is outside the authorization list, the service and the absent variable names — names only — or the exact effect and what it touches.
+1. whether to run runtime verification on this branch now, or hand straight to delivery;
+2. for every spec requirement whose real dependency `.env` does not configure or whose effect is outside the authorization list, the service and missing variable names only, or the exact effect and target.
 
-Read the spec, `docs/verification.md` and `.env` to name that second half before asking; the answer routes both:
+Read the spec, `docs/verification.md` and `.env` before naming gaps. Route the answer:
 
-| Answer | What you do |
+| Answer | Action |
 |---|---|
-| straight to delivery | set verification `blocked` and plan `stopped`, that sentence verbatim as `verification.note`, then [hand back](#handing-it-back) with every requirement unobserved |
-| run it | set verification `running` and drive it yourself, under either mode, following [runtime-verification.md](references/runtime-verification.md) |
-| with `.env` filled, or a way to reach an environment or a substitute for it authorized | cover those requirements in the same run, recording the authorizing sentence verbatim in the report's authorization list; a substituted dependency reaches `holds` only with its verdict row naming what it does not cover |
-| with the missing input declined | run the rest and finish those requirements `not observed`, naming the service and absent variable names in the report |
+| straight to delivery | set verification `blocked` and plan `stopped` with the user's sentence verbatim, then [hand back](#handing-it-back) every requirement as unobserved |
+| run it | set verification `running` and follow [runtime-verification.md](references/runtime-verification.md) |
+| input or substitute supplied/authorized | cover it in the same run and record the authorization verbatim |
+| input declined | run the rest and mark those requirements `not observed` |
 
-Never dispatch the run: a subagent cannot ask the user, and a gap the question did not predict still needs an answer mid-run.
+The main session must drive the real target. Never dispatch the run. It may build/start the target, drive UI/API/CLI/e2e and write only ignored evidence. It must not fix code, change tracked files, weaken checks, provision an absent dependency, or perform an unapproved destructive/external effect.
 
-You may build/start the real target, drive UI/API/CLI/e2e and write only ignored scratch evidence. You must not fix code, change tracked files, weaken checks, or perform an unapproved destructive/external action. Every spec requirement receives exactly `holds`, `does not hold` or `not observed`, with runtime evidence. The report must include exact reproduction steps for the user.
+Give every spec requirement one runtime verdict: `holds`, `does not hold` or `not observed`. A substitute reaches `holds` only when its row states what it does not cover. Run observable requirements despite other missing input; for an unpredicted gap, finish the rest, ask once in the same form, then resume answered requirements. A target that cannot build or start sets verification `blocked` with the reason.
 
-A target that cannot be built or started sets `verification.status: blocked` with the exact reason.
-
-A dependency or authorization gap the question did not predict blocks those requirements alone, and you never stand that dependency up yourself. Carry every other requirement to a verdict, then ask once more in the same shape and route by the same table, resuming answered requirements alone and merging their evidence into the same `report.md`.
-
-Once the report is written, set `verification.status: reported` and check it against the evidence: every requirement present; every `holds` backed by how the target was driven, its exit code where the form produces one, and a deciding observation; linked artifacts readable; initial/final HEAD, clean tree and plan checksum consistent. An unsupported claim is re-observed at the runtime or downgraded — never argued from source or diff.
-
-If every requirement holds, set verification `accepted` and plan `done`. Otherwise keep `reported`, state every non-hold/unobserved requirement and ask the user to choose: accept the findings for delivery, provide/authorize the missing real input, or request a separately approved correction round. Only explicit acceptance sets verification `accepted` and plan `done`; runtime verification never fixes tracked files or starts that round itself.
+After writing the report, set `reported` and mechanically check coverage, evidence, artifacts, HEADs, clean tree and plan checksum. Re-observe or downgrade unsupported claims; never use source or diff. If every requirement holds, set verification `accepted` and plan `done`. Otherwise keep `reported`, list every non-hold and ask the user to choose: accept delivery, provide/authorize input, or request a separately approved correction round. Only explicit acceptance sets verification `accepted` and plan `done`.
 
 ## Handing it back
 
-Before the delivery menu, hand [`using-git-worktrees`](../using-git-worktrees/SKILL.md#delivery-and-cleanup):
-
-1. every non-hold and blocked task;
-2. every standing finding and its reason;
-3. every unobserved requirement — or an explicit statement that none remain.
+Hand [`using-git-worktrees`](../using-git-worktrees/SKILL.md#delivery-and-cleanup) every blocked task, standing finding and non-hold or unobserved requirement, explicitly stating when none remain.

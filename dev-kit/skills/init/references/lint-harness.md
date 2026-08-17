@@ -1,12 +1,12 @@
 # Guardrail harness
 
-Use only for user-selected conventions a program can judge with low false-positive risk. Prefer recurring proven violations, single-entry-point rules, dependency direction and silent failures. Leave subjective principles `review-only`.
+Use for user-selected conventions a program can judge with low false-positive risk. Prefer proven recurring violations, single-entry-point rules, dependency direction, and silent failures; leave subjective principles `review-only`.
 
 [TypeScript recipes](lint-recipes-ts.md) and [Go recipes](lint-recipes-go.md) provide copyable implementations; this file owns selection and delivery.
 
 ## Escalation ladder
 
-Choose the first level that can express the rule:
+Choose the first sufficient level:
 
 1. enable/scope an existing rule;
 2. declarative import/API/global ban;
@@ -15,7 +15,7 @@ Choose the first level that can express the rule:
 5. repository-scanning test;
 6. CI script.
 
-Prefer ecosystem dependency tools over custom analyzers. Ban the narrow shared entry point (for example an import) instead of many downstream symptoms.
+Prefer ecosystem dependency tools. Ban the narrow shared entry point rather than downstream symptoms.
 
 ## Delivery contract
 
@@ -27,7 +27,7 @@ Every guardrail requires all of:
 4. **Guard test through real configuration:** prove violations fail and compliant/exempt paths pass. Ensure the existing test command runs it.
 5. **Live wiring proof:** temporarily disable the rule, observe the guard test red, restore it, then require the whole tree green.
 
-Document the check name, configuration, activation date, exemption mechanism and actual gate only after all five pass.
+After all five pass, document the check name, configuration, activation date, exemption, and actual gate.
 
 ## Existing violations
 
@@ -43,11 +43,11 @@ Do not land a permanently red gate.
 
 ## CI
 
-Probe the existing CI and remote. Add checks to the job already used for merges, using the same package/Make commands as local development. If no CI exists, place minimal CI on the user's recommendation list; if no remote exists, keep local/pre-commit enforcement and document the limitation.
+Add checks to the existing merge job using the local package/Make commands. If no CI exists, recommend minimal CI; if no remote exists, keep local/pre-commit enforcement and report the limitation.
 
 ## Pre-commit
 
-Pre-commit is early feedback, never the merge gate. It must:
+Pre-commit is early feedback, not a merge gate. It must:
 
 - inspect only staged relevant files;
 - trigger by file type, including deletions where consistency checks require it;

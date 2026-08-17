@@ -1,14 +1,14 @@
 # Fill templates from project facts
 
-Every symbol, path, command and code shape in generated docs must come from tracked project state.
+Source every documented symbol, path, command, and code shape from tracked project state.
 
 ## Method
 
 1. Locate the project's single entry point for the concept.
-2. Lift a representative real call/shape without changing its API. Prefer project wrappers over underlying libraries.
+2. Lift a representative call/shape without changing its API; prefer project wrappers.
 3. Verify symbols with `git grep`, paths with `git ls-files`, and run every documented command.
 
-When a selected convention does not exist yet, build it and run it first, then document the landed form. If it is neither present nor selected for this round, delete the template section. Never invent a plausible example or leave a TODO skeleton.
+Build and run a selected new convention before documenting its landed form. Delete sections for conventions neither present nor selected; do not invent examples or leave TODOs.
 
 ## Lookup map
 
@@ -37,8 +37,8 @@ git ls-files --error-unmatch '<path>'
 git ls-tree --name-only -d HEAD '<directory>'
 ```
 
-Do not use untracked experimental files as documentation evidence. A selected new convention may be sourced from its landed, run implementation before commit.
+Do not use untracked experiments as evidence. A selected new convention may use its landed, run implementation before commit.
 
 ## Final fact check
 
-For every generated document, sample at least five concrete symbols/paths/commands. One failure reopens the whole document's fact audit. Then run the repository-wide documentation link/anchor checks and the project's final verification command.
+Sample at least five concrete symbols, paths, or commands per generated document. Any failure reopens that document's fact audit. Then run repository link/anchor checks and final verification.

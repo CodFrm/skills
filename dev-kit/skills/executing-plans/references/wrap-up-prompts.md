@@ -1,6 +1,6 @@
 # Wrap-up prompts
 
-Use both at `strong` and serially. Apply the [shared dispatch and writable-axis contract](prompts.md#writable-wrap-up-axis) without biasing either verdict.
+Apply the [shared writable-axis contract](prompts.md#writable-wrap-up-axis) to both prompts.
 
 ## Spec verification
 

@@ -1,20 +1,18 @@
 ---
 name: writing-plans
 description: >-
-  Use once any spec is approved: write one compact task for a small change or multiple vertical slices for longer work. Use again when work decomposes differently than planned. Writes `.dev-kit/plans/<slug>.yaml`; the spec still owns what to build.
+  Use after an approved spec is committed in its prepared workspace, and again when work decomposes differently than approved. Writes and freezes `.dev-kit/plans/<slug>.yaml`; the spec still owns what to build.
 ---
 
 # Writing a plan
 
-## Entry gate
+## Entry and ownership
 
-Require an approved spec committed in the prepared round workspace. Without either, return to `brainstorming` or `using-git-worktrees`.
+Require an approved spec committed in the prepared round workspace. Otherwise return to `brainstorming` or `using-git-worktrees`.
 
-The spec owns requirements. The plan owns route, dependencies, dispatch state and recovery. It uses the spec slug and lives at `.dev-kit/plans/<spec-slug>.yaml` (gitignored).
+The spec owns requirements. The plan owns execution route, dependencies, dispatch state and recovery. Only the main session writes `.dev-kit/plans/<spec-slug>.yaml`.
 
-Read the current harness [mapping](../using-dev-kit/SKILL.md#platform-tools) and set `mode` from the tool list it names: `subagent` when that tool is exposed, `inline` otherwise. The user does not choose it.
-
-Every `context` fact needs `file:line` or a command result.
+Read the current harness mapping and set `mode` from the tool list it names: `subagent` when that tool is exposed, `inline` otherwise. The user does not choose it. Every context fact requires a resolving `file:line` or command result.
 
 ## The file
 
@@ -34,7 +32,7 @@ tasks:
     deps: []                  # only ordering source
     files: [src/auth/]        # expected writes
     model: null               # cheap | mid | strong | null; never a model id
-    interfaces: null          # consumed cross-task name/signature, on the consumer
+    interfaces: null          # consumed cross-task contract
     status: todo              # todo → doing → done | blocked
     commit: null
     note: null
@@ -43,7 +41,7 @@ review:
   status: pending             # pending → running → passed | stopped
   axis: none                  # none | spec | code
   head: null                  # current axis pre-dispatch HEAD
-  receipt: null               # ignored .dev-kit/reviews/<slug>/<axis>.md
+  receipt: null               # .dev-kit/reviews/<slug>/<axis>.md
   fixes: []                   # up to two wrap-up pass SHAs
   note: null
 
@@ -54,61 +52,32 @@ verification:
   note: null
 ```
 
-Record `files` wide enough to cover every shared-write path: generated artifacts, lockfiles, manifests, fixtures, snapshots, registries, translations, configuration and formatter-owned output. Two tasks overlap when their `files` name one path, one contains the other, or both reach one shared-write path.
+`review` makes each writable axis recoverable; its receipt records the completed invocation, while only the main session changes axis state. `verification` records runtime progress; never infer acceptance from a report file.
 
-`review` makes each writable axis recoverable; its receipt records the completed invocation, while only the main session writes axis state. `verification` records the runtime pass; never infer acceptance from a report file. Only the main session writes the plan.
+## Explore
 
-## Exploring before the cut
+- `inline`: read the complete spec, affected modules, existing tests and project precedent.
+- `subagent`: serially dispatch one read-only [planning scout](references/planning-scout.md) at `strong`. It returns verified context, a proposed breakdown and the project's shared-write inventory.
 
-Under `mode: inline`, read the whole spec, affected modules, existing tests and project precedent yourself.
+Check that every cited `file:line` resolves, every goal is observable, dependencies are acyclic and `files` cover the returned inventory. Re-dispatch once against a named failure; after a second failure, cut tasks in the main session. A `stuck` spec/code contradiction returns to `brainstorming`.
 
-Under `mode: subagent`, dispatch one read-only [planning scout](references/planning-scout.md) at `strong` instead. It returns `context` facts, a proposed breakdown and this project's shared-write inventory.
+## Cut tasks
 
-Check that return mechanically before any of it reaches the plan: every cited `file:line` resolves, every proposed goal names an observable result, every `files` list covers the inventory paths that task touches, and `deps` has no cycle. Re-dispatch once against the named failure; a second failure means you cut the tasks yourself. A `stuck` return naming a spec/code contradiction goes back to `brainstorming`, not to a re-dispatch.
+1. Make each task one observable vertical slice and complete RED → GREEN → REFACTOR round. Prefer the largest independently reviewable slice fitting one context; combine work sharing an outcome and test setup. Never split tests, types or layers into separate tasks.
+2. Put every ordering constraint in `deps`; list order has no meaning. Put each cross-task interface or signature on its consuming task.
+3. Set `files` wide enough to include every direct or shared write, including generated output, lockfiles, manifests, fixtures, registries and formatter-owned files.
+4. Assign a tier, never a model id: `cheap` for an identified method, `mid` for bounded investigation or coordination, `strong` for design judgement or broad reading, and `null` to inherit.
 
-## Cutting the tasks
+## Schedule subagent tasks
 
-- Each task is one observable vertical slice and one complete RED → GREEN → REFACTOR round.
-- Prefer the largest independently reviewable slice that fits one context window. Combine adjacent work that shares an outcome and test setup; do not make a task for each file, function, test case or mechanical step.
-- Never split tests, types or layers into separate tasks.
-- Put every known ordering constraint in `deps`; list order has no meaning.
-- Put each cross-task interface/signature on the consuming task.
+Under `mode: subagent`, run one scheduling pass before the gate. The main session runs this pass itself: derive every potentially co-ready pair from `deps`, compare every such pair's `files`, and add a dependency for each overlap. Tasks overlap when either names the same path, one path contains the other, or both reach a shared-write path. Do not order disjoint tasks.
 
-## Choosing a model: a tier, never an id
+Only `subagent` implementation tasks may run concurrently, and only when dependencies are satisfied and write paths are disjoint. All other dispatch, including planning and both wrap-up axes, remains serial.
 
-| Task state | Tier |
-|---|---|
-| File, command and precedent already identify the method | `cheap` |
-| Cross-file coordination or bounded investigation remains | `mid` |
-| Design judgement or broad code reading remains | `strong` |
-| Inherit the parent session | `null` |
+## Approval and freeze
 
-## Scheduling the batches
+Send one approval request containing the plan slug, workspace, task count, each task's id/goal/deps, and subagent concurrent batches when applicable. If the user requests a recut, repeat exploration, task cutting and scheduling with the reason recorded.
 
-Under `mode: subagent`, run one scheduling pass before the gate: derive which tasks can become ready together from `deps`, then compare every such pair's `files` under [the overlap rule](#the-file). Add a dependency for every overlap; do not add ordering between disjoint tasks.
+Write `status: ready` only after the user approves the current breakdown. Once ready, execution may update statuses, commits, notes, review/verification state and verified context. Goals, dependencies, files and model tiers remain frozen until the user approves a recut. A changed requirement returns to `brainstorming`; changed decomposition returns here.
 
-The main session runs this pass itself, whatever the scout proposed: a wrong "disjoint" puts two implementers on one file, and nothing downstream reports it.
-
-## The gate, then freeze
-
-Run the checklist, then send one message containing:
-
-- plan slug, workspace and task count;
-- every task's id, goal and deps, plus the resulting concurrent batches under `mode: subagent`;
-- a request to approve or recut the breakdown.
-
-A recut repeats everything from [exploration](#exploring-before-the-cut) on, carrying the recut reason. Write `status: ready` only from that answer.
-
-Once ready, execution may write statuses, commits, notes, review/verification state and new verified context. Goals, deps, files and model tiers remain frozen until the user approves a recut. A changed requirement returns to `brainstorming`; a changed decomposition returns here.
-
-Then hand the ready plan to [`executing-plans`](../executing-plans/SKILL.md).
-
-## Checklist
-
-- [ ] Spec is approved, committed, and shares the plan slug/workspace
-- [ ] Context facts are currently verified; no requirement is duplicated into the plan
-- [ ] Every task is one observable vertical slice with complete deps and wide files
-- [ ] Cross-task interfaces are recorded on consumers; model values are tiers or null
-- [ ] `mode` came from the harness tool list; any scout return passed the mechanical check before reaching the plan
-- [ ] In `subagent` mode, the scheduling pass made every potentially co-ready pair write-disjoint or dependency-ordered
-- [ ] The user approved the current breakdown
+Before handing the ready plan to [`executing-plans`](../executing-plans/SKILL.md), verify the approved spec, slug and workspace agree; context and scout material passed their checks; tasks have complete dependencies, interfaces and write paths; scheduling is safe; and the user approved this exact breakdown.
