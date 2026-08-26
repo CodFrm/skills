@@ -1,6 +1,6 @@
 # Append only selected entries to the project .gitignore; do not overwrite it.
 
-# Dev-kit plans/artifacts/worktrees. No trailing slash: linked worktrees use a symlink.
+# Dev-kit plans/artifacts/worktrees, in the checkout and in every round workspace under it.
 .dev-kit
 
 # One-off local runtime verification and evidence; excluded from CI.

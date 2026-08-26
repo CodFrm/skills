@@ -12,7 +12,7 @@
 pi install /path/to/skills/dev-kit
 ```
 
-执行 `/reload` 后，Pi 加载共享 skills。基础包不包含进程派发工具，计划 `mode` 只能是 `inline`。
+执行 `/reload` 后，Pi 加载共享 skills。基础包不包含进程派发工具。
 
 需要 subagent 时再单独安装可选包：
 
@@ -20,7 +20,7 @@ pi install /path/to/skills/dev-kit
 pi install /path/to/skills/dev-kit/.pi/extensions/subagent
 ```
 
-当前会话的工具集合要到 `/reload` 后才更新；工具列表出现 `subagent` 后，后续计划的 `mode` 才会是 `subagent`。移除时用 `pi remove <pi list 中显示的本地 source>`，再执行 `/reload`。
+当前会话的工具集合要到 `/reload` 后才更新；工具列表出现 `subagent` 后，`mode: subagent` 的计划才能派发。移除时用 `pi remove <pi list 中显示的本地 source>`，再执行 `/reload`。
 
 该包不创建或读取用户/项目 agent profile，也不保存 `cheap / mid / strong` 模型映射。主会话在每次派发时从当前可用模型中选择真实 `provider/model`。参数、权限 profile 与安全边界见[包内 README](./.pi/extensions/subagent/README.md)。
 
@@ -70,7 +70,7 @@ ln -s /path/to/skills/dev-kit/bin/devkit ~/.local/bin/devkit     # 可选 CLI；
 
 ## 链路
 
-Unsettled work follows `brainstorming` → `using-git-worktrees` → `writing-plans` → `test-driven-development` inside `executing-plans` → two-axis review-and-fix wrap-up → main-session runtime verification → `using-git-worktrees` for delivery. 已定案的小改动直接走 TDD 或项目检查；只要还有会改变结果的需求或边界未决，就进 `brainstorming`。
+Unsettled work follows `brainstorming` → `using-git-worktrees` → `writing-plans` → `test-driven-development` inside `executing-plans` → two-axis review-and-fix wrap-up → main-session runtime verification → `using-git-worktrees` for delivery. 已定案的小改动直接走 TDD 或项目检查——`brainstorming` 谈完发现是小改动，也可以由用户选这条路，不写 spec 和 plan；只要还有会改变结果的需求或边界未决，就进 `brainstorming`。
 
 Each skill owns its entry gate, state transitions and hand-off. [`using-dev-kit`](./skills/using-dev-kit/SKILL.md) routes the initial request; [`executing-plans`](./skills/executing-plans/SKILL.md) exclusively owns subagent review boundaries. `init` triggers independently.
 

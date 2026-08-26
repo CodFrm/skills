@@ -11,8 +11,8 @@ const fsp = require('fs/promises')
 const path = require('path')
 
 // Where the plans live. Pass it to resolveInside() as the root, never as a path under the project
-// root — inside a worktree .dev-kit is a symlink back to the main repository, so the plan file's
-// realpath is not under the worktree.
+// root — a checkout may link .dev-kit to another repository, and then the plan file's realpath is
+// not under the project root.
 const PLANS = '.dev-kit/plans'
 
 // A mockup may be a real package (see brainstorming's references/mockups.md), and installed
@@ -33,7 +33,7 @@ function findRoot(from) {
 // The one security check. A leading-`../` or prefix check is not enough: `a/../../../etc/passwd`
 // normalises to `etc/passwd` with no traversal left to see. So the criterion is "does the landing
 // point sit inside the root", applied after both are fully resolved — symlinks included, since
-// .dev-kit is itself a symlink back to the main repository inside a worktree.
+// .dev-kit can itself be a symlink to another repository.
 //
 // Returns the resolved absolute path, or null — which callers must treat as 404, never as
 // "serve it anyway".

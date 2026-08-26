@@ -59,9 +59,9 @@ test('resolveInside: a symlink inside the root pointing out of it is refused', a
   assert.equal(await resolveInside(artifacts, 'escape-link'), null)
 })
 
-test('resolveInside: a symlinked root still resolves (the worktree case)', async () => {
-  // Inside a git worktree, .dev-kit is a symlink back to the main repository — both sides are
-  // realpath'd, so this has to keep working rather than being read as an escape.
+test('resolveInside: a symlinked root still resolves (the linked-checkout case)', async () => {
+  // A checkout can link .dev-kit to another repository — both sides are realpath'd, so this has to
+  // keep working rather than being read as an escape.
   const wt = path.join(tmp, 'worktree')
   await fsp.mkdir(wt, { recursive: true })
   await fsp.symlink(path.join(root, '.dev-kit'), path.join(wt, '.dev-kit'))

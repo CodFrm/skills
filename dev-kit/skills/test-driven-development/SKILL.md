@@ -16,7 +16,7 @@ Read `docs/testing.md` before changing tests; it owns boundaries, coverage, mock
 
 ## Before the loop
 
-State the observable precondition, action and result from the approved spec/task; if impossible, stop and clarify.
+State the observable precondition, action and result from the approved spec, task or agreed requirement; if impossible, stop and clarify.
 
 A bug requires a stable reproduction and root cause from `systematic-debugging`; that reproduction becomes RED.
 

@@ -19,3 +19,11 @@ test('settled small changes bypass brainstorming', () => {
   assert.match(readme, /已定案的小改动直接走 TDD 或项目检查/)
   assert.doesNotMatch(readme, /Every tracked change follows `brainstorming`/)
 })
+
+test('brainstorming can land on the direct route instead of a spec', () => {
+  const brainstorming = read('skills/brainstorming/SKILL.md')
+
+  assert.match(brainstorming, /## The direct route/)
+  assert.match(brainstorming, /put \[the direct route\]\(#the-direct-route\) to the user/)
+  assert.match(brainstorming, /until the user approves the written spec or picks \[the direct route\]/)
+})

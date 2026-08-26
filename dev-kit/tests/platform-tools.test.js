@@ -27,9 +27,7 @@ function section(markdown, heading) {
 
 function assertPiSingleTaskMapping(mapping) {
   const dispatch = section(mapping, 'Optional dev-kit subagent')
-  assert.match(dispatch, /actual tool list for the exact tool name `subagent`/)
-  assert.match(dispatch, /When `subagent` is absent, `mode` is `inline`/)
-  assert.match(dispatch, /When `subagent` is present, `mode` is `subagent`/)
+  assert.match(dispatch, /Under `mode: subagent`, dispatch and wait through the exact tool name `subagent` rather than shell-launching Pi/)
   assert.match(dispatch, /Each `subagent` call starts one fresh child for one task\./)
   assert.match(dispatch, /only fields are required `task` and `profile`, plus optional `model`, `thinking`, and `cwd`/)
   assert.match(dispatch, /`tasks`, `chain`, `tools`, and every other unknown field fail before launch without compatibility conversion/)
@@ -103,7 +101,7 @@ test('Pi mapping translates the logical namespace and stays within the base tool
   assert.match(mapping, /`dev-kit:<name>`/)
   assert.match(mapping, /`<name>`/)
   assert.match(mapping, /`\/skill:<name>`/)
-  assert.match(mapping, /inline/)
+  assert.match(mapping, /Not available in the base tool set; use the optional mapping below only when loaded/)
   assert.match(mapping, /read,bash,edit,write,grep,find,ls/)
   assert.match(mapping, /Do not recursively launch another `pi` process/)
   assert.doesNotMatch(mapping, /verified against `@earendil-works\/pi-coding-agent` 0\.\d+/)
@@ -117,7 +115,7 @@ test('Pi mapping asserts the single-task runtime contract rather than keyword co
 test('Pi mapping contract rejects legacy batch guidance even when current keywords are present', () => {
   const staleMapping = `
 ## Optional dev-kit subagent
-Inspect the actual tool list for the exact tool name \`subagent\`. When \`subagent\` is absent, \`mode\` is \`inline\`. When \`subagent\` is present, \`mode\` is \`subagent\`.
+Under \`mode: subagent\`, dispatch and wait through the exact tool name \`subagent\` rather than shell-launching Pi.
 One task can be sent directly, or \`tasks\` can send a batch and \`chain\` can pass prior output. The main session owns serial work and may make multiple \`subagent\` calls. Invalid \`tasks\`, \`chain\`, and \`tools\` values reject. Fields include \`task\`, \`profile\`, \`model\`, \`thinking\`, and \`cwd\`.
 ## Profiles and tool resolution
 Profiles are read-only, write, and general. Active tools are deduplicated. It is not an OS sandbox.
@@ -144,6 +142,12 @@ test('executing-plans closes both incomplete-return causes with one shared send-
 test('the loop names who implements in inline mode', () => {
   const loop = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'The loop')
   assert.match(loop, /In `inline` mode the main session is the implementer, against the same prompt and the same structured return\./)
+})
+
+test('an uninterrupted run is stated, not left implied by the stop list', () => {
+  const limits = section(readRoot('dev-kit/skills/executing-plans/SKILL.md'), 'When to stop, and when not to')
+  assert.match(limits, /Nothing else ends the turn: between tasks, batches and wrap-up axes neither mode reports progress and waits for a go-ahead/)
+  assert.match(limits, /the only other user turn is \[the verification question and its acceptance\]\(#runtime-verification-the-main-session-drives-it\)/)
 })
 
 test('the done gate is absolute except for the resume path it names', () => {
@@ -239,15 +243,21 @@ test('AGENTS.md and executing-plans allow only write-disjoint implementation bat
   assert.match(executing, /all other dispatch, including retries and wrap-up axes, is serial/)
 })
 
-test('the plan mode is derived from the harness tool list, never asked', () => {
+test('the user chooses the plan mode; nothing derives it from a tool list', () => {
   const writing = readRoot('dev-kit/skills/writing-plans/SKILL.md')
   const executing = readRoot('dev-kit/skills/executing-plans/SKILL.md')
 
-  assert.match(writing, /set `mode` from the tool list it names/)
-  assert.match(writing, /The user does not choose it\./)
-  assert.doesNotMatch(writing, /execution-mode choices|Wait for both decisions|When the user selects `subagent`/)
-  assert.match(executing, /A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask\./)
-  assert.match(read('SKILL.md'), /A mapping exposing no native subagent makes the plan `mode: inline`/)
+  assert.match(writing, /Ask the user to choose `mode` before exploring/)
+  assert.match(writing, /recommendation first with the slice count it rests on/)
+  // The tier and the batches are what `subagent` buys, so the approval gate shows both.
+  assert.match(writing, /under `subagent` each task's tier and the projected batches/)
+  assert.match(writing, /switching to `subagent` needs the scheduling pass before freeze/)
+  assert.match(executing, /`mode: null` never had the concurrency scheduling pass, so it runs `inline`; never ask mid-run\./)
+
+  const mappings = ['SKILL.md', 'references/claude-tools.md', 'references/codex-tools.md', 'references/pi-tools.md']
+  for (const doc of [writing, ...mappings.map(read)]) {
+    assert.doesNotMatch(doc, /`mode` is `inline`|makes the plan `mode: inline`|from the tool list/)
+  }
 })
 
 test('a planning scout proposes the cut while the main session keeps the batching', () => {
@@ -273,14 +283,14 @@ test('Pi public guidance preserves single-call installation and keeps scheduling
   const packageReadme = readRoot('dev-kit/.pi/extensions/subagent/README.md')
   const notice = readRoot('dev-kit/.pi/extensions/subagent/NOTICE.md')
 
-  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话可并发派发写路径互斥的实现任务.*基础 dev-kit 仍保持 inline/)
+  assert.match(catalog, /可选 Pi 单任务派发集成.*每次调用启动一个独立子进程.*主会话可并发派发写路径互斥的实现任务.*基础 dev-kit 不带派发工具/)
   assert.doesNotMatch(catalog, /single、parallel 与 chain|获准的并行|并行批次/)
 
   assert.match(packageReadme, /基础 `dev-kit\/package\.json` 不引用本包/)
   assert.match(packageReadme, /pi install \/path\/to\/skills\/dev-kit\/\.pi\/extensions\/subagent/)
   assert.match(packageReadme, /执行 `\/reload` 后检查当前工具列表/)
   assert.match(packageReadme, /pi list\npi remove <pi list 中显示的本地 source>/)
-  assert.match(packageReadme, /未安装、禁用、移除或尚未 reload 时 `mode` 只能是 `inline`/)
+  assert.match(packageReadme, /未安装、禁用、移除或尚未 reload 时它不在工具列表里/)
 
   const contract = section(packageReadme, '调用契约')
   assert.match(contract, /```ts\nsubagent\(\{\n  task: string,\n  profile: "read-only" \| "write" \| "general",\n  model\?: string,\n  thinking\?: string,\n  cwd\?: string\n\}\)\n```/)

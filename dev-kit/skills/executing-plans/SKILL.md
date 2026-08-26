@@ -8,9 +8,9 @@ description: >-
 
 ## Entry and ownership
 
-Require a `ready` plan, or resume one not `done`. Read its spec and plan. Verify the recorded workspace, tracked spec, `.dev-kit` and baseline; route a mismatch to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change).
+Require a `ready` plan, or resume one not `done`. Read its spec and plan; read and write only the copy in the round workspace's own `.dev-kit/plans/`, including when the session starts outside that workspace — a copy in the original checkout is a delivered record. Verify the recorded workspace, tracked spec, `.dev-kit` and baseline; route a mismatch to [`using-git-worktrees`](../using-git-worktrees/SKILL.md#set-up-and-check-the-baseline-before-the-first-change).
 
-Only the main session writes plan state and routes every return. `mode` comes from `writing-plans`. A ready legacy plan with `mode: null` takes it from the current harness tool list; never ask. Set a new run to `running`.
+Only the main session writes plan state and routes every return. `mode` comes from `writing-plans`. A ready plan with `mode: null` never had the concurrency scheduling pass, so it runs `inline`; never ask mid-run. Set a new run to `running`.
 
 In `subagent` mode the main session dispatches every safe implementation task in a batch before waiting; all other dispatch, including retries and wrap-up axes, is serial. It never reviews source, commits or diffs, deciding from structured returns, wrap-up receipts, its runtime observations and mechanical checks. Reading launch instructions, interfaces and selectors to drive runtime verification is allowed.
 
@@ -58,6 +58,8 @@ After each completion, write `done` and run the full suite; diagnose red before 
 ## When to stop, and when not to
 
 Stop for a requirement or task-shape decision, unauthorized destructive/external effect, unconfigured real verification dependency, blocked task, `verification.blocked`, or review `stopped`.
+
+Nothing else ends the turn: between tasks, batches and wrap-up axes neither mode reports progress and waits for a go-ahead, and the only other user turn is [the verification question and its acceptance](#runtime-verification-the-main-session-drives-it).
 
 These limits are final:
 
