@@ -12,7 +12,7 @@ Require an approved spec committed in the prepared round workspace. Otherwise re
 
 The spec owns requirements. The plan owns execution route, dependencies, dispatch state and recovery. Only the main session writes `.dev-kit/plans/<spec-slug>.yaml`.
 
-Ask the user to choose `mode` before exploring, recommendation first with the slice count it rests on: `subagent` when the spec reads as several slices whose writes separate cleanly, or when one slice needs more reading than a single context holds; `inline` for a short dependency chain in one area, where dispatch and handoff cost more than concurrency returns. Every context fact requires a resolving `file:line` or command result.
+Ask the user to choose `mode` before exploring, recommendation first with the evidence it rests on. `mode` decides how planning explores, who implements and whether tiers apply; wrap-up and every other dispatch runs the same either way. Recommend `subagent` when the tasks' combined reading exceeds one context, when writes separate cleanly enough to project a concurrent batch, when most tasks would carry a tier below the orchestrator's model, or when the orchestrator should decide this change from returns rather than from source it wrote itself; recommend `inline` when stating each task's inputs in the plan costs more than doing the work, or when consecutive tasks share discoveries the plan cannot carry. Every context fact requires a resolving `file:line` or command result.
 
 ## The file
 
@@ -76,7 +76,7 @@ Only `subagent` implementation tasks may run concurrently, and only when depende
 
 ## Approval and freeze
 
-Send one approval request containing the plan slug, workspace, `mode`, task count, each task's id/goal/deps, and under `subagent` each task's tier and the projected batches. When `subagent` projects no concurrent batch, say so and recommend `inline`. Switching to `inline` at the gate needs no recut; switching to `subagent` needs the scheduling pass before freeze. If the user requests a recut, repeat exploration, task cutting and scheduling with the reason recorded.
+Send one approval request containing the plan slug, workspace, `mode`, task count, each task's id/goal/deps, and under `subagent` each task's tier and the projected batches. When `subagent` projects no concurrent batch, say so with what it still buys here — one fresh context per task, tiers, and an orchestrator deciding from returns — and let the user choose. Switching to `inline` at the gate needs no recut; switching to `subagent` needs the scheduling pass before freeze. If the user requests a recut, repeat exploration, task cutting and scheduling with the reason recorded.
 
 Write `status: ready` only after the user approves the current breakdown. Once ready, execution may update statuses, commits, notes, review/verification state and verified context. Goals, dependencies, files and model tiers remain frozen until the user approves a recut. A changed requirement returns to `brainstorming`; changed decomposition returns here.
 

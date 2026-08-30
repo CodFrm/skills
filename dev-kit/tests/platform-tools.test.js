@@ -248,9 +248,15 @@ test('the user chooses the plan mode; nothing derives it from a tool list', () =
   const executing = readRoot('dev-kit/skills/executing-plans/SKILL.md')
 
   assert.match(writing, /Ask the user to choose `mode` before exploring/)
-  assert.match(writing, /recommendation first with the slice count it rests on/)
-  // The tier and the batches are what `subagent` buys, so the approval gate shows both.
+  assert.match(writing, /recommendation first with the evidence it rests on/)
+  // Concurrency is one of four things `subagent` buys, so a plan with no concurrent batch is
+  // still a live choice: the gate may not turn a missing batch into a recommendation of `inline`.
+  assert.match(writing, /combined reading exceeds one context/)
+  assert.match(writing, /a tier below the orchestrator's model/)
+  assert.match(writing, /decide this change from returns rather than from source it wrote itself/)
   assert.match(writing, /under `subagent` each task's tier and the projected batches/)
+  assert.match(writing, /projects no concurrent batch, say so with what it still buys here/)
+  assert.doesNotMatch(writing, /no concurrent batch, say so and recommend `inline`/)
   assert.match(writing, /switching to `subagent` needs the scheduling pass before freeze/)
   assert.match(executing, /`mode: null` never had the concurrency scheduling pass, so it runs `inline`; never ask mid-run\./)
 
