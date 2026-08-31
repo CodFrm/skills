@@ -20,7 +20,9 @@ Return three parts:
    the change), `deps` (ordering only), `files` (expected writes, already widened by the inventory
    above), `interfaces` (the cross-task name/signature it consumes).
 
-Cut the largest independently reviewable slice that fits one implementer's context. Never split
+Cut the smallest slice that carries a complete RED → GREEN → REFACTOR round on its own. Fold setup,
+configuration, scaffolding and documentation into the task whose deliverable needs them, and merge
+work that shares an outcome or test setup. Never exceed one implementer's context. Never split
 tests, types or layers into separate tasks, and never make a task per file, function or mechanical
 step.
 

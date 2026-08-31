@@ -59,11 +59,11 @@ verification:
 - `inline`: read the complete spec, affected modules, existing tests and project precedent.
 - `subagent`: serially dispatch one read-only [planning scout](references/planning-scout.md) at `strong`. It returns verified context, a proposed breakdown and the project's shared-write inventory.
 
-Check that every cited `file:line` resolves, every goal is observable, dependencies are acyclic and `files` cover the returned inventory. Re-dispatch once against a named failure; after a second failure, cut tasks in the main session. A `stuck` spec/code contradiction returns to `brainstorming`.
+Check that every cited `file:line` resolves, every goal is observable, dependencies are acyclic and `files` cover the returned inventory. Re-dispatch once against a named failure; after a second failure, cut tasks in the main session. A `stuck` spec/code contradiction returns to `brainstorming`, as does a breakdown whose tasks form independently shippable subsystems.
 
 ## Cut tasks
 
-1. Make each task one observable vertical slice and complete RED → GREEN → REFACTOR round. Prefer the largest independently reviewable slice fitting one context; combine work sharing an outcome and test setup. Never split tests, types or layers into separate tasks.
+1. Make each task one observable vertical slice and complete RED → GREEN → REFACTOR round. Cut the smallest such slice; fold setup, configuration, scaffolding and documentation into the task whose deliverable needs them, and merge work sharing an outcome or test setup. Never split tests, types or layers into separate tasks. Under `subagent`, no task may exceed one implementer's context.
 2. Put every ordering constraint in `deps`; list order has no meaning. Put each cross-task interface or signature on its consuming task.
 3. Set `files` wide enough to include every direct or shared write, including generated output, lockfiles, manifests, fixtures, registries and formatter-owned files.
 4. Under `subagent`, assign each task a tier from what its implementer must read and decide, never a model id: `cheap` for an identified method, `mid` for bounded investigation or coordination, `strong` for design judgement or broad reading, and `null` to inherit. Under `inline`, leave every `model` null.
